@@ -1,0 +1,22 @@
+{
+    "agents": [
+        "claude_code",
+        "copilot",
+        "cursor",
+        "opencode"
+    ],
+    "editors": [
+        "claude_code",
+        "opencode",
+        "phpstorm",
+        "vscode"
+    ],
+    "guidelines": [
+        "laravel/fortify",
+        "inertia-laravel",
+        "inertia-react",
+        "react",
+        "typescript",
+        "tailwindcss"
+    ]
+}

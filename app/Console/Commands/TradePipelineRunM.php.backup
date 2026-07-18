@@ -1,0 +1,313 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Services\Trading\TradeAlertWriterV1;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+
+class TradePipelineRunM extends Command
+{
+    protected $signature = 'trade:pipeline-m
+        {assetType=stock : stock|crypto}
+        {--asOf=now : EST timestamp "YYYY-mm-dd HH:MM:SS" or "now"}
+        {--before=6 : Minutes before asOf to search for entries (live mode)}
+        {--volLookback=20 : 1m volume baseline minutes}
+        {--fill=next_open : Entry fill method: next_open|close}
+        {--stale=5 : Live mode: ignore entries older than N minutes}
+        {--backtest : Run backtest mode}
+        {--rolling-window : Backtest mode with auto-calculated rolling window (5min ago to 6min future)}
+        {--from= : Backtest start date (EST) YYYY-mm-dd}
+        {--to= : Backtest end date (EST) YYYY-mm-dd}
+        {--step=5 : Backtest step minutes}
+        {--timeFrom=09:40:00 : Backtest window start time (EST)}
+        {--timeTo=15:30:00 : Backtest window end time (EST)}
+    ';
+
+    protected $description = 'Pipeline M (v1400.0 Tight Stops Clean Trend): Scan for smooth 2-hour trends with minimal drawdowns -> find tight-stop entries -> store alerts';
+
+    public function handle(TradeAlertWriterV1 $writer): int
+    {
+        set_time_limit(0);
+
+        if (config('database.default') === 'mysql') {
+            \DB::statement('SET SESSION innodb_lock_wait_timeout = 600');
+        }
+
+        // Check if cron is enabled (only applies to scheduled runs)
+        if ($this->option('rolling-window') && $this->option('no-interaction')) {
+            $runCron = config('app.trade_alert_m_run_cron', false);
+            if (! $runCron) {
+                $this->info('Pipeline M: Cron execution disabled (TRADE_ALERT_M_RUN_CRON=false). Exiting.');
+
+                return 0;
+            }
+        }
+
+        $version = 'v1400.0';
+
+        // Instantiate scanner and finder
+        $scanner = app(\App\Services\Trading\FiveMinuteSignalScannerV1400_0::class);
+        $finder = app(\App\Services\Trading\OneMinuteEntryFinderV1400_0::class);
+
+        $assetType = strtolower((string) $this->argument('assetType'));
+        if (! in_array($assetType, ['stock', 'crypto'], true)) {
+            $this->error('assetType must be stock or crypto');
+
+            return 1;
+        }
+
+        if ($this->option('backtest')) {
+            return $this->runBacktest($scanner, $finder, $writer, $assetType, $version);
+        }
+
+        if ($this->option('rolling-window')) {
+            return $this->runRollingWindowBacktest($scanner, $finder, $writer, $assetType, $version);
+        }
+
+        $asOfTsEst = $this->resolveAsOfTsEst((string) $this->option('asOf'));
+
+        // Scan for clean 2-hour trends
+        $signals = $scanner->scan($assetType, $asOfTsEst);
+
+        if (! $signals) {
+            $this->line("Pipeline M ({$version}): No clean trends at {$asOfTsEst}");
+
+            return 0;
+        }
+
+        $staleMinutes = (int) $this->option('stale');
+        $actualNowEst = now('America/New_York')->format('Y-m-d H:i:s');
+        $nowEpoch = strtotime($actualNowEst);
+
+        $alertsWritten = 0;
+        $ranked = [];
+
+        foreach ($signals as $sig) {
+            // Find clean continuation entry
+            $res = $finder->findBestLong(
+                $sig['symbol'],
+                $sig['asset_type'],
+                $sig['signal_ts_est'],
+                $asOfTsEst,
+                (int) $this->option('before'),
+                15, // afterMinutes - look 15min ahead for entries
+                (int) $this->option('volLookback'),
+                15, // pivotLookback
+                (string) $this->option('fill')
+            );
+
+            if (empty($res['ok']) || empty($res['best_entry'])) {
+                continue;
+            }
+
+            $entry = $res['best_entry'];
+            $entryEpoch = strtotime($entry['entry_ts_est']);
+
+            // Live freshness check
+            if ($staleMinutes > 0 && ($nowEpoch - $entryEpoch) > ($staleMinutes * 60)) {
+                continue;
+            }
+
+            // Write alert with pipeline_run = 'M'
+            if ($writer->upsertAlert($sig, $entry, $asOfTsEst, $scanner->getVersion(), 'M')) {
+                $alertsWritten++;
+            }
+
+            $ranked[] = [
+                'symbol' => $sig['symbol'],
+                'trendPct' => $sig['trend_pct'],
+                'maxDD' => $sig['max_drawdown_pct'],
+                'riskScore' => $sig['risk_score'],
+                'entryType' => $entry['type'],
+                'entryTs' => $entry['entry_ts_est'],
+                'entry' => $entry['entry'],
+                'stop' => $entry['stop'],
+                'riskPct' => $entry['risk_pct'] ?? null,
+                'score' => $entry['score'] ?? null,
+            ];
+        }
+
+        usort($ranked, function ($a, $b) {
+            return ($b['riskScore'] ?? 0) <=> ($a['riskScore'] ?? 0);
+        });
+
+        $this->info("Pipeline M ({$version}) | As-of (EST): {$asOfTsEst}");
+        $this->info('Clean Trends: '.count($signals).' | Tight-stop entries: '.count($ranked)." | Alerts written: {$alertsWritten}");
+
+        $this->table(
+            ['Symbol', 'Trend%', 'MaxDD%', 'RiskScore', 'EntryType', 'EntryTs', 'Entry', 'Stop', 'Risk%', 'Score'],
+            array_slice(array_map(fn ($r) => [
+                $r['symbol'],
+                number_format($r['trendPct'], 2),
+                number_format($r['maxDD'], 2),
+                number_format($r['riskScore'], 2),
+                $r['entryType'],
+                $r['entryTs'],
+                $r['entry'],
+                $r['stop'],
+                $r['riskPct'],
+                $r['score'],
+            ], $ranked), 0, 20)
+        );
+
+        return 0;
+    }
+
+    private function resolveAsOfTsEst(string $asOfOpt): string
+    {
+        if (strtolower(trim($asOfOpt)) === 'now') {
+            $estTimezone = new \DateTimeZone('America/New_York');
+            $now = new \DateTime('now', $estTimezone);
+
+            return $now->format('Y-m-d H:i:s');
+        }
+
+        $timestamp = strtotime($asOfOpt);
+        if ($timestamp !== false) {
+            return date('Y-m-d H:i:s', $timestamp);
+        }
+
+        return $asOfOpt;
+    }
+
+    private function runBacktest($scanner, $finder, TradeAlertWriterV1 $writer, string $assetType, string $version): int
+    {
+        $from = (string) $this->option('from');
+        $to = (string) $this->option('to');
+        $stepMinutes = (int) $this->option('step');
+        $timeFrom = (string) $this->option('timeFrom');
+        $timeTo = (string) $this->option('timeTo');
+
+        if (! $from || ! $to) {
+            $this->error('Backtest mode requires --from and --to dates');
+
+            return 1;
+        }
+
+        $this->info("Pipeline M ({$version}) Backtest: {$from} to {$to}, step={$stepMinutes}min, window={$timeFrom}-{$timeTo}");
+
+        $currentDate = $from;
+        $totalAlerts = 0;
+
+        while ($currentDate <= $to) {
+            // Start at timeFrom on this date
+            $currentTs = "{$currentDate} {$timeFrom}";
+            $endTs = "{$currentDate} {$timeTo}";
+
+            $this->line("Processing {$currentDate}...");
+
+            while ($currentTs <= $endTs) {
+                $signals = $scanner->scan(
+                    $assetType,
+                    $currentTs,
+                    (float) $this->option('minChangeFromOpen'),
+                    (float) $this->option('minRelativeVolume'),
+                    (int) $this->option('minAvgVolume'),
+                    (float) $this->option('minPrice'),
+                    (float) $this->option('maxPrice'),
+                    (float) $this->option('minATR'),
+                    (int) $this->option('top')
+                );
+
+                // Check existing momentum movers from earlier in the day for entries
+                $existingMovers = DB::table('momentum_movers')
+                    ->where('trading_date_est', $currentDate)
+                    ->where('scan_time_est', '<=', substr($currentTs, 11))
+                    ->where('breakout_triggered', 0)
+                    ->select('symbol', 'scan_time_est')
+                    ->get();
+
+                foreach ($existingMovers as $mover) {
+                    $signalTime = $currentDate.' '.$mover->scan_time_est;
+
+                    // Only check if enough time has passed (at least 2 minutes for consolidation)
+                    if (strtotime($currentTs) - strtotime($signalTime) < 120) {
+                        continue;
+                    }
+
+                    // Get signal data from momentum_movers first to pass vol_ratio
+                    $sigData = DB::table('momentum_movers')
+                        ->where('symbol', $mover->symbol)
+                        ->where('trading_date_est', $currentDate)
+                        ->where('scan_time_est', $mover->scan_time_est)
+                        ->first();
+
+                    if (! $sigData) {
+                        continue;
+                    }
+
+                    $res = $finder->findBestLong(
+                        $mover->symbol,
+                        $assetType,
+                        $signalTime,
+                        $currentTs,
+                        (int) $this->option('before'),
+                        0,
+                        (int) $this->option('volLookback'),
+                        (int) $this->option('consolidationMinBars'),
+                        (string) $this->option('fill'),
+                        999, // No stale check in backtest
+                        $sigData->relative_volume ?? null // Pass vol_ratio
+                    );
+
+                    if (! empty($res['ok']) && ! empty($res['best_entry'])) {
+                        $sig = [
+                            'symbol' => $sigData->symbol,
+                            'asset_type' => $assetType,
+                            'signal_ts_est' => $currentDate.' '.$sigData->scan_time_est,
+                            'signal_type' => 'MOMENTUM_MOVER',
+                            'price' => $sigData->price,
+                            'meta' => [
+                                'change_from_open' => $sigData->change_from_open,
+                                'relative_volume' => $sigData->relative_volume,
+                                'atr' => $sigData->atr,
+                            ],
+                        ];
+
+                        if ($writer->upsertAlert($sig, $res['best_entry'], $currentTs, $version, 'M')) {
+                            $totalAlerts++;
+
+                            // Mark breakout as triggered
+                            DB::table('momentum_movers')
+                                ->where('symbol', $mover->symbol)
+                                ->where('trading_date_est', $currentDate)
+                                ->where('scan_time_est', $mover->scan_time_est)
+                                ->update(['breakout_triggered' => 1]);
+                        }
+                    }
+                }
+
+                // Advance by step
+                $currentTs = date('Y-m-d H:i:s', strtotime($currentTs) + ($stepMinutes * 60));
+            }
+
+            // Next trading day
+            $currentDate = date('Y-m-d', strtotime($currentDate.' +1 day'));
+        }
+
+        $this->info("Backtest complete! Total alerts written: {$totalAlerts}");
+
+        return 0;
+    }
+
+    private function runRollingWindowBacktest($scanner, $finder, TradeAlertWriterV1 $writer, string $assetType, string $version): int
+    {
+        $est = now('America/New_York');
+        $fromDate = $est->copy()->subMinutes(5)->format('Y-m-d');
+        $toDate = $est->copy()->addMinutes(6)->format('Y-m-d');
+        $timeFrom = $est->copy()->subMinutes(5)->format('H:i:00');
+        $timeTo = $est->copy()->addMinutes(6)->format('H:i:00');
+
+        // Override options with calculated values
+        $this->input->setOption('from', $fromDate);
+        $this->input->setOption('to', $toDate);
+        $this->input->setOption('timeFrom', $timeFrom);
+        $this->input->setOption('timeTo', $timeTo);
+
+        $this->info("Pipeline M ({$version}): Rolling window backtest");
+        $this->info("From: {$fromDate} {$timeFrom} | To: {$toDate} {$timeTo}");
+
+        return $this->runBacktest($scanner, $finder, $writer, $assetType, $version);
+    }
+}

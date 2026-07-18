@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# PHP Script Debug Wrapper
+# This script uses system PHP with Xdebug for debugging standalone PHP files
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if script file provided
+if [ $# -eq 0 ]; then
+    echo -e "${RED}Usage: ./debug-php [script.php] [args...]${NC}"
+    echo -e "${YELLOW}Example: ./debug-php scan_ema_9_10.php stock --asOf=now --period=9${NC}"
+    exit 1
+fi
+
+SCRIPT_FILE="$1"
+shift # Remove first argument (script name) so $@ contains only the script arguments
+
+echo -e "${GREEN}🔧 PHP Script Debug Wrapper${NC}"
+echo -e "${YELLOW}Using system PHP with Xdebug for debugging${NC}"
+
+# Set Xdebug environment variables
+export XDEBUG_SESSION=PHPSTORM
+export XDEBUG_SESSION_START=1
+export XDEBUG_CONFIG="idekey=PHPSTORM"
+
+# Show debug info
+echo -e "${YELLOW}Debug Environment:${NC}"
+echo "  XDEBUG_SESSION: $XDEBUG_SESSION"
+echo "  XDEBUG_CONFIG: $XDEBUG_CONFIG"
+echo "  PHP Binary: /usr/bin/php"
+echo "  Script: $SCRIPT_FILE"
+echo "  Arguments: $@"
+echo ""
+
+# Check if Xdebug is enabled
+if /usr/bin/php -m | grep -q xdebug; then
+    echo -e "${GREEN}✅ Xdebug is loaded and ready${NC}"
+else
+    echo -e "${RED}❌ Xdebug is not loaded${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}💡 Make sure your IDE is listening on port 9003 for Xdebug connections${NC}"
+echo -e "${YELLOW}💡 Set breakpoints in your code before running${NC}"
+echo ""
+echo -e "${GREEN}🚀 Running: /usr/bin/php \"$SCRIPT_FILE\" \"\$@\"${NC}"
+echo ""
+
+# Execute PHP script with system PHP + Xdebug
+exec /usr/bin/php "$SCRIPT_FILE" "$@"

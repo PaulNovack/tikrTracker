@@ -1,0 +1,59 @@
+/.phpunit.cache
+/bootstrap/ssr
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/resources/js/actions
+/resources/js/routes
+/resources/js/wayfinder
+/storage/*.key
+/storage/pail
+/vendor
+.DS_Store
+.phpactor.json
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+/auth.json
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+/legacyApplication
+
+# Python
+.venv/
+/python_ml/venv/
+/python_ml/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# AI tools
+.junie/
+.aider*
+.playwright-mcp
+
+# Logs
+/storage/logs/
+*.log
+*.log.*
+
+# Test output
+results.xml
+output.txt
+
+# Database dumps and backups
+*.sql
+*_dump.sql
+*.dump
+test_data_dump.sql
+
+# Secrets
+.secret

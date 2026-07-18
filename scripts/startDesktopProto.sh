@@ -1,0 +1,1 @@
+exec env LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libfreetype.so.6 ./DeskProto71.AppImage "$@"

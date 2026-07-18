@@ -1,0 +1,11 @@
+python python_ml/v2/train_stock_winner_model_v2.py train \
+    --start="2026-04-01" \
+    --end="2026-07-11" \
+    --limit=30000 \
+    --train-full \
+    --win-threshold 1.5 \
+    --test-size 0.1 \
+    --eval-on-actual-only --split-mode day \
+    --model-out="python_ml/v2/models/winner_model_all_pipelines.joblib" \
+    --actual-fill-weight 20.0 \
+    --top-k=25

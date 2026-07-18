@@ -1,0 +1,15 @@
+name: Boost and Playwright
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: laravel-boost
+    command: php
+    args:
+      - artisan
+      - boost:mcp
+    env: {}
+  - name: playwright
+    command: npx
+    args:
+      - "@playwright/mcp@latest"
+    env: {}

@@ -1,0 +1,14 @@
+alpaca-py
+backtesting
+joblib
+numpy
+pandas
+pandas-ta
+pymysql
+python-dotenv
+redis
+scikit-learn
+scipy
+sqlalchemy
+webull
+xgboost

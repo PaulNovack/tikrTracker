@@ -1,0 +1,188 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+
+class StagnationController extends Controller
+{
+    public function index(): \Inertia\Response
+    {
+        $user = auth()->user();
+
+        // Get stagnation thresholds from .env
+        $shortDays = (int) config('app.stagnation_short_days', 1);
+        $longDays = (int) config('app.stagnation_long_days', 3);
+        $flatThresholdPct = (float) config('app.stagnation_threshold_pct', 1.0);
+        $goodPositivePct = (float) config('app.good_positive_pct', 2.5);
+        $greatPositivePct = (float) config('app.great_positive_pct', 5.0);
+        $negativeAlertPct = (float) config('app.negative_alert_pct', -2.5);
+
+        // Get user's watched assets
+        $watches = $user->watches()
+            ->with('asset')
+            ->get();
+
+        if ($watches->isEmpty()) {
+            return Inertia::render('stagnation', [
+                'stagnationData' => [],
+                'shortDays' => $shortDays,
+                'longDays' => $longDays,
+                'flatThresholdPct' => $flatThresholdPct,
+                'goodPositivePct' => $goodPositivePct,
+                'greatPositivePct' => $greatPositivePct,
+                'negativeAlertPct' => $negativeAlertPct,
+            ]);
+        }
+
+        // Extract symbols to scan
+        $symbols = $watches->map(fn ($w) => $w->asset->symbol)->toArray();
+
+        // Scan for stagnation
+        $stagnationData = $this->scanStagnation($symbols, $shortDays, $longDays, $flatThresholdPct);
+
+        return Inertia::render('stagnation', [
+            'stagnationData' => $stagnationData,
+            'shortDays' => $shortDays,
+            'longDays' => $longDays,
+            'flatThresholdPct' => $flatThresholdPct,
+            'goodPositivePct' => $goodPositivePct,
+            'greatPositivePct' => $greatPositivePct,
+            'negativeAlertPct' => $negativeAlertPct,
+        ]);
+    }
+
+    private function scanStagnation(array $symbols, int $shortDays, int $longDays, float $flatThresholdPct): array
+    {
+        $results = [];
+
+        // Define all lookback periods (in days)
+        $lookbackPeriods = [1, 3, 5, 7, 15, 30];
+
+        foreach ($symbols as $symbol) {
+            // Get latest 5-minute price
+            $latest = DB::table('five_minute_prices')
+                ->where('symbol', $symbol)
+                ->orderBy('ts', 'desc')
+                ->first(['ts', 'price', 'asset_type']);
+
+            if (! $latest) {
+                continue;
+            }
+
+            // Get asset ID for navigation link
+            $asset = DB::table('asset_info')
+                ->where('symbol', $symbol)
+                ->whereNull('deleted_at')
+                ->first(['id']);
+
+            $currentPrice = (float) $latest->price;
+            $latestTs = Carbon::parse($latest->ts);
+            $assetType = $latest->asset_type;
+            $assetId = $asset?->id;
+
+            // Calculate changes for all lookback periods
+            $changes = [];
+            foreach ($lookbackPeriods as $days) {
+                $lookbackMinutes = $days * 24 * 60;
+                $cutoff = $latestTs->copy()->subMinutes($lookbackMinutes);
+                $pastPrice = DB::table('five_minute_prices')
+                    ->where('symbol', $symbol)
+                    ->where('ts', '<=', $cutoff)
+                    ->orderBy('ts', 'desc')
+                    ->first(['price']);
+
+                $change = $this->pctChange($pastPrice ? (float) $pastPrice->price : null, $currentPrice);
+                $changes["{$days}d"] = $change;
+            }
+
+            // Also calculate for the configured short and long periods
+            $shortLookbackMinutes = $shortDays * 24 * 60;
+            $shortCutoff = $latestTs->copy()->subMinutes($shortLookbackMinutes);
+            $shortPrice = DB::table('five_minute_prices')
+                ->where('symbol', $symbol)
+                ->where('ts', '<=', $shortCutoff)
+                ->orderBy('ts', 'desc')
+                ->first(['price']);
+
+            $longLookbackMinutes = $longDays * 24 * 60;
+            $longCutoff = $latestTs->copy()->subMinutes($longLookbackMinutes);
+            $longPrice = DB::table('five_minute_prices')
+                ->where('symbol', $symbol)
+                ->where('ts', '<=', $longCutoff)
+                ->orderBy('ts', 'desc')
+                ->first(['price']);
+
+            $shortChange = $this->pctChange($shortPrice ? (float) $shortPrice->price : null, $currentPrice);
+            $longChange = $this->pctChange($longPrice ? (float) $longPrice->price : null, $currentPrice);
+
+            // Determine stagnation status
+            $isStagnant = false;
+            if ($shortChange !== null && $longChange !== null) {
+                $shortFlat = abs($shortChange) <= $flatThresholdPct;
+                $longFlat = abs($longChange) <= $flatThresholdPct;
+                $isStagnant = $shortFlat && $longFlat;
+            }
+
+            // Determine downtrend status (7d, 5d, 3d, 1d all negative = short-term downtrend)
+            $isDowntrend = false;
+            if ($changes['7d'] !== null && $changes['5d'] !== null && $changes['3d'] !== null && $changes['1d'] !== null) {
+                $isDowntrend = $changes['7d'] < 0 && $changes['5d'] < 0 && $changes['3d'] < 0 && $changes['1d'] < 0;
+            }
+
+            // Get day's range from 5-minute prices for today
+            $today = now()->toDateString();
+            $todayPrices = DB::table('five_minute_prices')
+                ->where('symbol', $symbol)
+                ->whereDate('ts', $today)
+                ->get(['price']);
+
+            $dayHigh = $todayPrices->isNotEmpty() ? $todayPrices->max('price') : null;
+            $dayLow = $todayPrices->isNotEmpty() ? $todayPrices->min('price') : null;
+            $dayRange = null;
+            if ($dayHigh && $dayLow) {
+                $dayRange = (float) (($dayHigh - $dayLow) / $dayLow) * 100;
+            }
+
+            $results[] = [
+                'id' => $assetId,
+                'symbol' => $symbol,
+                'asset_type' => $assetType,
+                'current_price' => $currentPrice,
+                'short_change_pct' => $shortChange,
+                'long_change_pct' => $longChange,
+                'is_stagnant' => $isStagnant,
+                'is_downtrend' => $isDowntrend,
+                'day_range_pct' => $dayRange,
+                'latest_ts' => $latestTs->toDateTimeString(),
+                '1d_change_pct' => $changes['1d'],
+                '3d_change_pct' => $changes['3d'],
+                '5d_change_pct' => $changes['5d'],
+                '7d_change_pct' => $changes['7d'],
+                '15d_change_pct' => $changes['15d'],
+                '30d_change_pct' => $changes['30d'],
+            ];
+        }
+
+        // Sort by 7d performance (best to worst: highest positive gains first)
+        usort($results, function ($a, $b) {
+            $aChange = $a['7d_change_pct'] ?? 0;
+            $bChange = $b['7d_change_pct'] ?? 0;
+
+            return $bChange <=> $aChange;
+        });
+
+        return $results;
+    }
+
+    private function pctChange(?float $past, float $current): ?float
+    {
+        if ($past === null || $past == 0.0) {
+            return null;
+        }
+
+        return (($current - $past) / $past) * 100.0;
+    }
+}

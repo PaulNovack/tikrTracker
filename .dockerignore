@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Docker (keep docker/ config files needed for build, exclude compose files)
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# Dependencies (built fresh in container)
+vendor/
+node_modules/
+
+# Python venv (built fresh in container)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts
+public/build/
+public/hot/
+
+# Storage (mounted as volume)
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+!storage/logs/.gitkeep
+!storage/framework/cache/.gitkeep
+!storage/framework/sessions/.gitkeep
+!storage/framework/views/.gitkeep
+!storage/framework/testing/.gitkeep
+
+# Env files (use docker-compose env vars)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in image)
+*.md
+README*
+LICENSE*
+
+# Tests
+tests/
+phpunit.xml
+results.xml
+
+# Debug scripts
+debug-*

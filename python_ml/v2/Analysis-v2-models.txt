@@ -1,0 +1,242 @@
+J Not ready for real use not a good predictor
+
+Area	Result	Meaning
+Overall test AUC	0.630	Weak/moderate ranking ability on the mixed evaluation set
+Backtest-only AUC	0.638	It can somewhat rank simulated trades
+Backtest-only Precision@10	0.300	Top 10 simulated picks hit 2% about 30% of the time
+Actual-fill AUC	0.196	Very bad on real fills, possibly inverted/noisy
+Actual-fill Precision@10	0.000	Its top real-fill predictions did not hit the 2% target
+Actual-fill win rate	4.17%	Only 2 out of 48 actual-fill test rows hit 2%
+
+---------------------------------------------------------------------------------------------------
+
+L Not ready for real trading not a good predictor
+
+Metric	Pipeline J	Pipeline L
+Test AUC	0.630	0.639
+Precision@10	0.300	0.500
+High-prob bucket avg P&L	decent	much better
+Actual-fill test rows	48	29
+Actual-fill winners	2	1
+Actual-fill reliability	bad	still unproven
+
+
+Backtest/test ranking quality:     B-
+Actual-fill proof:                 D / incomplete
+Live-trading readiness:            Not fully ready
+Paper-trading usefulness:          Yes
+Better than Pipeline J:            Yes
+
+---------------------------------------------------------------------------------------------------
+
+N is ok for live predictions
+
+Metric	Result	Meaning
+Test AUC	0.762	Good ranking ability
+Precision@10	0.900	9 of top 10 hit 2%
+Test win rate	19.3%	Base 2% win rate is much higher than J/L
+Class 1 precision	41.0%	Much better than Pipeline J/L
+Class 1 recall	58.5%	It catches a good chunk of the winners
+
+0.7 - 0.8 bucket: 57 rows, 38.6% win rate, avg pnl +1.78%
+0.8 - 0.9 bucket: 66 rows, 60.6% win rate, avg pnl +3.82%
+0.9 - 1.0 bucket: 25 rows, 92.0% win rate, avg pnl +6.66%
+
+
+---------------------------------------------------------------------------------------------------
+
+F is so so
+
+Backtest/test ranking quality:     B / B+
+Actual-fill proof:                 F / too little data
+Live-trading readiness:            Not proven
+Paper-trading usefulness:          Yes
+Use before Pipeline J/L:           Yes
+Use before Pipeline N:             No
+
+Metric	Result	Meaning
+Test AUC	0.680	Decent ranking ability
+Precision@10	0.800	8 of top 10 hit the 2% target
+Test win rate	12.9%	Base 2% winner rate
+Class 1 precision	26.9%	Better than J/L, worse than N
+Class 1 recall	39.6%	Finds some winners, but not all
+
+Rows: 54
+Approx 2% winners: 27
+Win rate: about 50%
+Average P&L: about +3.47%
+
+
+---------------------------------------------------------------------------------------------------
+
+B weak at 2% winners
+
+1. Pipeline N  — strongest
+2. Pipeline F  — good
+3. Pipeline L  — decent
+4. Pipeline B  — high AUC, weak practical results
+5. Pipeline J  — weakest actual-fill behavior
+
+Model	Precision@10
+Pipeline N	0.900
+Pipeline F	0.800
+Pipeline L	0.500
+Pipeline B	0.300
+Pipeline J	0.300
+
+Rows: 23
+2% winners: about 5
+Win rate: about 21.7%
+Average P&L: about +0.65%
+
+precision = 0.1176
+
+So when the model predicts a winner at the default threshold, only about 11.8% are actually 2% winners.
+
+My practical recommendation
+
+I would not use Pipeline B as a primary live model.
+
+---------------------------------------------------------------------------------------------------
+
+E Strong usable
+
+Pipeline E: Multi-Day Continuation
+Test AUC: 0.692
+Precision@10: 0.800
+Test win rate: 19.9%
+Top 10: 8 winners / 10
+Actual-fill proof: almost none
+
+8 out of 10 hit the 2% target
+Average P&L ≈ +4.06%
+
+1. Pipeline N  — best overall backtest/test model
+2. Pipeline E  — very strong, probably second best
+3. Pipeline F  — good, close to E
+4. Pipeline L  — decent
+5. Pipeline B  — high AUC but weak top-pick quality
+6. Pipeline J  — weakest
+
+Recommended use
+
+For paper trading:
+
+pipeline = E
+win_prob >= 0.70
+top 1-3 per day
+
+Bottom line
+
+Pipeline E is one of your best candidates.
+
+---------------------------------------------------------------------------------------------------
+
+K usable
+
+Quick grade
+Pipeline K: Scarcity Leaders
+Backtest/test quality:       A-
+Actual-fill quality:         B- / promising
+Paper-trading usefulness:    High
+Live-readiness:              Best candidate so far, but still use small size first
+What looks strong
+
+The overall test metrics are excellent compared to most of the others:
+
+Metric	Pipeline K
+Test AUC	0.803
+Precision@10	0.800
+Test win rate	12.7%
+Class 1 precision	31.1%
+Class 1 recall	62.9%
+Actual-fill AUC	0.713
+Actual-fill Precision@10	0.200
+Actual-fill rows	85
+
+For win_prob >= 0.70:
+
+Rows: 146
+Approx 2% winners: 81
+Win rate: about 55.5%
+Avg P&L: about +2.17%
+
+For win_prob >= 0.80:
+
+Rows: 41
+Approx 2% winners: 28
+Win rate: about 68.3%
+Avg P&L: about +2.53%
+
+That is very strong.
+
+1. Pipeline K  — best balance of backtest + actual-fill evidence
+2. Pipeline N  — strongest backtest, but almost no live-fill proof
+3. Pipeline E  — strong backtest, little live-fill proof
+4. Pipeline F  — good backtest, weak live-fill proof
+5. Pipeline L  — decent
+6. Pipeline B  — high AUC but weak top picks
+7. Pipeline J  — weakest
+
+Recommended use
+
+For paper or small live testing:
+
+---------------------------------------------------------------------------------------------------
+
+H-I-D model usable probably
+
+This H+I+D combined model is decent, but it is not as strong as Pipeline K, N, or E.
+
+It looks usable as a secondary scoring model, especially for filtering H/I/D alerts, but I would not make it your top live model.
+
+Quick grade
+Pipeline H+I+D Combined:
+Backtest/test quality:       B-
+Actual-fill quality:         C / weak but not terrible
+Paper-trading usefulness:    Moderate to good
+Live-readiness:              Small-size only
+Best use:                    Filter H/I/D alerts, not primary system
+
+Key metrics
+Metric	Result	Meaning
+Test AUC	0.685	Decent, but not great
+Precision@10	0.600	6 of top 10 hit 2%
+Test win rate	14.9%	Base 2% winner rate
+Actual-fill AUC	0.626	Some real-fill ranking ability
+Actual Precision@10	0.100	Weak on actual top picks
+Actual rows	47	Still small sample
+Actual wins	6	Better than some models, but still thin
+
+Top 10 had:
+
+6 out of 10 hit 2%
+10 out of 10 were profitable
+Average P&L ≈ +3.56%
+
+Compared to your other models
+
+Updated ranking:
+
+1. Pipeline K      — best balance of backtest + actual-fill evidence
+2. Pipeline N      — strongest backtest/test model, little live-fill proof
+3. Pipeline E      — strong backtest/test model
+4. Pipeline F      — good, especially high-confidence morning momentum
+5. H+I+D Combined  — decent secondary model
+6. Pipeline L      — decent but weaker
+7. Pipeline B      — high AUC, weak top-pick usefulness
+8. Pipeline J      — weakest
+Recommended threshold
+
+For paper trading:
+
+pipeline in H/I/D
+win_prob >= 0.70
+top 1-3 per day
+
+For small live testing:
+
+pipeline in H/I/D
+win_prob >= 0.80
+top 1 only
+small size
