@@ -452,6 +452,7 @@ export function AppSidebar() {
                     href: '/ta-lib-analysis/valid-entry',
                     icon: Clock,
                     disabled: isGuest,
+                    openInNewTab: true,
                 },
             ],
         },

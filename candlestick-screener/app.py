@@ -1,3 +1,7 @@
+import logging
+import os
+from datetime import datetime
+
 import pandas as pd
 import talib
 from flask import Flask, request, render_template, jsonify
@@ -8,6 +12,21 @@ from redis_cache import cached
 
 app = Flask(__name__)
 engine = get_engine()
+
+# ── Logging ──
+log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'storage', 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f'flask-screener-{datetime.now().strftime("%Y-%m-%d")}.log')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger(__name__)
 
 MAX_SYMBOLS = 750
 
@@ -57,6 +76,16 @@ def scan_symbols(pattern: str, limit: int, data_fn: callable) -> list[dict]:
     results = []
     symbols = get_all_symbols()[:limit]
 
+    # Pre-fetch asset_id mapping for all symbols
+    asset_ids = {}
+    if symbols:
+        quoted_ids = ','.join(f"'{s}'" for s in symbols)
+        id_df = pd.read_sql(
+            f"SELECT symbol, id FROM asset_info WHERE symbol IN ({quoted_ids})",
+            engine,
+        )
+        asset_ids = dict(zip(id_df['symbol'], id_df['id']))
+
     for symbol in symbols:
         try:
             df = data_fn(symbol)
@@ -72,6 +101,7 @@ def scan_symbols(pattern: str, limit: int, data_fn: callable) -> list[dict]:
             if last != 0:
                 results.append({
                     'symbol': symbol,
+                    'asset_id': asset_ids.get(symbol),
                     'signal': 'bullish' if last > 0 else 'bearish',
                     'signal_value': last,
                     'last_date': str(df['date'].iloc[-1]),
@@ -81,7 +111,7 @@ def scan_symbols(pattern: str, limit: int, data_fn: callable) -> list[dict]:
                         .to_dict(orient='records'),
                 })
         except Exception as e:
-            print(f'failed on symbol: {symbol}', e)
+            logger.error(f'failed on symbol: {symbol} - {e}')
 
     return results
 
@@ -136,24 +166,38 @@ def api_scan_valid_entry():
     symbols = get_all_symbols()[:limit]
     quoted = ','.join(f"'{s}'" for s in symbols)
 
-    # Single query: get the latest 5-minute bar and the latest 1-minute bar per symbol
-    # using a join on latest timestamps — much faster than window functions
-    sql = (
-        "SELECT "
-        "  f.symbol, "
-        "  f.ts AS ts_5m, f.open AS open_5m, f.high AS high_5m, f.low AS low_5m, "
-        "  f.price AS close_5m, f.volume AS vol_5m, "
-        "  o.ts AS ts_1m, o.open AS open_1m, o.high AS high_1m, o.low AS low_1m, "
-        "  o.price AS close_1m, o.volume AS vol_1m, "
-        "  o.vwap, o.ema9, o.ema21 "
+    if not symbols:
+        return jsonify({'total_scanned': 0, 'hits': 0, 'results': []})
+
+    # Pre-fetch asset_id mapping
+    asset_ids = {}
+    id_df = pd.read_sql(
+        f"SELECT symbol, id FROM asset_info WHERE symbol IN ({quoted})",
+        engine,
+    )
+    asset_ids = dict(zip(id_df['symbol'], id_df['id']))
+
+    # Get the latest 5-minute bar per symbol and the latest 1-minute bar per symbol
+    # using separate, efficient MAX + JOIN queries — avoids expensive Cartesian product
+    sql_5m = (
+        "SELECT f.symbol, f.ts AS ts_5m, f.open AS open_5m, f.high AS high_5m, "
+        "  f.low AS low_5m, f.price AS close_5m, f.volume AS vol_5m "
         "FROM five_minute_prices f "
-        "JOIN one_minute_prices_full o ON o.symbol = f.symbol "
         "JOIN ("
         "  SELECT symbol, MAX(ts) AS max_ts "
         "  FROM five_minute_prices "
         f"  WHERE symbol IN ({quoted}) "
         "  GROUP BY symbol"
-        ") f_max ON f.symbol = f_max.symbol AND f.ts = f_max.max_ts "
+        ") f_max ON f.symbol = f_max.symbol AND f.ts = f_max.max_ts"
+    )
+    df_5m_latest = pd.read_sql(sql_5m, engine)
+    df_5m_latest = df_5m_latest.set_index('symbol')
+
+    sql_1m = (
+        "SELECT o.symbol, o.ts AS ts_1m, o.open AS open_1m, o.high AS high_1m, "
+        "  o.low AS low_1m, o.price AS close_1m, o.volume AS vol_1m, "
+        "  o.vwap, o.ema9, o.ema21 "
+        "FROM one_minute_prices_full o "
         "JOIN ("
         "  SELECT symbol, MAX(ts) AS max_ts "
         "  FROM one_minute_prices_full "
@@ -161,13 +205,18 @@ def api_scan_valid_entry():
         "  GROUP BY symbol"
         ") o_max ON o.symbol = o_max.symbol AND o.ts = o_max.max_ts"
     )
-    df_latest = pd.read_sql(sql, engine)
+    df_1m_latest = pd.read_sql(sql_1m, engine)
+    df_1m_latest = df_1m_latest.set_index('symbol')
+
+    # Find symbols that have both 5m and 1m data
+    common_symbols = df_5m_latest.index.intersection(df_1m_latest.index)
 
     results = []
 
-    for _, row in df_latest.iterrows():
-        symbol = row['symbol']
+    for symbol in common_symbols:
         try:
+            row_5m = df_5m_latest.loc[symbol]
+            row_1m = df_1m_latest.loc[symbol]
             # Step 1: Get context bars — 60 five-minute bars before the latest
             df_5m = pd.read_sql(
                 "SELECT open, high, low, price AS close, volume, "
@@ -176,7 +225,7 @@ def api_scan_valid_entry():
                 "WHERE symbol = %(symbol)s AND ts <= %(max_ts)s "
                 "ORDER BY ts DESC LIMIT 60",
                 engine,
-                params={'symbol': symbol, 'max_ts': str(row['ts_5m'])},
+                params={'symbol': symbol, 'max_ts': str(row_5m['ts_5m'])},
             )
             if len(df_5m) < 10:
                 continue
@@ -199,7 +248,7 @@ def api_scan_valid_entry():
                 "WHERE symbol = %(symbol)s AND ts <= %(max_ts)s "
                 "ORDER BY ts DESC LIMIT 21",
                 engine,
-                params={'symbol': symbol, 'max_ts': str(row['ts_1m'])},
+                params={'symbol': symbol, 'max_ts': str(row_1m['ts_1m'])},
             )
             if len(df_1m) < 21:
                 continue
@@ -219,12 +268,13 @@ def api_scan_valid_entry():
                     and (ema9_val == 0 or ema9_val > ema21_val)):
                 results.append({
                     'symbol': symbol,
+                    'asset_id': asset_ids.get(symbol),
                     'signal': 'bullish',
                     'signal_value': 100,
-                    'last_date': str(row['ts_5m']),
+                    'last_date': str(row_5m['ts_5m']),
                     'engulfing_high': engulfing_high,
-                    'engulfing_low': float(row['low_5m']),
-                    'engulfing_close': float(row['close_5m']),
+                    'engulfing_low': float(row_5m['low_5m']),
+                    'engulfing_close': float(row_5m['close_5m']),
                     'volume_ratio': round(vol_ratio, 2),
                     'entry_price': close_val,
                     'ohlc': df_5m[['date', 'open', 'high', 'low', 'close', 'volume']]
@@ -233,7 +283,7 @@ def api_scan_valid_entry():
                         .to_dict(orient='records'),
                 })
         except Exception as e:
-            print(f'valid-entry failed on {symbol}: {e}')
+            logger.error(f'valid-entry failed on {symbol}: {e}')
 
     return jsonify({
         'total_scanned': len(symbols),
@@ -276,7 +326,7 @@ def index():
                 else:
                     stocks[symbol][pattern] = None
             except Exception as e:
-                print(f'failed on symbol: {symbol}', e)
+                logger.error(f'failed on symbol: {symbol} - {e}')
 
     return render_template(
         'index.html',

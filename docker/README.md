@@ -22,6 +22,16 @@ docker compose -f docker/docker-compose.yml down
 
 # Stop AND delete all persistent volumes (fresh start from scratch)
 docker compose -f docker/docker-compose.yml down -v
+
+# Purge everything from docker
+docker stop $(docker ps -aq) 2>/dev/null
+docker rm -f $(docker ps -aq) 2>/dev/null
+docker volume rm $(docker volume ls -q) 2>/dev/null
+docker image rm -f $(docker image ls -aq) 2>/dev/null
+docker builder prune -a -f
+docker network prune -f
+
+
 ```
 
 ## Port Map

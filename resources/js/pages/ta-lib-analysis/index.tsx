@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { show as showAsset } from '@/routes/asset-info';
 import { BarChart3, CandlestickChart, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -29,6 +30,7 @@ interface OHLCBar {
 
 interface ScanResult {
     symbol: string;
+    asset_id: number;
     signal: 'bullish' | 'bearish';
     signal_value: number;
     last_date: string;
@@ -185,7 +187,16 @@ export default function TaLibAnalysis({ patterns, selectedPattern, results, limi
                             <Card key={r.symbol} className={r.signal === 'bullish' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'}>
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between">
-                                        <CardTitle className="text-lg">{r.symbol}</CardTitle>
+                                        <CardTitle className="text-lg">
+                                            <a
+                                                href={showAsset.url(r.asset_id)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 hover:underline font-bold dark:text-blue-400 dark:hover:text-blue-300"
+                                            >
+                                                {r.symbol}
+                                            </a>
+                                        </CardTitle>
                                         <Badge variant={r.signal === 'bullish' ? 'default' : 'destructive'}
                                                className={r.signal === 'bullish' ? 'bg-green-600' : ''}>
                                             {r.signal === 'bullish' ? (

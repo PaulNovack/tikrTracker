@@ -2,6 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { show as showAsset } from '@/routes/asset-info';
 import { BarChart3, Loader2, TrendingUp, Zap } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -27,6 +28,7 @@ interface OHLCBar {
 
 interface ValidEntryResult {
     symbol: string;
+    asset_id: number;
     signal: string;
     signal_value: number;
     last_date: string;
@@ -164,7 +166,16 @@ export default function ValidEntry({ results, limit, error }: Props) {
                             <Card key={r.symbol} className="border-l-4 border-l-green-500">
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between">
-                                        <CardTitle className="text-lg">{r.symbol}</CardTitle>
+                                        <CardTitle className="text-lg">
+                                            <a
+                                                href={showAsset.url(r.asset_id)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 hover:underline font-bold dark:text-blue-400 dark:hover:text-blue-300"
+                                            >
+                                                {r.symbol}
+                                            </a>
+                                        </CardTitle>
                                         <Badge className="bg-green-600">
                                             <TrendingUp className="mr-1 h-3 w-3" />
                                             Entry ${r.entry_price.toFixed(2)}
