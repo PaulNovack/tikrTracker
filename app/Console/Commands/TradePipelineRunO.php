@@ -283,9 +283,31 @@ class TradePipelineRunO extends Command
             return 0;
         }
 
+        // Staleness gate: reject signals older than max age from NOW.
+        // Rolling window is a realtime comparison tool — it should never
+        // create alerts from hours/days ago. Regular --backtest mode
+        // remains unrestricted for historical scanning.
+        $staleMinutes = max(15, TradingSettingService::getPipelineMaxAgeMinutes('o'));
+        $nowEpoch = strtotime($nowEst->format('Y-m-d H:i:s'));
+
         $alertsWritten = 0;
+        $staleRejected = 0;
 
         foreach ($signals as $sig) {
+            $signalEpoch = strtotime($sig['signal_ts_est']);
+
+            if ($staleMinutes > 0 && ($nowEpoch - $signalEpoch) > ($staleMinutes * 60)) {
+                $staleRejected++;
+                \Log::channel('stale-alerts')->warning('[Pipeline O RollingWindow] Rejecting stale signal', [
+                    'symbol' => $sig['symbol'] ?? 'unknown',
+                    'signal_ts_est' => $sig['signal_ts_est'],
+                    'signal_age_minutes' => round(($nowEpoch - $signalEpoch) / 60, 1),
+                    'max_age_minutes' => $staleMinutes,
+                ]);
+
+                continue;
+            }
+
             $res = $finder->findBestLong(
                 $sig['symbol'],
                 $sig['asset_type'],
@@ -306,7 +328,7 @@ class TradePipelineRunO extends Command
             }
         }
 
-        $this->line("Pipeline O ({$version}): Rolling window wrote {$alertsWritten} alerts from ".count($signals).' signals');
+        $this->line("Pipeline O ({$version}): Rolling window wrote {$alertsWritten} alerts from ".count($signals).' signals'.($staleRejected > 0 ? ", rejected {$staleRejected} stale" : ''));
 
         return 0;
     }
