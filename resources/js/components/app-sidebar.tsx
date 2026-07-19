@@ -447,13 +447,6 @@ export function AppSidebar() {
                     icon: Clock,
                     disabled: isGuest,
                 },
-                {
-                    title: 'Valid Entry',
-                    href: '/ta-lib-analysis/valid-entry',
-                    icon: Clock,
-                    disabled: isGuest,
-                    openInNewTab: true,
-                },
             ],
         },
         {

@@ -212,9 +212,6 @@ Route::middleware($middleware)->group(function () {
         // 5-Minute Analysis route
         Route::get('ta-lib-analysis/five-minute', [\App\Http\Controllers\CandlestickScreenerController::class, 'fiveMinute'])->name('ta-lib-analysis.five-minute');
 
-        // 1-Minute Analysis route → Valid Entry
-        Route::get('ta-lib-analysis/valid-entry', [\App\Http\Controllers\CandlestickScreenerController::class, 'validEntry'])->name('ta-lib-analysis.valid-entry');
-
         // Moving stocks route
         Route::get('rising', [\App\Http\Controllers\RisingController::class, 'index'])->name('rising.index');
 

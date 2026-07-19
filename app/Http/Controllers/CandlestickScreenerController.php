@@ -108,35 +108,4 @@ class CandlestickScreenerController extends Controller
             'error' => $error,
         ]);
     }
-
-    /**
-     * Display the valid entry screener (5m engulfing + 1m confirmation).
-     */
-    public function validEntry(Request $request): Response
-    {
-        $limit = (int) $request->get('limit', 750);
-
-        $results = null;
-        $error = null;
-
-        try {
-            $scanResponse = Http::timeout(120)->get("{$this->flaskBaseUrl}/api/scan-valid-entry", [
-                'limit' => $limit,
-            ]);
-
-            if ($scanResponse->successful()) {
-                $results = $scanResponse->json();
-            } else {
-                $error = $scanResponse->json()['error'] ?? 'Scan failed';
-            }
-        } catch (\Exception $e) {
-            $error = 'Flask screener connection failed. Is it running?';
-        }
-
-        return Inertia::render('ta-lib-analysis/valid-entry', [
-            'results' => $results,
-            'limit' => $limit,
-            'error' => $error,
-        ]);
-    }
 }

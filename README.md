@@ -165,6 +165,11 @@ Built-in observability tools track pipeline execution, queue health, Redis keys,
 - [Sentiments](http://127.0.0.1:8080/sentiments) — Market sentiment entries by date with confidence scores and linked assets
 - [Upward Pressure](http://127.0.0.1:8080/analysis/upward-pressure) — Stocks ranked by upward buying pressure using composite body/volume/momentum scoring
 
+### TA Lab Analysis
+- [Daily](http://127.0.0.1:8080/ta-lib-analysis) — Scan for candlestick patterns using TA-Lib across the daily trading universe
+- [5 Minute](http://127.0.0.1:8080/ta-lib-analysis/five-minute) — Scan for candlestick patterns on 5-minute bars across the last 24 hours
+- [Valid Entry](http://127.0.0.1:8080/ta-lib-analysis/valid-entry) — 5-minute bullish engulfing confirmed by 1-minute breakout, VWAP, EMA crossover, and volume
+
 ### Price Data
 - [One Minute](http://127.0.0.1:8080/price-data/one-minute) — Latest one-minute OHLC bar data with symbol, volume, and timestamps
 - [Five Minute](http://127.0.0.1:8080/price-data/five-minute) — Latest five-minute OHLC bar data with symbol, volume, and timestamps
