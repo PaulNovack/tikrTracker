@@ -113,7 +113,7 @@ class AlpacaPythonService
      * @param  string|null  $endDate  Filter orders before this date (YYYY-MM-DD)
      * @return array{success: bool, output: string, error: string|null}
      */
-    public function getOrders(?string $status = null, int $limit = 100, ?string $startDate = null, ?string $endDate = null): array
+    public function getOrders(?string $status = null, int $limit = 500, ?string $startDate = null, ?string $endDate = null): array
     {
         $args = [
             '--limit', (string) $limit,

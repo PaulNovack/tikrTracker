@@ -22,7 +22,7 @@ class AlpacaOrdersApiController extends Controller
     {
         $today = Carbon::today('America/New_York')->toDateString();
         $status = $request->get('status', 'all');
-        $limit = (int) $request->get('limit', 100);
+        $limit = min(500, (int) $request->get('limit', 500));
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
         $onlyOwned = $request->boolean('only_owned');

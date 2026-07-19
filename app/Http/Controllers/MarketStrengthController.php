@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MarketMover;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -12,12 +13,13 @@ class MarketStrengthController extends Controller
     public function index(Request $request)
     {
         $days = $request->integer('days', 30);
-        $days = min(365, max(1, $days)); // Limit between 1-365 days
+        $days = min(365, max(1, $days));
 
         $startDate = now('America/New_York')->subDays($days)->format('Y-m-d');
         $endDate = now('America/New_York')->format('Y-m-d');
+        $todayEst = now('America/New_York')->format('Y-m-d');
 
-        $strengthData = $this->getMarketStrengthData($startDate, $endDate);
+        $strengthData = $this->getCachedMarketStrengthData($startDate, $endDate, $todayEst);
         $avgStrength = $strengthData->avg('strength');
 
         return Inertia::render('market-strength/index', [
@@ -36,8 +38,9 @@ class MarketStrengthController extends Controller
 
         $startDate = now('America/New_York')->subDays($days)->format('Y-m-d');
         $endDate = now('America/New_York')->format('Y-m-d');
+        $todayEst = now('America/New_York')->format('Y-m-d');
 
-        $strengthData = $this->getMarketStrengthData($startDate, $endDate);
+        $strengthData = $this->getCachedMarketStrengthData($startDate, $endDate, $todayEst);
 
         $filename = 'market-strength-'.$startDate.'-to-'.$endDate.'.csv';
 
@@ -75,21 +78,67 @@ class MarketStrengthController extends Controller
         ]);
     }
 
-    private function getMarketStrengthData(string $startDate, string $endDate)
+    private function getCachedMarketStrengthData(string $startDate, string $endDate, string $todayEst)
     {
+        $cached = MarketMover::whereBetween('trading_date', [$startDate, $endDate])
+            ->orderBy('trading_date', 'desc')
+            ->get()
+            ->map(fn (MarketMover $row) => [
+                'date' => $row->trading_date->format('Y-m-d'),
+                'bars_4pct_plus' => $row->bars_4pct_plus,
+                'bars_5pct_plus' => $row->bars_5pct_plus,
+                'bars_10pct_plus' => $row->bars_10pct_plus,
+                'max_gain' => (float) $row->max_gain,
+                'strength' => $row->strength,
+                'label' => $row->label,
+            ]);
+
+        $cachedDates = $cached->pluck('date')->toArray();
+
+        // If today is not yet cached, compute and cache it
+        if ($startDate <= $todayEst && $endDate >= $todayEst && ! in_array($todayEst, $cachedDates)) {
+            $todayData = $this->getMarketStrengthData($todayEst, $todayEst, useFullTables: false);
+
+            if ($todayData->isNotEmpty()) {
+                $todayRow = $todayData->first();
+                MarketMover::updateOrCreate(
+                    ['trading_date' => $todayEst],
+                    [
+                        'bars_4pct_plus' => $todayRow['bars_4pct_plus'],
+                        'bars_5pct_plus' => $todayRow['bars_5pct_plus'],
+                        'bars_10pct_plus' => $todayRow['bars_10pct_plus'],
+                        'max_gain' => $todayRow['max_gain'],
+                        'strength' => $todayRow['strength'],
+                        'label' => $todayRow['label'],
+                        'movers' => [],
+                    ]
+                );
+
+                $cached->prepend($todayRow);
+            }
+        }
+
+        return $cached;
+    }
+
+    private function getMarketStrengthData(string $startDate, string $endDate, bool $useFullTables = false)
+    {
+        $todayEst = now('America/New_York')->format('Y-m-d');
+        $fiveMinuteTable = $useFullTables ? 'five_minute_prices_full' : 'five_minute_prices';
+
         // Query market strength data
-        $results = DB::select('
+        $results = DB::select("
             SELECT 
                 trading_date_est,
                 COUNT(CASE WHEN ((price - open) / open) * 100 >= 10 THEN 1 END) as bars_10pct_plus,
                 COUNT(CASE WHEN ((price - open) / open) * 100 >= 5 THEN 1 END) as bars_5pct_plus,
                 COUNT(CASE WHEN ((price - open) / open) * 100 >= 4 THEN 1 END) as bars_4pct_plus,
                 ROUND(MAX(((price - open) / open) * 100), 2) as max_gain
-            FROM five_minute_prices
+            FROM {$fiveMinuteTable}
             WHERE open > 0 AND trading_date_est >= ? AND trading_date_est <= ?
             GROUP BY trading_date_est
             ORDER BY trading_date_est DESC
-        ', [$startDate, $endDate]);
+        ", [$startDate, $endDate]);
 
         // Calculate strength scores (0-100 scale, 200 bars = 100%)
         $maxBars = 200;

@@ -473,6 +473,15 @@ class SyncAlpacaStopLossOrders extends Command
                 $alpacaSellOrderId = $foundSell['id'] ?? ('reconciled-'.$buyOrder->alpaca_order_id);
                 $alpacaClientOrderId = $foundSell['client_order_id'] ?? null;
                 $matchedQty = min($sellQty, $buyQty);
+
+                // Use firstOrCreate to avoid duplicate entry errors on retries
+                $existingOrder = AlpacaOrder::where('alpaca_order_id', $alpacaSellOrderId)->first();
+                if ($existingOrder) {
+                    $this->warn("  ⚠ Sell order {$alpacaSellOrderId} already recorded — skipping");
+
+                    continue;
+                }
+
                 AlpacaOrder::create([
                     'alpaca_order_id' => $alpacaSellOrderId,
                     'client_order_id' => $alpacaClientOrderId,

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\MarketMover;
+use App\Models\MarketSchedule;
 use App\Services\MarketMoversService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,6 +22,9 @@ class MarketMoversController extends Controller
 
         $startDate = now('America/New_York')->subDays($days)->format('Y-m-d');
         $endDate = now('America/New_York')->format('Y-m-d');
+
+        // Force-refresh the most recent trading day to ensure data is up-to-date
+        $this->refreshLatestTradingDay();
 
         $moversData = MarketMover::whereBetween('trading_date', [$startDate, $endDate])
             ->orderBy('trading_date', 'desc')
@@ -80,6 +85,68 @@ class MarketMoversController extends Controller
             'endDate' => $endDate,
             'assetIds' => $assetIds,
         ]);
+    }
+
+    /**
+     * Force-refresh the most recent trading day's market movers data
+     * to ensure it always reflects the latest available intraday data.
+     */
+    private function refreshLatestTradingDay(): void
+    {
+        $latestTradingDate = $this->getLatestTradingDate();
+
+        if ($latestTradingDate === null) {
+            return;
+        }
+
+        $existing = MarketMover::where('trading_date', $latestTradingDate)->first();
+
+        // Skip if data already exists and was recently updated (within the last hour)
+        if ($existing && $existing->updated_at && $existing->updated_at->gt(now()->subHour())) {
+            return;
+        }
+
+        $data = $this->service->calculateForDate($latestTradingDate);
+
+        if (empty($data)) {
+            return;
+        }
+
+        MarketMover::updateOrCreate(
+            ['trading_date' => $data['date']],
+            [
+                'bars_4pct_plus' => $data['bars_4pct_plus'],
+                'bars_5pct_plus' => $data['bars_5pct_plus'],
+                'bars_10pct_plus' => $data['bars_10pct_plus'],
+                'max_gain' => $data['max_gain'],
+                'strength' => $data['strength'],
+                'label' => $data['label'],
+                'movers' => $data['movers'],
+            ]
+        );
+    }
+
+    /**
+     * Get the latest trading date: today if it's a trading day,
+     * otherwise the most recent weekday that isn't a holiday.
+     */
+    private function getLatestTradingDate(): ?string
+    {
+        $date = Carbon::now('America/New_York');
+
+        for ($i = 0; $i < 14; $i++) {
+            if ($date->isWeekday()
+                && ! MarketSchedule::where('date', $date->format('Y-m-d'))
+                    ->where('market_type', 'stock')
+                    ->where('status', 'holiday')
+                    ->exists()
+            ) {
+                return $date->format('Y-m-d');
+            }
+            $date = $date->subDay();
+        }
+
+        return null;
     }
 
     public function export(Request $request): StreamedResponse

@@ -72,7 +72,7 @@ export default function AlpacaOrdersApi({
     ];
     const [startDate, setStartDate] = useState(filters.start_date || '');
     const [endDate, setEndDate] = useState(filters.end_date || '');
-    const [onlyOwned, setOnlyOwned] = useState(filters.only_owned || false);
+    const [limit, setLimit] = useState(500);
 
     const calculatePL = (order: AlpacaApiOrder, actualQty?: number) => {
         if (!order.filled_avg_price || !currentPrices[order.symbol]) {
@@ -96,7 +96,7 @@ export default function AlpacaOrdersApi({
             {
                 start_date: startDate || undefined,
                 end_date: endDate || undefined,
-                only_owned: onlyOwned ? '1' : undefined,
+                limit,
                 status,
             },
             {
@@ -109,8 +109,8 @@ export default function AlpacaOrdersApi({
     const handleClear = () => {
         setStartDate('');
         setEndDate('');
-        setOnlyOwned(false);
-        router.get('/alpaca-orders-api', { status });
+        setLimit(500);
+        router.get('/alpaca-orders-api', { status, limit: 500 });
     };
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -221,17 +221,19 @@ export default function AlpacaOrdersApi({
                                     className="w-full rounded-md border px-3 py-2 text-sm bg-background"
                                 />
                             </div>
-                            <div className="flex items-center gap-2 pb-2">
-                                <input
-                                    type="checkbox"
-                                    id="only-owned"
-                                    checked={onlyOwned}
-                                    onChange={(e) => setOnlyOwned(e.target.checked)}
-                                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <label htmlFor="only-owned" className="text-sm font-medium cursor-pointer">
-                                    Only show stocks I own
+<div className="flex-1 min-w-[120px]">
+                                <label className="block text-sm font-medium mb-2">
+                                    Limit
                                 </label>
+                                <select
+                                    value={limit}
+                                    onChange={(e) => setLimit(Number(e.target.value))}
+                                    className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+                                >
+                                    <option value={100}>100</option>
+                                    <option value={250}>250</option>
+                                    <option value={500}>500</option>
+                                </select>
                             </div>
                             <div className="flex gap-2">
                                 <button

@@ -128,6 +128,13 @@ export default function MarketMovers({ data, days, avgStrength, startDate, endDa
                                 >
                                     90D
                                 </Button>
+                                <Button
+                                    size="sm"
+                                    variant={days === 180 ? 'default' : 'outline'}
+                                    onClick={() => handleDaysChange(180)}
+                                >
+                                    180D
+                                </Button>
                             </div>
                             <Button size="sm" variant="outline" onClick={handleExport}>
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
