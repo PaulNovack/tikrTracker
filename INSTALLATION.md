@@ -47,11 +47,12 @@ docker compose -f docker/docker-compose.yml up --build
 
 That's it. On first run the entrypoint will:
 
-1. Install Composer dependencies
-2. Install npm packages and build frontend assets
-3. Run database migrations and seed the admin user
-4. Backfill 10 days of 1-minute and 5-minute market data
-5. Start Apache, queue workers, Reverb, scheduler, and the real-time bar streamer
+1. Set up the Python virtual environment and install ML + Alpaca API dependencies
+2. Install Composer dependencies
+3. Install npm packages and build frontend assets
+4. Run database migrations and seed the admin user
+5. Backfill 10 days of 1-minute and 5-minute market data
+6. Start Apache, queue workers, Reverb, scheduler, and the real-time bar streamer
 
 The app is available at **http://127.0.0.1:8080**. Login with **admin@admin.com / password**.
 
