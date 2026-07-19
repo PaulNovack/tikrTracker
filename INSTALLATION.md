@@ -34,7 +34,7 @@ The `#ACTIVE TRADING` section below is managed automatically by the Trade Settin
 ```
 MAIL_USERNAME=your_mailtrap_username
 MAIL_PASSWORD=your_mailtrap_password
-OPENAI_API_KEY=your_openai_key               # optional, for ML scoring
+OPENAI_API_KEY=your_openai_key               # optional, Sentiments
 ```
 
 The `#PROD` and `#PAPER TRADING` sections remain commented out as a safeguard — the app reads them automatically and the Trade Settings 2 page controls which keys are active. Keys are stored this way because both the Laravel PHP application and the Python scripts (ML scoring, Alpaca streaming) read from `.env` and `.secret` files.
