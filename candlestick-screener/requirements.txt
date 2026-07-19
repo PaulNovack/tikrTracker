@@ -1,0 +1,6 @@
+Flask
+TA-Lib
+pandas
+pandas-ta
+PyMySQL
+SQLAlchemy
