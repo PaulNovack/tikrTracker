@@ -21,8 +21,9 @@ if (php_sapi_name() === 'cli-server') {
 }
 
 // Load .secret file if it exists (secrets not committed to git)
+// Use createImmutable so .env takes priority — .secret only fills in missing vars
 if (file_exists(dirname(__DIR__).'/.secret')) {
-    $dotenv = Dotenv\Dotenv::createMutable(dirname(__DIR__), '.secret');
+    $dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__), '.secret');
     $dotenv->safeLoad();
 }
 
