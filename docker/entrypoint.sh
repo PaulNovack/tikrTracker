@@ -42,23 +42,53 @@ echo "────────────────────────�
 echo "  Step 1/7 — Waiting for services"
 echo "──────────────────────────────────────────────────────────"
 
-echo -n "  MySQL (${DB_HOST:-mysql}:${DB_PORT:-3306}) ... "
-until php -r "
-try {
-    new PDO(
-        'mysql:host=${DB_HOST:-mysql};port=${DB_PORT:-3306};dbname=${DB_DATABASE:-tikrTrackerTest}',
-        '${DB_USERNAME:-laravel}',
-        '${DB_PASSWORD:-laravel}',
-        [PDO::ATTR_TIMEOUT => 5]
-    );
-} catch (Exception \$e) {
-    exit(1);
-}
-" 2>/dev/null; do
-    echo -n "."
+MYSQL_HOST="${DB_HOST:-mysql}"
+MYSQL_PORT="${DB_PORT:-3306}"
+MYSQL_USER="${DB_USERNAME:-laravel}"
+MYSQL_PASSWORD="${DB_PASSWORD:-laravel}"
+
+echo "  MySQL (${MYSQL_HOST}:${MYSQL_PORT}) ..."
+
+if ! command -v mysql >/dev/null 2>&1; then
+    echo "  ✗ MySQL client is not installed in the application container"
+    exit 1
+fi
+
+MYSQL_READY=false
+MAX_ATTEMPTS=30
+
+for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
+    MYSQL_ERROR=$(
+        MYSQL_PWD="$MYSQL_PASSWORD" mysql \
+            --protocol=TCP \
+            --host="$MYSQL_HOST" \
+            --port="$MYSQL_PORT" \
+            --user="$MYSQL_USER" \
+            --connect-timeout=5 \
+            --batch \
+            --skip-column-names \
+            --execute="SELECT 1;" \
+            2>&1
+    ) && MYSQL_READY=true
+
+    if [ "$MYSQL_READY" = true ]; then
+        echo "  ✓ ready"
+        break
+    fi
+
+    echo "  Attempt ${ATTEMPT}/${MAX_ATTEMPTS} failed: ${MYSQL_ERROR}"
     sleep 2
 done
-echo " ✓ ready"
+
+if [ "$MYSQL_READY" != true ]; then
+    echo ""
+    echo "  ✗ MySQL did not become available"
+    echo "  Host: ${MYSQL_HOST}"
+    echo "  Port: ${MYSQL_PORT}"
+    echo "  User: ${MYSQL_USER}"
+    echo "  Last error: ${MYSQL_ERROR}"
+    exit 1
+fi
 
 echo -n "  Redis (${REDIS_HOST:-redis}:${REDIS_PORT:-6379}) ... "
 until php -r "
@@ -188,6 +218,7 @@ echo "║  7×     default queue workers                           ║"
 echo "║  3×     ml-scoring queue workers                        ║"
 echo "║  1×     ml-scoring-catchup worker                       ║"
 echo "║  1×     task scheduler                                  ║"
+echo "║  1×     Flask TA-Lib screener (port 5000)               ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 

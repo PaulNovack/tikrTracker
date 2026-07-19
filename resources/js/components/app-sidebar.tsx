@@ -13,7 +13,7 @@ import { dashboard } from '@/routes';
 import { edit as editTradingSettings } from '@/actions/App/Http/Controllers/TradingSettingsController';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, Bell, BarChart, Building, Camera, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
+import { Activity, Bell, BarChart, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -425,6 +425,26 @@ export function AppSidebar() {
                     title: 'Upward Pressure',
                     href: '/analysis/upward-pressure',
                     icon: TrendingUp,
+                    disabled: isGuest,
+                },
+            ],
+        },
+        {
+            title: 'TA Lab Analysis',
+            href: '/ta-lib-analysis',
+            icon: BarChart,
+            disabled: isGuest,
+            items: [
+                {
+                    title: 'Daily',
+                    href: '/ta-lib-analysis',
+                    icon: TrendingUp,
+                    disabled: isGuest,
+                },
+                {
+                    title: '5 Minute',
+                    href: '/ta-lib-analysis/five-minute',
+                    icon: Clock,
                     disabled: isGuest,
                 },
             ],

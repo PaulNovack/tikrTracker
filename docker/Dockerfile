@@ -34,9 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
     python3-pip \
-    # Build tools for Python packages
+    # Build tools for Python packages (needed by TA-Lib)
     build-essential \
     python3.12-dev \
+    wget \
     # System utilities
     curl \
     unzip \
@@ -45,11 +46,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lm-sensors \
     libcap2-bin \
     cron \
+    mysql-client \
+    netcat-openbsd \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && echo "==> PHP $(php -v | head -1 | awk '{print $2}') installed with extensions:" \
     && php -m | grep -E 'redis|pdo_mysql|mbstring|xml|zip|bcmath|intl|gd|curl' | sort | xargs echo "    "
+
+# Build TA-Lib C library from source (not in Ubuntu 24.04 repos)
+RUN echo "==> Building TA-Lib C library from source..." \
+    && cd /tmp \
+    && wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz \
+    && tar xzf ta-lib-0.4.0-src.tar.gz \
+    && cd ta-lib \
+    && ./configure --prefix=/usr 2>&1 | tail -2 \
+    && make 2>&1 | tail -2 \
+    && make install 2>&1 | tail -2 \
+    && ldconfig \
+    && rm -rf /tmp/ta-lib /tmp/ta-lib-0.4.0-src.tar.gz \
+    && echo "==> TA-Lib C library installed"
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
@@ -77,16 +93,13 @@ RUN echo "==> Creating Python 3.12 virtual environment..." \
     && python3.12 -m venv /var/www/html/laravel-invest/.venv \
     && echo "==> Python venv created at .venv/"
 
-# Install Python dependencies into the venv
-COPY python_ml/requirements.txt /tmp/python_ml_requirements.txt
-COPY alpaca_python_api/requirements.txt /tmp/alpaca_python_api_requirements.txt
-RUN echo "==> Installing Python ML dependencies (numpy, pandas, xgboost, sklearn)..." \
-    && /var/www/html/laravel-invest/.venv/bin/pip install --no-cache-dir -r /tmp/python_ml_requirements.txt \
-    && echo "==> Installing Alpaca Python API dependencies..." \
-    && /var/www/html/laravel-invest/.venv/bin/pip install --no-cache-dir -r /tmp/alpaca_python_api_requirements.txt \
-    && rm /tmp/python_ml_requirements.txt /tmp/alpaca_python_api_requirements.txt \
+# Install Python dependencies into the venv (single combined requirements.txt)
+COPY requirements.txt /tmp/requirements.txt
+RUN echo "==> Installing Python dependencies (TA-Lib, xgboost, Flask, etc.)..." \
+    && /var/www/html/laravel-invest/.venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt \
     && echo "==> Python packages installed:" \
-    && /var/www/html/laravel-invest/.venv/bin/pip list 2>/dev/null | head -20
+    && /var/www/html/laravel-invest/.venv/bin/pip list 2>/dev/null | head -25
 
 # Configure Apache
 RUN a2enmod rewrite headers \

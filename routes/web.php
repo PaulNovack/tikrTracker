@@ -206,6 +206,12 @@ Route::middleware($middleware)->group(function () {
         Route::get('watched-analysis', [\App\Http\Controllers\StagnationController::class, 'index'])->name('stagnation.index');
         Route::get('notable-assets', [\App\Http\Controllers\NotableAssetController::class, 'index'])->name('notable-assets.index');
 
+        // Daily Analysis route
+        Route::get('ta-lib-analysis', [\App\Http\Controllers\CandlestickScreenerController::class, 'index'])->name('ta-lib-analysis.index');
+
+        // 5-Minute Analysis route
+        Route::get('ta-lib-analysis/five-minute', [\App\Http\Controllers\CandlestickScreenerController::class, 'fiveMinute'])->name('ta-lib-analysis.five-minute');
+
         // Moving stocks route
         Route::get('rising', [\App\Http\Controllers\RisingController::class, 'index'])->name('rising.index');
 
