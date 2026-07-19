@@ -134,95 +134,98 @@ def api_scan_valid_entry():
     limit = int(request.args.get('limit', 750))
 
     symbols = get_all_symbols()[:limit]
-
     quoted = ','.join(f"'{s}'" for s in symbols)
 
-    # Fetch the last 60 five-minute bars for all symbols
-    sql_5m = (
-        "SELECT symbol, ts, open, high, low, price AS close, volume "
-        "FROM ("
-        "  SELECT symbol, ts, open, high, low, price, volume, "
-        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts DESC) AS rn "
+    # Single query: get the latest 5-minute bar and the latest 1-minute bar per symbol
+    # using a join on latest timestamps — much faster than window functions
+    sql = (
+        "SELECT "
+        "  f.symbol, "
+        "  f.ts AS ts_5m, f.open AS open_5m, f.high AS high_5m, f.low AS low_5m, "
+        "  f.price AS close_5m, f.volume AS vol_5m, "
+        "  o.ts AS ts_1m, o.open AS open_1m, o.high AS high_1m, o.low AS low_1m, "
+        "  o.price AS close_1m, o.volume AS vol_1m, "
+        "  o.vwap, o.ema9, o.ema21 "
+        "FROM five_minute_prices f "
+        "JOIN one_minute_prices_full o ON o.symbol = f.symbol "
+        "JOIN ("
+        "  SELECT symbol, MAX(ts) AS max_ts "
         "  FROM five_minute_prices "
-        f"  WHERE symbol IN ({quoted})"
-        ") AS ranked "
-        "WHERE rn <= 60 "
-        "ORDER BY symbol, ts ASC"
-    )
-    df_5m_all = pd.read_sql(sql_5m, engine)
-    df_5m_all['date'] = df_5m_all['ts'].dt.strftime('%Y-%m-%d %H:%M')
-    df_5m_all = df_5m_all.drop(columns=['ts'])
-
-    # Fetch the last 120 one-minute bars for all symbols
-    sql_1m = (
-        "SELECT symbol, ts, open, high, low, price AS close, volume, "
-        "  vwap, ema9, ema21 "
-        "FROM ("
-        "  SELECT symbol, ts, open, high, low, price, volume, vwap, ema9, ema21, "
-        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts DESC) AS rn "
+        f"  WHERE symbol IN ({quoted}) "
+        "  GROUP BY symbol"
+        ") f_max ON f.symbol = f_max.symbol AND f.ts = f_max.max_ts "
+        "JOIN ("
+        "  SELECT symbol, MAX(ts) AS max_ts "
         "  FROM one_minute_prices_full "
-        f"  WHERE symbol IN ({quoted})"
-        ") AS ranked "
-        "WHERE rn <= 120 "
-        "ORDER BY symbol, ts ASC"
+        f"  WHERE symbol IN ({quoted}) "
+        "  GROUP BY symbol"
+        ") o_max ON o.symbol = o_max.symbol AND o.ts = o_max.max_ts"
     )
-    df_1m_all = pd.read_sql(sql_1m, engine)
-    df_1m_all['date'] = df_1m_all['ts'].dt.strftime('%Y-%m-%d %H:%M')
-    df_1m_all = df_1m_all.drop(columns=['ts'])
+    df_latest = pd.read_sql(sql, engine)
 
     results = []
 
-    for symbol in symbols:
-        df_5m = df_5m_all[df_5m_all['symbol'] == symbol].drop(columns=['symbol'])
-        df_1m = df_1m_all[df_1m_all['symbol'] == symbol].drop(columns=['symbol'])
-
-        if df_5m.empty or len(df_5m) < 10 or df_1m.empty or len(df_1m) < 21:
-            continue
-
+    for _, row in df_latest.iterrows():
+        symbol = row['symbol']
         try:
-            # Step 1: Detect engulfing on completed five-minute bars
+            # Step 1: Get context bars — 60 five-minute bars before the latest
+            df_5m = pd.read_sql(
+                "SELECT open, high, low, price AS close, volume, "
+                "  DATE_FORMAT(ts, '%%Y-%%m-%%d %%H:%%i') AS date "
+                "FROM five_minute_prices "
+                "WHERE symbol = %(symbol)s AND ts <= %(max_ts)s "
+                "ORDER BY ts DESC LIMIT 60",
+                engine,
+                params={'symbol': symbol, 'max_ts': str(row['ts_5m'])},
+            )
+            if len(df_5m) < 10:
+                continue
+            df_5m = df_5m.iloc[::-1].reset_index(drop=True)  # reverse to ascending
+
+            # Step 2: Detect engulfing
             engulfing_5m = talib.CDLENGULFING(
                 df_5m['open'], df_5m['high'], df_5m['low'], df_5m['close']
             )
-            bullish_engulfing_5m = int(engulfing_5m.iloc[-1]) > 0
-
-            if not bullish_engulfing_5m:
+            if int(engulfing_5m.iloc[-1]) <= 0:
                 continue
 
-            # Step 2: Save the five-minute pattern levels
             engulfing_high = float(df_5m['high'].iloc[-1])
-            engulfing_low = float(df_5m['low'].iloc[-1])
-            engulfing_close = float(df_5m['close'].iloc[-1])
 
-            # Step 3: Use one-minute bars to confirm entry
-            latest_1m = df_1m.iloc[-1]
-            volume_col = df_1m.columns[-6] if df_1m.shape[1] >= 6 else df_1m.columns[-1]
-
-            volume_average_20 = df_1m['volume'].iloc[-21:-1].mean()
-            volume_ratio = float(latest_1m['volume']) / max(float(volume_average_20), 1)
-
-            vwap_val = float(latest_1m.get('vwap', 0))
-            ema9_val = float(latest_1m.get('ema9', 0))
-            ema21_val = float(latest_1m.get('ema21', 0))
-            close_val = float(latest_1m['close'])
-
-            valid_entry = (
-                close_val > engulfing_high
-                and (vwap_val == 0 or close_val > vwap_val)
-                and (ema9_val == 0 or ema9_val > ema21_val)
-                and volume_ratio >= 1.5
+            # Step 3: Get 21 one-minute context bars
+            df_1m = pd.read_sql(
+                "SELECT open, high, low, price AS close, volume, "
+                "  vwap, ema9, ema21 "
+                "FROM one_minute_prices_full "
+                "WHERE symbol = %(symbol)s AND ts <= %(max_ts)s "
+                "ORDER BY ts DESC LIMIT 21",
+                engine,
+                params={'symbol': symbol, 'max_ts': str(row['ts_1m'])},
             )
+            if len(df_1m) < 21:
+                continue
+            df_1m = df_1m.iloc[::-1].reset_index(drop=True)
 
-            if valid_entry:
+            latest = df_1m.iloc[-1]
+            vol_avg = df_1m['volume'].iloc[:-1].mean()
+            vol_ratio = float(latest['volume']) / max(float(vol_avg), 1)
+
+            close_val = float(latest['close'])
+            vwap_val = float(latest.get('vwap', 0) or 0)
+            ema9_val = float(latest.get('ema9', 0) or 0)
+            ema21_val = float(latest.get('ema21', 0) or 0)
+
+            if (close_val > engulfing_high and vol_ratio >= 1.5
+                    and (vwap_val == 0 or close_val > vwap_val)
+                    and (ema9_val == 0 or ema9_val > ema21_val)):
                 results.append({
                     'symbol': symbol,
                     'signal': 'bullish',
                     'signal_value': 100,
-                    'last_date': str(df_5m['date'].iloc[-1]),
+                    'last_date': str(row['ts_5m']),
                     'engulfing_high': engulfing_high,
-                    'engulfing_low': engulfing_low,
-                    'engulfing_close': engulfing_close,
-                    'volume_ratio': round(volume_ratio, 2),
+                    'engulfing_low': float(row['low_5m']),
+                    'engulfing_close': float(row['close_5m']),
+                    'volume_ratio': round(vol_ratio, 2),
                     'entry_price': close_val,
                     'ohlc': df_5m[['date', 'open', 'high', 'low', 'close', 'volume']]
                         .tail(60)

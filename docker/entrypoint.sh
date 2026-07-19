@@ -43,10 +43,9 @@ echo "  Step 1/7 — Waiting for services"
 echo "──────────────────────────────────────────────────────────"
 
 echo -n "  MySQL (${DB_HOST:-mysql}:${DB_PORT:-3306}) ... "
-until mysqladmin ping \
-    -h"${DB_HOST:-mysql}" -P"${DB_PORT:-3306}" \
+until mysql -h"${DB_HOST:-mysql}" -P"${DB_PORT:-3306}" \
     -u"${DB_USERNAME:-laravel}" -p"${DB_PASSWORD:-laravel}" \
-    --silent 2>/dev/null; do
+    --connect-timeout=5 -e "SELECT 1" --silent 2>/dev/null; do
     echo -n "."
     sleep 2
 done
