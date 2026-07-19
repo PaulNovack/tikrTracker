@@ -936,6 +936,9 @@ export default function TradeAlertsPage({
                                 <p className="mt-2 text-xs text-red-600 dark:text-red-500 font-medium">
                                     Fix: Run <code className="bg-red-100 dark:bg-red-800 px-1.5 py-0.5 rounded">php artisan market:generate-daily-prices --days=3</code>
                                 </p>
+                                <p className="mt-1 text-xs text-red-600 dark:text-red-500">
+                                    The system will automatically update this at 9:35 AM on trading days.
+                                </p>
                             </div>
                         </div>
                     </div>
