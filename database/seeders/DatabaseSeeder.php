@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             MarketScheduleSeeder::class,
             AssetInfoSeeder::class,
             TradingSettingsSeeder::class,
+            IntradayUniverseSeeder::class,
         ]);
     }
 }
