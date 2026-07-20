@@ -1087,7 +1087,7 @@ return [
         // 'model_path' => env('TRADING_ML_MODEL_PATH', 'python_ml/models/winner_model_2_0_xgb.joblib'),
         // 'model_path' => env('TRADING_ML_MODEL_PATH', 'python_ml/models/winner_model_3_0_xgb.joblib'),
         // 'model_path' => env('TRADING_ML_MODEL_PATH', 'python_ml/models/winner_model_enhanced.joblib'),  // v1.0 with winner-focused features
-        'model_path' => env('TRADING_ML_MODEL_PATH', 'python_ml/models/winner_model_weighted.joblib'),  // PnL-weighted model for finding big winners
+        'model_path' => env('TRADING_ML_MODEL_PATH', 'python_ml/v2/models/winner_model_pipeline_hid.joblib'),  // PnL-weighted model for finding big winners
 
         // Pipeline-specific ML models (A-O) - allows each pipeline to use a dedicated model
         'pipeline_a_model_path' => env('TRADING_ML_PIPELINE_A_MODEL_PATH', null),
