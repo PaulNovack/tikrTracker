@@ -60,7 +60,7 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      * @param  string  $assetType  'stock' or 'crypto'
      * @param  string  $signalTsEst  The signal timestamp in EST
      * @param  string  $asOfTsEst  The "as of" timestamp in EST
-     * @return array|null  Entry data array or null if no entry found
+     * @return array|null Entry data array or null if no entry found
      */
     abstract protected function doFindBestLong(
         string $symbol,
@@ -97,6 +97,10 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         self::$dbg['returned']++;
         $this->maybeLogDebug();
 
+        $entry['entry_ts_est'] = $entry['entry_ts_est'] ?? $asOfTsEst;
+        $entry['entry'] = $entry['entry'] ?? $entry['entry_price'] ?? null;
+        $entry['stop'] = $entry['stop'] ?? $entry['stop_loss'] ?? null;
+        $entry['type'] = $entry['type'] ?? $entry['entry_type'] ?? null;
         $entry['symbol'] = $symbol;
         $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
@@ -115,7 +119,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      * Validate that an entry result contains all required keys.
      *
      * @param  array<string, mixed>  $entry
-     * @param  string  $symbol
      *
      * @throws \RuntimeException
      */

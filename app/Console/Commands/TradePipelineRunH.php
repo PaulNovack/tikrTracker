@@ -189,6 +189,10 @@ class TradePipelineRunH extends Command
             } else {
                 // Use finder's entry
                 $entry = $res['best_entry'];
+                $entry['type'] = $entry['type'] ?? 'FINDER_BEST';
+                $entry['entry_ts_est'] = $entry['entry_ts_est'] ?? $sig['signal_ts_est'];
+                $entry['entry'] = $entry['entry'] ?? $entry['entry_price'] ?? null;
+                $entry['stop'] = $entry['stop'] ?? $entry['stop_price'] ?? null;
                 // Slide to latest bar for live mode
                 $entry = EntryRefinerService::slideToLatest($entry, $actualNowEst);
             }

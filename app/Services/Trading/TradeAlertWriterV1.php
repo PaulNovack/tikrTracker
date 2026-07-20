@@ -510,8 +510,8 @@ class TradeAlertWriterV1
             'signal_ts_est' => $signal['signal_ts_est'],
             'time_of_day' => isset($signal['signal_ts_est']) ? substr($signal['signal_ts_est'], 11, 5) : null,
 
-            'entry_type' => $entry['type'],
-            'entry_ts_est' => $entry['entry_ts_est'],
+            'entry_type' => $entry['type'] ?? null,
+            'entry_ts_est' => $entry['entry_ts_est'] ?? null,
             'entry' => $entry['entry'] ?? $entry['entry_price'] ?? null, // Support v100 entry_price
             'stop' => $entry['stop'] ?? $entry['stop_price'] ?? null, // Support v100 stop_price
 
