@@ -122,7 +122,6 @@ class AlpacaDailyPerformanceController extends Controller
 
             $matchedSells = AlpacaOrder::whereIn('symbol', $daySymbols)
                 ->where('side', 'sell')
-                ->where('status', 'filled')
                 ->where('filled_qty', '>', 0)
                 ->whereNotNull('filled_avg_price')
                 ->whereNotNull('parent_alpaca_order_id')
@@ -132,7 +131,7 @@ class AlpacaDailyPerformanceController extends Controller
 
             $validBuyIds = AlpacaOrder::whereIn('symbol', $daySymbols)
                 ->where('side', 'buy')
-                ->where('status', 'filled')
+                ->where('filled_qty', '>', 0)
                 ->whereNotNull('alpaca_order_id')
                 ->where('created_at', '>=', $date.' 00:00:00')
                 ->where('created_at', '<=', $date.' 23:59:59')
@@ -163,7 +162,6 @@ class AlpacaDailyPerformanceController extends Controller
             // Phase 2: FIFO for orphan sells (NULL parents + Phase 1 rejects)
             $orphanSells = AlpacaOrder::whereIn('symbol', $daySymbols)
                 ->where('side', 'sell')
-                ->where('status', 'filled')
                 ->where('filled_qty', '>', 0)
                 ->whereNotNull('filled_avg_price')
                 ->whereNull('parent_alpaca_order_id')
@@ -179,7 +177,6 @@ class AlpacaDailyPerformanceController extends Controller
             if ($orphanSells->isNotEmpty()) {
                 $allBuys = AlpacaOrder::whereIn('symbol', $daySymbols)
                     ->where('side', 'buy')
-                    ->where('status', 'filled')
                     ->where('filled_qty', '>', 0)
                     ->whereNotNull('filled_avg_price')
                     ->where('created_at', '>=', $date.' 00:00:00')

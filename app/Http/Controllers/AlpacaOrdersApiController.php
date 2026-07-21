@@ -79,7 +79,7 @@ class AlpacaOrdersApiController extends Controller
                 ->toArray();
         }
 
-        // Build valid buy IDs from the Alpaca data
+        // Build valid buy IDs from the Alpaca data (same-day trades only)
         $validBuyIds = [];
         foreach ($filledOrders as $o) {
             if (($o['side'] ?? '') === 'buy') {
@@ -107,7 +107,7 @@ class AlpacaOrdersApiController extends Controller
             }
         }
 
-        // Phase 2 is NOT needed — all sells have parent_alpaca_order_id set now.
+        // Phase 2 is NOT needed — all trades are same-day and sells have parent_alpaca_order_id set.
         // Any remaining unmatched buys are open positions (unrealized P&L).
 
         return Inertia::render('alpaca-orders-api/index', [
