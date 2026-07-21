@@ -233,9 +233,10 @@ class AlpacaOrderController extends Controller
             // Only keep matches where the parent_alpaca_order_id actually exists
             // as a buy's alpaca_order_id. Alpaca sometimes assigns the stop-loss
             // order ID as parent instead of the entry order ID.
+            // Use filled_qty > 0 instead of status = 'filled' to catch
+            // partially-filled orders that were later canceled (e.g. market sells).
             $matchedSells = AlpacaOrder::whereIn('symbol', $pageSymbols)
                 ->where('side', 'sell')
-                ->where('status', 'filled')
                 ->where('filled_qty', '>', 0)
                 ->whereNotNull('filled_avg_price')
                 ->whereNotNull('parent_alpaca_order_id')
@@ -245,7 +246,7 @@ class AlpacaOrderController extends Controller
 
             $validBuyIds = AlpacaOrder::whereIn('symbol', $pageSymbols)
                 ->where('side', 'buy')
-                ->where('status', 'filled')
+                ->where('filled_qty', '>', 0)
                 ->whereNotNull('alpaca_order_id')
                 ->when($startDate, fn ($q) => $q->where('created_at', '>=', $startDate.' 00:00:00'))
                 ->when($endDate, fn ($q) => $q->where('created_at', '<=', $endDate.' 23:59:59'))
@@ -286,7 +287,6 @@ class AlpacaOrderController extends Controller
             // Phase 2: FIFO-match all unmatched sells (NULL parents + Phase 1 rejects)
             $orphanSells = AlpacaOrder::whereIn('symbol', $pageSymbols)
                 ->where('side', 'sell')
-                ->where('status', 'filled')
                 ->where('filled_qty', '>', 0)
                 ->whereNotNull('filled_avg_price')
                 ->whereNull('parent_alpaca_order_id')
@@ -304,7 +304,6 @@ class AlpacaOrderController extends Controller
                 // Get all buys ordered by creation time for FIFO matching (within date range)
                 $allBuys = AlpacaOrder::whereIn('symbol', $pageSymbols)
                     ->where('side', 'buy')
-                    ->where('status', 'filled')
                     ->where('filled_qty', '>', 0)
                     ->whereNotNull('filled_avg_price')
                     ->when($startDate, fn ($q) => $q->where('created_at', '>=', $startDate.' 00:00:00'))
@@ -412,7 +411,6 @@ class AlpacaOrderController extends Controller
 
     public function sell(AlpacaOrder $order, AlpacaPythonService $alpacaPythonService): RedirectResponse
     {
-        // Validate that this is a filled or partially-filled buy order
         if ($order->side !== 'buy' || ! in_array($order->status, ['filled', 'partially_filled'], true)) {
             return redirect()->back()->with('error', 'Can only sell filled or partially-filled buy orders');
         }
@@ -424,7 +422,6 @@ class AlpacaOrderController extends Controller
             if ($cancelResult['success']) {
                 \Log::info("Cancelled stop orders for {$order->symbol} before selling");
 
-                // Update local database for canceled orders
                 AlpacaOrder::where('symbol', $order->symbol)
                     ->where('side', 'sell')
                     ->whereIn('order_type', ['stop', 'stop_limit'])
@@ -457,7 +454,16 @@ class AlpacaOrderController extends Controller
                 throw new \Exception("No shares available to sell for {$order->symbol}");
             }
 
-            // Place market sell order
+            // Find all active buy positions for this symbol so we can create
+            // separate sell records with correct parent_alpaca_order_id links.
+            $allBuys = AlpacaOrder::where('symbol', $order->symbol)
+                ->where('side', 'buy')
+                ->where('status', 'filled')
+                ->where('filled_qty', '>', 0)
+                ->orderBy('created_at')
+                ->get();
+
+            // Place market sell order for the total position
             $result = $alpacaPythonService->placeOrder(
                 symbol: $order->symbol,
                 side: 'sell',
@@ -469,36 +475,55 @@ class AlpacaOrderController extends Controller
                 throw new \Exception($result['error'] ?? 'Unknown error placing sell order');
             }
 
-            // Parse the JSON output
             $outputData = json_decode($result['output'], true);
 
             if (! $outputData || ! isset($outputData['order'])) {
                 throw new \Exception('Invalid order response format');
             }
 
-            // Store the sell order in database
             $sellOrderData = $outputData['order'];
-            AlpacaOrder::create([
-                'alpaca_order_id' => $sellOrderData['id'],
-                'client_order_id' => $sellOrderData['client_order_id'] ?? null,
-                'is_paper' => (bool) config('alpaca.paper_trading', true),
-                'symbol' => $sellOrderData['symbol'],
-                'side' => $sellOrderData['side'],
-                'qty' => $sellOrderData['qty'],
-                'filled_qty' => $sellOrderData['filled_qty'] ?? null,
-                'filled_avg_price' => $sellOrderData['filled_avg_price'] ?? null,
-                'order_type' => $sellOrderData['type'] ?? $sellOrderData['order_type'] ?? 'market',
-                'status' => $sellOrderData['status'],
-                'stop_price' => $sellOrderData['stop_price'] ?? null,
-                'limit_price' => $sellOrderData['limit_price'] ?? null,
-                'time_in_force' => $sellOrderData['time_in_force'],
-                'submitted_at' => $sellOrderData['submitted_at'] ?? now(),
-                'filled_at' => $sellOrderData['filled_at'] ?? null,
-                'parent_alpaca_order_id' => $order->alpaca_order_id,
-                'notes' => "Manual sell of order {$order->alpaca_order_id}",
-                'atr' => $order->atr,
-                'atr_pct' => $order->atr_pct,
-            ]);
+
+            // Create separate sell DB records — one per buy position — so each
+            // buy gets the correct parent_alpaca_order_id for P&L matching.
+            $remainingSellQty = (float) $sellOrderData['qty'];
+            $sellAvgPrice = $sellOrderData['filled_avg_price'] ?? $sellOrderData['avg_fill_price'] ?? null;
+            $sellFilledQty = $sellOrderData['filled_qty'] ?? '0';
+            $sellStatus = $sellOrderData['status'];
+            $sellSubmittedAt = $sellOrderData['submitted_at'] ?? now();
+            $sellFilledAt = $sellOrderData['filled_at'] ?? null;
+
+            foreach ($allBuys as $buy) {
+                if ($remainingSellQty <= 0) {
+                    break;
+                }
+
+                $buyFilledQty = (float) $buy->filled_qty;
+                $matchedQty = min($remainingSellQty, $buyFilledQty);
+
+                AlpacaOrder::create([
+                    'alpaca_order_id' => $sellOrderData['id'].'__buy_'.$buy->id,
+                    'client_order_id' => $sellOrderData['client_order_id'] ?? null,
+                    'is_paper' => (bool) config('alpaca.paper_trading', true),
+                    'symbol' => $sellOrderData['symbol'],
+                    'side' => $sellOrderData['side'],
+                    'qty' => (string) $matchedQty,
+                    'filled_qty' => $matchedQty > 0 ? (string) $matchedQty : $sellFilledQty,
+                    'filled_avg_price' => $sellAvgPrice,
+                    'order_type' => $sellOrderData['type'] ?? $sellOrderData['order_type'] ?? 'market',
+                    'status' => $sellStatus,
+                    'stop_price' => $sellOrderData['stop_price'] ?? null,
+                    'limit_price' => $sellOrderData['limit_price'] ?? null,
+                    'time_in_force' => $sellOrderData['time_in_force'],
+                    'submitted_at' => $sellSubmittedAt,
+                    'filled_at' => $sellFilledAt,
+                    'parent_alpaca_order_id' => $buy->alpaca_order_id,
+                    'notes' => "Manual sell of order {$buy->alpaca_order_id}",
+                    'atr' => $order->atr,
+                    'atr_pct' => $order->atr_pct,
+                ]);
+
+                $remainingSellQty -= $matchedQty;
+            }
 
             return redirect()->back()->with('success', "Sell order placed for {$order->symbol}: {$qtyToSell} shares");
         } catch (\Throwable $e) {

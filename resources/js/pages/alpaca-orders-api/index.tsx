@@ -75,18 +75,44 @@ export default function AlpacaOrdersApi({
     const [limit, setLimit] = useState(500);
 
     const calculatePL = (order: AlpacaApiOrder, actualQty?: number) => {
-        if (!order.filled_avg_price || !currentPrices[order.symbol]) {
-            return { plPct: 0, plDollar: 0 };
+        if (!order.filled_avg_price || !order.filled_qty) {
+            return { plPct: 0, plDollar: 0, isRealized: false };
         }
 
         const avgPrice = parseFloat(order.filled_avg_price);
-        const currentPrice = parseFloat(currentPrices[order.symbol].price);
         const qty = actualQty || parseFloat(order.filled_qty);
 
-        const plPct = ((currentPrice - avgPrice) / avgPrice) * 100;
-        const plDollar = (currentPrice - avgPrice) * qty;
+        // For buy orders: use realized sell price if the stop fired, else current price
+        if (order.side === 'buy') {
+            const realized = realizedSellPrices[order.id];
+            if (realized) {
+                const sellPrice = realized.price;
+                const matchedQty = Math.min(qty, realized.qty);
+                const plPct = ((sellPrice - avgPrice) / avgPrice) * 100;
+                const plDollar = (sellPrice - avgPrice) * matchedQty;
+                return { plPct, plDollar, isRealized: true };
+            }
 
-        return { plPct, plDollar };
+            if (!currentPrices[order.symbol]) {
+                return { plPct: 0, plDollar: 0, isRealized: false };
+            }
+
+            const currentPrice = parseFloat(currentPrices[order.symbol].price);
+            const plPct = ((currentPrice - avgPrice) / avgPrice) * 100;
+            const plDollar = (currentPrice - avgPrice) * qty;
+            return { plPct, plDollar, isRealized: false };
+        }
+
+        // For sell orders: show informational P/L (sell price vs current market)
+        // Positive = you sold above current price (good), negative = price went up after selling
+        if (!currentPrices[order.symbol]) {
+            return { plPct: 0, plDollar: 0, isRealized: false };
+        }
+
+        const currentPrice = parseFloat(currentPrices[order.symbol].price);
+        const plPct = ((avgPrice - currentPrice) / avgPrice) * 100;
+        const plDollar = (avgPrice - currentPrice) * qty;
+        return { plPct, plDollar, isRealized: false };
     };
 
     const handleFilter = (e: FormEvent) => {
@@ -143,26 +169,38 @@ export default function AlpacaOrdersApi({
         }
     };
 
-    // P&L calculation — same pattern as alpaca-orders/index.tsx.
-    // Uses backend-built realizedSellPrices map for accurate buy→sell matching.
+    // P&L calculation — uses backend-built realizedSellPrices map keyed by
+    // BUY alpaca_order_id. For buy orders, realizedSellPrices[buy.id] gives
+    // the weighted sell price. For sell orders, show informational P/L.
     const calculatePLForSummary = (order: AlpacaApiOrder) => {
-        if (order.side !== 'buy' || !order.filled_avg_price || !order.filled_qty) {
+        if (!order.filled_avg_price || !order.filled_qty) {
             return null;
         }
         const qty = parseFloat(order.filled_qty);
         const avgPrice = parseFloat(order.filled_avg_price);
 
-        const realized = realizedSellPrices[order.id];
-        if (realized) {
-            const sellPrice = realized.price;
-            const plDollar = (sellPrice - avgPrice) * qty;
-            return { plDollar, isRealized: true };
+        if (order.side === 'buy') {
+            const realized = realizedSellPrices[order.id];
+            if (realized) {
+                const sellPrice = realized.price;
+                const matchedQty = Math.min(qty, realized.qty);
+                const plDollar = (sellPrice - avgPrice) * matchedQty;
+                return { plDollar, isRealized: true };
+            }
+            // Unmatched buy — use current price
+            if (currentPrices[order.symbol]) {
+                const current = parseFloat(currentPrices[order.symbol].price);
+                return { plDollar: (current - avgPrice) * qty, isRealized: false };
+            }
+            return null;
         }
 
-        if (!currentPrices[order.symbol]) return null;
-        const current = parseFloat(currentPrices[order.symbol].price);
-        const plDollar = (current - avgPrice) * qty;
-        return { plDollar, isRealized: false };
+        // For sells: informational P/L — positive when sold above current, negative when price rose after selling
+        if (currentPrices[order.symbol]) {
+            const current = parseFloat(currentPrices[order.symbol].price);
+            return { plDollar: (avgPrice - current) * qty, isRealized: false };
+        }
+        return null;
     };
 
     const filledOrders = orders.filter((o) => o.status === 'filled');
@@ -363,7 +401,7 @@ export default function AlpacaOrdersApi({
                                         orders.map((order) => {
                                             const actualQty = ownedQuantities[order.symbol];
                                             const displayQty = actualQty !== undefined ? actualQty : parseFloat(order.filled_qty);
-                                            const { plPct, plDollar } = calculatePL(order, actualQty);
+                                            const { plPct, plDollar, isRealized } = calculatePL(order, actualQty);
                                             const currentPrice = currentPrices[order.symbol]?.price;
                                             
                                             return (
@@ -409,16 +447,18 @@ export default function AlpacaOrdersApi({
                                                         : '-'}
                                                 </td>
                                                 <td className="px-3 py-1.5 text-right font-mono text-xs">
-                                                    {order.filled_avg_price && currentPrice ? (
+                                                    {order.filled_avg_price ? (
                                                         <span className={plDollar >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                                                             {plDollar >= 0 ? '+' : ''}{plDollar.toFixed(2)}
+                                                            {isRealized ? ' ✓' : ''}
                                                         </span>
                                                     ) : '-'}
                                                 </td>
                                                 <td className="px-3 py-1.5 text-right font-mono text-xs">
-                                                    {order.filled_avg_price && currentPrice ? (
+                                                    {order.filled_avg_price ? (
                                                         <span className={plPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                                                             {plPct >= 0 ? '+' : ''}{plPct.toFixed(2)}%
+                                                            {isRealized ? ' ✓' : ''}
                                                         </span>
                                                     ) : '-'}
                                                 </td>
