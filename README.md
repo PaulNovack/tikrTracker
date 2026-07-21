@@ -93,35 +93,57 @@ Built-in observability tools track pipeline execution, queue health, Redis keys,
 ### Dashboard
 - **[Dashboard](http://127.0.0.1:8080/dashboard)** — Main overview dashboard
   ![Dashboard](screenshots/DashBoard.png)
+  .
 - [Market Data Assets](http://127.0.0.1:8080/market-data/assets) — Lists all investable asset symbols (stocks & crypto) filterable by type and searchable by symbol
+.
   ![Assets](screenshots/Assets.png)
+.
 - [Technical Analysis](http://127.0.0.1:8080/market-data/technical-analysis) — Displays technical analysis recommendations with RSI scores, price changes, and market status
-- [Asset Detail (Example: AAPL)](http://127.0.0.1:8080/market-data/assets/8) — Shows detailed asset info with candlestick charts, price stats, and daily history
+.
+- [Asset Detail (Example: AAPL)](http://127.0.0.1:8080/market-data/assets/8) — Shows detailed asset info with candlestick charts, price stats, and daily history.
+.
   ![Asset Detail](screenshots/AssetInfo.png)
+  .
   ![Asset Detail 2](screenshots/AssetInfo2.png)
-
+.
 ### Trade Alerts
 - **[Trade Alerts](http://127.0.0.1:8080/trade-alerts)** — Real-time and historical trade alert signals with entry prices, stop levels, risk metrics, and ML win probabilities
 
 ### Alpaca Trading
 - [Place Order](http://127.0.0.1:8080/alpaca-place-order) — Manual order placement with symbol search, today's alerts quick-select, and price/stop fields
+.
 - [View Orders](http://127.0.0.1:8080/alpaca-orders) — Paginated view of all orders with current market prices, fill status, and order details
+.
   ![View Orders](screenshots/AlpacaOrders.png)
+  .
 - [Orders From API](http://127.0.0.1:8080/alpaca-orders-api) — Direct Alpaca API order retrieval by date range with live price lookup
+.
   ![Orders From API](screenshots/OrdersFromAPI.png)
+  .
 - [Daily Performance](http://127.0.0.1:8080/alpaca-daily-performance) — Expandable daily P&L breakdown per symbol with individual trades, win/loss stats, and summaries
+.
 - [Buy Slippage](http://127.0.0.1:8080/alpaca-buy-slippage) — Analyzes buy order slippage vs market price one minute later with aggregate statistics
+.
 - [Sell Slippage](http://127.0.0.1:8080/alpaca-sell-slippage) — Analyzes sell order slippage vs market price one minute later with per-order breakdown
-- [Capital Invested](http://127.0.0.1:8080/alpaca-capital-invested) — Timeline of capital deployed with running totals, daily peaks, and position sizing analysis
+.
+- [Capital Invested](http://127.0.0.1:8080/alpaca-capital-invested) — Timeline of capital deployed with running totals, daily peaks, and position sizing analysis.
+.
   ![Capital Invested](screenshots/CapitalInvestedAnalysis.png)
+  .
   ![Capital Invested 2](screenshots/CapitalInvestedAnalysis2.png)
+  .
 - [P&L by Entry Time](http://127.0.0.1:8080/alpaca-pl-by-entry-time) — Buckets trades by time-of-day to show which entry windows produce the best P&L and win rates
+.
 - [P&L Calendar](http://127.0.0.1:8080/alpaca-calendar) — Monthly calendar heatmap of daily P&L totals with trade counts and win/loss breakdowns
+.
 - [Backtest vs Actual](http://127.0.0.1:8080/backtest-vs-actual) — Side-by-side comparison of backtest predictions vs actual filled trade outcomes
+.
   ![Backtest vs Actual](screenshots/BacktestVsActual.png)
+  .
 - [ML Threshold P/L](http://127.0.0.1:8080/analysis/ml-threshold-profit-loss) — Analyzes P&L at different ML confidence thresholds
+.
   ![ML Threshold P/L](screenshots/MLThresholdsProfitLosss.png)
-
+.
 ### Training
 - [Analyze Trade Alerts](http://127.0.0.1:8080/training/analyze-trade-alerts) — Analyze trade alert quality and outcomes
 - [Retrain Models](http://127.0.0.1:8080/training/retrain-models) — Retrain ML scoring models with latest data
@@ -129,40 +151,72 @@ Built-in observability tools track pipeline execution, queue health, Redis keys,
 
 ### Watched
 - [View Watches](http://127.0.0.1:8080/watches) — Watch list with mini price charts, gains/losses, volume, and 52-week stats
+.
   ![View Watches](screenshots/WatchedStocks.png)
+  .
 - [Set Watches](http://127.0.0.1:8080/watches/settings) — Add/remove assets from your watch list with slot limit tracking
+.
 - [CSV Set Watches](http://127.0.0.1:8080/watches/csv) — Bulk-add stocks using comma-separated symbols with validation
+.
 - [My Hour](http://127.0.0.1:8080/my-hour) — One-hour rolling price performance for watched stocks with interval-by-interval changes
+.
 - [Watched Analysis](http://127.0.0.1:8080/watched-analysis) — Stagnation analysis identifying flat, downtrending, and gaining assets
 
 ### Analysis
 - [5-Min VWAP Status](http://127.0.0.1:8080/analysis/vwap-status) — Monitors whether the benchmark symbol's current price is above or below VWAP
+.
 - [Backtest TA Results](http://127.0.0.1:8080/backtest-results) — Backtest trade results with per-trade P&L, win/loss, risk metrics, and ML probabilities
+.
 - [Best Gains 7 Days](http://127.0.0.1:8080/analysis/best-gains-7d) — Ranks stocks by best percentage returns over a configurable number of days
+.
 - [Bottom Detect](http://127.0.0.1:8080/analysis/bottom-detect) — Scans for bottoming patterns using RSI oversold, base-building, and volume reclaim signals
+.
 - [Breakout](http://127.0.0.1:8080/analysis/breakout) — Detects momentum breakout candidates using move %, noise filtering, and volume surge metrics
+.
 - [Breakout Confirmed](http://127.0.0.1:8080/analysis/breakout-confirmed) — Confirms breakouts by cross-referencing 1-min momentum with 5-min candlestick confirmation
+.
 - [Buy Predictor](http://127.0.0.1:8080/buy-predictor) — Scores stocks using range %, pullback, momentum, VWAP, and moving averages to generate buy recommendations
+.
 - [Buy Signals](http://127.0.0.1:8080/buy-signals) — Active buy signals with entry prices, stop losses, EMA/VWAP levels, and ML scores
+.
 - [Buy Window](http://127.0.0.1:8080/buy-window) — Scans for stocks within optimal buy windows using composite scoring
+.
 - [Buy Zone Top Performers](http://127.0.0.1:8080/analysis/buy-zone-top-performers) — Stocks near 7-day highs with VWAP reclaim, EMA alignment, and position sizing
+.
 - [Clean 2H Uptrend](http://127.0.0.1:8080/clean-2h) — Tight-stop momentum picks with trend %, max drawdown, risk score, and consistency metrics
+.
 - [Daily Rising 100](http://127.0.0.1:8080/rising) — Stocks rising over 1D–30D with color-coded momentum indicators
+.
 - [Gainers & Losers](http://127.0.0.1:8080/analysis/gainers-losers) — Top gainers and losers for a given date with open/close and percentage changes
+.
   ![Gainers & Losers](screenshots/GainersAndLosers.png)
+  .
 - [Good Long Buy](http://127.0.0.1:8080/analysis/good-long-buy) — Stocks graded as good long buys with limit/stop prices, VWAP/EMA alignment, and risk scores
+.
 - [Hybrid Momentum Scan](http://127.0.0.1:8080/hybrid-momentum-scan) — Multi-timeframe momentum scan with volume boost, VWAP distance, and topping detection
+.
 - [Last 4 Bars Up](http://127.0.0.1:8080/last-4-bars-up) — Finds stocks with consecutive rising bars and projects forward returns
+.
 - [Notable Assets](http://127.0.0.1:8080/notable-assets) — Identifies stagnant, downtrending, or significantly gaining stocks with flag-based classification
+.
 - [Pipeline Counts](http://127.0.0.1:8080/analysis/pipeline-counts) — Alert counts per pipeline run with dates, trading days covered, and symbol coverage
+.
 - [Risers Not Topped](http://127.0.0.1:8080/risers-not-topped) — Rising stocks without topping patterns across multiple time intervals
+.
 - [Rising In Hour](http://127.0.0.1:8080/rising-hour) — Stocks rising within a one-hour window with interval-by-interval tracking
+.
   ![Rising In Hour](screenshots/RisingInHour.png)
+  .
 - [Rising Since Close](http://127.0.0.1:8080/analysis/rising-since-close) — Stocks sorted by percentage gain since last market close
+.
 - [Rising Stock Analysis](http://127.0.0.1:8080/check-top) — Individual symbol topping pattern analysis with volume and extension metrics
+.
 - [Score Symbol](http://127.0.0.1:8080/analysis/score-symbol) — Manually score a single symbol through the ML pipeline for win probability
+.
 - [Score Symbol List](http://127.0.0.1:8080/analysis/score-symbol-list) — Batch score multiple symbols with auto-polling progress and aggregate results
+.
 - [Sentiments](http://127.0.0.1:8080/sentiments) — Market sentiment entries by date with confidence scores and linked assets
+.
 - [Upward Pressure](http://127.0.0.1:8080/analysis/upward-pressure) — Stocks ranked by upward buying pressure using composite body/volume/momentum scoring
 
 ### TA Lab Analysis

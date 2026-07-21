@@ -1,6 +1,8 @@
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 /** Today's date in America/New_York timezone as YYYY-MM-DD. */
 function estToday(): string {
@@ -213,6 +215,7 @@ export default function Index({
         useState<boolean>(firstOnly);
     const [hideBlacklistedEnabled, setHideBlacklistedEnabled] =
         useState<boolean>(hideBlacklisted);
+    const [readMeOpen, setReadMeOpen] = useState(false);
     const [useFullTablesEnabled, setUseFullTablesEnabled] =
         useState<boolean>(useFullTables);
     const [useTimeSlotsEnabled, setUseTimeSlotsEnabled] = useState<boolean>(
@@ -1167,6 +1170,96 @@ export default function Index({
                                 </select>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Read Me Button */}
+                    <div className="mb-4 flex justify-start">
+                        <Dialog open={readMeOpen} onOpenChange={setReadMeOpen}>
+                            <DialogTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="flex items-center gap-2 border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                                >
+                                    <span className="text-lg">📖</span> Read Me !
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-h-[85vh] max-w-2xl flex flex-col">
+                                <DialogHeader className="shrink-0">
+                                    <DialogTitle>📊 Understanding Backtest Results</DialogTitle>
+                                </DialogHeader>
+                                <div className="overflow-y-auto flex-1 pr-2">
+                                    <div className="text-left text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                                        <p className="mb-3">
+                                            The Backtest Results page shows <strong>theoretical optimal trading performance</strong> —
+                                            what your strategy <em>would</em> have achieved if every trade executed perfectly at the
+                                            exact signal price with zero friction. These results represent an idealized best-case scenario
+                                            and should be interpreted with the understanding that <strong>real-world execution will
+                                            always fall short</strong> of these numbers.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">What Is Slippage?</h4>
+                                        <p className="mb-3">
+                                            <strong>Slippage</strong> is the difference between the price you expect to trade at and the
+                                            price you actually get filled at. It occurs because prices move in the milliseconds between when
+                                            your system detects a signal and when your order reaches the exchange. Slippage can work against
+                                            you (buying higher than expected, selling lower) or occasionally in your favor, but on average
+                                            it's a cost that eats into your edge. In fast-moving stocks, slippage of $0.05–$0.20 per share
+                                            is common — on a $50 stock, that's 0.1%–0.4% right off your profit. Over hundreds of trades,
+                                            this compounds into a significant drag.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">Precise Entry Times vs. Reality</h4>
+                                        <p className="mb-3">
+                                            The backtest assumes entries execute at the <strong>exact closing price of the 1-minute signal
+                                            bar</strong>, down to the second. In live trading, your system must detect the signal, process
+                                            the entry logic, and submit an order — all of which takes time. Even with sub-second processing,
+                                            the market has already moved. Additionally, backtests use 1-minute bar closes, but the actual
+                                            minute-by-minute price action can be choppy, and the "close" of a bar is an aggregate that
+                                            may not reflect the price you can actually get.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">Limit Orders on Entry</h4>
+                                        <p className="mb-3">
+                                            In production, entries are placed using <strong>limit orders</strong> — you specify the maximum
+                                            price you're willing to pay. This protects you from runaway fills during volatile spikes, but
+                                            it also means you may <strong>miss entries entirely</strong> if price gaps above your limit.
+                                            The backtest assumes you always get filled at the signal bar close; in reality, a well-placed
+                                            limit order might not get filled if the stock rips past it. Conversely, using market orders
+                                            for entries guarantees fills but subjects you to immediate slippage.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">Market Orders on Sell (Stop Loss Exits)</h4>
+                                        <p className="mb-3">
+                                            Stop loss exits use <strong>market orders</strong> once the stop price is triggered. When your
+                                            stop is hit, the order converts to a market sell and fills at the next available price — which
+                                            can be significantly worse than your stop price during fast drops. This is called <strong>stop
+                                            slippage</strong> and is particularly severe during gap-downs or panic selling. The backtest
+                                            assumes you exit exactly at the stop price or trailing stop level, but in reality a 1% stop can
+                                            easily become a 1.5%–2% loss.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">The Bid-Ask Spread</h4>
+                                        <p className="mb-3">
+                                            Every stock has a <strong>spread</strong> — the gap between the highest price a buyer will pay
+                                            (bid) and the lowest price a seller will accept (ask). You buy at the ask and sell at the bid.
+                                            The spread is an immediate, invisible cost: on a $100 stock with a $0.10 spread, you're instantly
+                                            underwater by 0.1% the moment you enter. The backtest uses a single mid-point or close price and
+                                            does not account for the spread. High-spread stocks (small caps, low liquidity) can have spreads
+                                            of 0.5% or more, eroding profitability on every round-trip trade.
+                                        </p>
+
+                                        <h4 className="mb-2 mt-4 font-semibold text-gray-900 dark:text-gray-100">Realistic Expectations</h4>
+                                        <p>
+                                            When evaluating backtest results, a good rule of thumb is to <strong>discount the displayed
+                                            P&amp;L by 25–40%</strong> to account for slippage, spread costs, missed entries, and stop loss
+                                            over-slippage. A strategy showing a 2.0 profit factor in backtest may only deliver 1.3–1.5 in
+                                            live trading. Use the backtest results to identify patterns, compare pipeline versions, and filter
+                                            for high-probability setups — not as a guarantee of real-world returns.
+                                        </p>
+                                    </div>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     {/* Performance Summary */}

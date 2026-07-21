@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { show as showAsset } from '@/routes/asset-info';
 import { BarChart3, CandlestickChart, Clock, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ComposedChart,
     Bar,
@@ -103,6 +103,20 @@ export default function FiveMinuteAnalysis({ patterns, selectedPattern, results,
             onFinish: () => setIsLoading(false),
         });
     };
+
+    // Auto-refresh every 5 minutes when viewing a pattern
+    useEffect(() => {
+        if (!selectedPattern) return;
+
+        const interval = setInterval(() => {
+            router.get('/ta-lib-analysis/five-minute', { pattern: selectedPattern, limit }, {
+                preserveState: true,
+                preserveScroll: true,
+            });
+        }, 300000);
+
+        return () => clearInterval(interval);
+    }, [selectedPattern, limit]);
 
     const filteredResults = results?.results.filter((r) => {
         if (!showBullishOnly) return true;

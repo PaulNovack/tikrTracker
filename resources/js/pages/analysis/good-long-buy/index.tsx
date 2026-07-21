@@ -56,11 +56,11 @@ export default function GoodLongBuyIndex({ stocks, totalSymbols }: Props) {
         { title: 'Good Long Buy', href: '/analysis/good-long-buy' },
     ];
 
-    // Auto-refresh every 5 minutes (query takes ~2 minutes)
+    // Auto-refresh every 1 minute
     useEffect(() => {
         const interval = setInterval(() => {
             router.reload({ preserveState: true, preserveScroll: true });
-        }, 300000);
+        }, 60000);
         return () => clearInterval(interval);
     }, []);
 

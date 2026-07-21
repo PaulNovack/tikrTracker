@@ -352,6 +352,7 @@ export function AppSidebar() {
                     href: '/analysis/good-long-buy',
                     icon: TrendingUp,
                     disabled: isGuest,
+                    openInNewTab: true,
                 },
                 {
                     title: 'Hybrid Momentum Scan',

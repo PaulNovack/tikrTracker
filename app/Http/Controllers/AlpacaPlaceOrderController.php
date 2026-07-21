@@ -62,6 +62,13 @@ class AlpacaPlaceOrderController extends Controller
             ->whereIn('status', ['new', 'partially_filled', 'accepted', 'pending_new'])
             ->first();
 
+        // Check if a buy order was already filled today for this symbol
+        $boughtToday = AlpacaOrder::where('symbol', $symbol)
+            ->where('side', 'buy')
+            ->where('status', 'filled')
+            ->whereDate('filled_at', Carbon::today('America/New_York'))
+            ->exists();
+
         // Check recent alerts for this symbol today
         $recentAlerts = TradeAlert::where('symbol', $symbol)
             ->orderByDesc('entry_ts_est')
@@ -73,6 +80,7 @@ class AlpacaPlaceOrderController extends Controller
             'price' => $priceData['price'] ?? null,
             'price_timestamp' => $priceData['timestamp'] ?? null,
             'open_order' => $openOrder,
+            'bought_today' => $boughtToday,
             'recent_alerts' => $recentAlerts,
         ]);
     }
@@ -143,6 +151,33 @@ class AlpacaPlaceOrderController extends Controller
 
         $now = Carbon::now('America/New_York');
         $asOfTsEst = $now->format('Y-m-d H:i:s');
+
+        // ──────────────────────────────────────────────────────────────
+        // Block if this symbol was already bought today
+        // ──────────────────────────────────────────────────────────────
+        $boughtToday = AlpacaOrder::where('symbol', $symbol)
+            ->where('side', 'buy')
+            ->where('status', 'filled')
+            ->whereDate('filled_at', $now->toDateString())
+            ->exists();
+
+        if ($boughtToday) {
+            return response()->json([
+                'error' => "{$symbol} was already bought today. Placing another order may trigger a wash trade.",
+            ], 409);
+        }
+
+        // Also check for open buy orders (not yet filled)
+        $openBuyOrder = AlpacaOrder::where('symbol', $symbol)
+            ->where('side', 'buy')
+            ->whereIn('status', ['new', 'partially_filled', 'accepted', 'pending_new'])
+            ->exists();
+
+        if ($openBuyOrder) {
+            return response()->json([
+                'error' => "{$symbol} already has an open buy order. Please wait for it to fill or cancel it first.",
+            ], 409);
+        }
 
         // ──────────────────────────────────────────────────────────────
         // Position sizing (shares = 0 means auto-calculate)
@@ -318,21 +353,41 @@ class AlpacaPlaceOrderController extends Controller
                 ], 400);
             }
 
-            // 2. Place the Alpaca buy order (plain market order, no bracket).
+            // 2. Check bid-ask spread before placing the order
+            $quote = DB::connection('mysql')
+                ->table('latest_stock_quotes')
+                ->where('symbol', $symbol)
+                ->where('received_at_utc', '>=', now('UTC')->subMinutes(5))
+                ->first(['ask_price', 'bid_price']);
+
+            if ($quote && (float) $quote->ask_price > 0 && (float) $quote->bid_price > 0) {
+                $askPrice = (float) $quote->ask_price;
+                $bidPrice = (float) $quote->bid_price;
+
+                if ($askPrice > $bidPrice) {
+                    $mid = ($bidPrice + $askPrice) / 2;
+                    $spreadPct = (($askPrice - $bidPrice) / $mid) * 100;
+                    $maxSpreadPct = TradingSettingService::getMaxSpreadPct();
+
+                    if ($spreadPct > $maxSpreadPct) {
+                        DB::rollBack();
+
+                        return response()->json([
+                            'error' => "{$symbol} spread is too wide ({$spreadPct}% > {$maxSpreadPct}% max). Bid: \${$bidPrice}, Ask: \${$askPrice}.",
+                        ], 400);
+                    }
+                }
+            }
+
+            // 3. Place the Alpaca buy order (plain market order, no bracket).
             // Use a marketable limit price when limit orders are enabled, so the
             // manual order follows the same rules as automated pipelines.
             $limitPrice = null;
             if (TradingSettingService::isUseLimitOrdersEnabled()) {
-                $quote = DB::connection('mysql')
-                    ->table('latest_stock_quotes')
-                    ->where('symbol', $symbol)
-                    ->where('received_at_utc', '>=', now('UTC')->subMinutes(5))
-                    ->first(['ask_price', 'bid_price']);
-
                 if ($quote && (float) $quote->ask_price > 0) {
                     $multiplier = (float) config('trading.auto_alpaca_orders.marketable_limit_multiplier', 1.0005);
-                    $bidPrice = (float) $quote->bid_price;
                     $askPrice = (float) $quote->ask_price;
+                    $bidPrice = (float) $quote->bid_price;
                     $mid = ($bidPrice + $askPrice) / 2;
 
                     if ($bidPrice > 0) {
@@ -343,6 +398,7 @@ class AlpacaPlaceOrderController extends Controller
                     }
                 }
             }
+
             // The automated trailing-stop system will handle stop-loss after fill.
             $alpacaService = app(\App\Services\AlpacaPythonService::class);
             $entryResult = $alpacaService->placeOrder(

@@ -192,19 +192,32 @@ class AlpacaDailyPerformanceController extends Controller
                         }
                     }
 
-                    // FIFO consume sells against unmatched buys
+                    // FIFO: match buys against remaining sells.
+                    // Each buy consumes from sells until its qty is satisfied or
+                    // sell inventory runs out. Unmatched buy qty stays unrealized.
                     $sellIdx = 0;
                     foreach ($unmatchedBuys as $buy) {
-                        if ($sellIdx >= count($remainingSells)) {
-                            break;
+                        $remainingBuyQty = (float) $buy->filled_qty;
+                        $weightedSum = 0.0;
+                        $matchedQtyTotal = 0.0;
+
+                        while ($remainingBuyQty > 0 && $sellIdx < count($remainingSells)) {
+                            $matchedQty = min($remainingBuyQty, $remainingSells[$sellIdx]['qty']);
+                            $sellPrice = $remainingSells[$sellIdx]['price'];
+                            $weightedSum += $sellPrice * $matchedQty;
+                            $matchedQtyTotal += $matchedQty;
+
+                            $remainingSells[$sellIdx]['qty'] -= $matchedQty;
+                            $remainingBuyQty -= $matchedQty;
+
+                            if ($remainingSells[$sellIdx]['qty'] <= 0) {
+                                $sellIdx++;
+                            }
                         }
-                        $buyQty = (float) $buy->filled_qty;
-                        $sellPrice = $remainingSells[$sellIdx]['price'];
-                        $remainingSells[$sellIdx]['qty'] -= $buyQty;
-                        if ($remainingSells[$sellIdx]['qty'] <= 0) {
-                            $sellIdx++;
+
+                        if ($matchedQtyTotal > 0) {
+                            $buySellMap[$buy->alpaca_order_id] = $weightedSum / $matchedQtyTotal;
                         }
-                        $buySellMap[$buy->alpaca_order_id] = $sellPrice;
                     }
                 }
 
