@@ -57,58 +57,145 @@ class AlpacaOrdersApiController extends Controller
             $error = $result['error'] ?? 'Failed to fetch orders from Alpaca API';
         }
 
-        // Build realizedSellPrices using ONLY our DB's parent_alpaca_order_id
-        // (which is now reliably populated). Alpaca's parent_order_id is empty
-        // for standalone stops, so using it would cause wrong FIFO matching.
+        // Compute P&L from API data. Strategy per symbol:
+        // 1. Sort fills chronologically
+        // 2. Match sells to buys FIFO (for same-day buy→sell pairs)
+        // 3. For sells without a FIFO match (closing prior-day positions),
+        //    look up the parent buy's entry price from alpaca_orders DB
         $realizedSellPrices = [];
-        $filledOrders = array_filter($orders, fn ($o) => ($o['status'] ?? '') === 'filled');
+        $summaryPlDollar = 0.0;
+        $summaryTotalBought = 0.0;
 
-        // Cross-reference DB for parent_alpaca_order_id on standalone stops
-        $sellAlpacaIds = [];
+        // Include orders with filled_qty > 0 (matches working pages — catches
+        // partially-filled-then-canceled orders that still transacted shares)
+        $filledOrders = array_values(array_filter($orders, fn ($o) => (float) ($o['filled_qty'] ?? 0) > 0));
+
+        // Collect sell IDs for DB parent lookup (used for sells without FIFO match)
+        $allSellIds = [];
         foreach ($filledOrders as $o) {
             if (($o['side'] ?? '') === 'sell') {
-                $sellAlpacaIds[] = $o['id'];
+                $allSellIds[] = $o['id'];
             }
         }
+
+        // Batch fetch DB parent_alpaca_order_id for all sells
         $dbParentLinks = [];
-        if ($sellAlpacaIds !== []) {
+        if ($allSellIds !== []) {
             $dbParentLinks = DB::table('alpaca_orders')
-                ->whereIn('alpaca_order_id', $sellAlpacaIds)
+                ->whereIn('alpaca_order_id', $allSellIds)
                 ->whereNotNull('parent_alpaca_order_id')
                 ->pluck('parent_alpaca_order_id', 'alpaca_order_id')
                 ->toArray();
         }
 
-        // Build valid buy IDs from the Alpaca data (same-day trades only)
-        $validBuyIds = [];
+        // Group fills by symbol
+        $bySymbol = [];
         foreach ($filledOrders as $o) {
-            if (($o['side'] ?? '') === 'buy') {
-                $validBuyIds[$o['id']] = true;
+            $sym = $o['symbol'] ?? '';
+            if ($sym === '') {
+                continue;
+            }
+            $bySymbol[$sym][] = $o;
+        }
+
+        foreach ($bySymbol as $symbol => $fills) {
+            // Sort by filled_at chronologically
+            usort($fills, function ($a, $b) {
+                $ta = $a['filled_at'] ?? $a['submitted_at'] ?? '';
+                $tb = $b['filled_at'] ?? $b['submitted_at'] ?? '';
+
+                return $ta <=> $tb;
+            });
+
+            // FIFO buy queue: each entry is [buyId, buyPrice, remainingQty]
+            $buyQueue = [];
+
+            foreach ($fills as $o) {
+                $side = $o['side'] ?? '';
+                $qty = (float) ($o['filled_qty'] ?? 0);
+                $price = (float) ($o['filled_avg_price'] ?? 0);
+
+                if ($qty <= 0 || $price <= 0) {
+                    continue;
+                }
+
+                if ($side === 'buy') {
+                    $buyQueue[] = ['id' => $o['id'], 'price' => $price, 'remaining' => $qty];
+                    $summaryTotalBought += $price * $qty;
+                } elseif ($side === 'sell') {
+                    $remainingSell = $qty;
+
+                    // Step 1: FIFO match against today's buys
+                    while ($remainingSell > 0 && $buyQueue !== []) {
+                        $buy = &$buyQueue[0];
+                        $matched = min($remainingSell, $buy['remaining']);
+
+                        $buyId = $buy['id'];
+                        $buyPrice = $buy['price'];
+
+                        if (isset($realizedSellPrices[$buyId])) {
+                            $ex = $realizedSellPrices[$buyId];
+                            $totalQty = $ex['qty'] + $matched;
+                            $weightedPrice = (($ex['price'] * $ex['qty']) + ($price * $matched)) / $totalQty;
+                            $realizedSellPrices[$buyId] = ['price' => round($weightedPrice, 2), 'qty' => $totalQty];
+                        } else {
+                            $realizedSellPrices[$buyId] = ['price' => $price, 'qty' => $matched];
+                        }
+
+                        $summaryPlDollar += ($price - $buyPrice) * $matched;
+
+                        $buy['remaining'] -= $matched;
+                        $remainingSell -= $matched;
+
+                        if ($buy['remaining'] <= 0) {
+                            array_shift($buyQueue);
+                        }
+                    }
+
+                    // Step 2: unmatched portion = closing a prior-day position
+                    // Look up parent buy from DB for entry price
+                    if ($remainingSell > 0) {
+                        $parentId = $dbParentLinks[$o['id']] ?? null;
+                        if ($parentId) {
+                            $buyPrice = DB::table('alpaca_orders')
+                                ->where('alpaca_order_id', $parentId)
+                                ->where('side', 'buy')
+                                ->whereNotNull('filled_avg_price')
+                                ->value('filled_avg_price');
+
+                            if ($buyPrice && (float) $buyPrice > 0) {
+                                $summaryPlDollar += ($price - (float) $buyPrice) * $remainingSell;
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // Phase 1: match sells to buys by DB parent_alpaca_order_id (only if parent is a valid buy)
-        foreach ($filledOrders as $o) {
-            if (($o['side'] ?? '') !== 'sell') {
+        // Add unrealized P&L for unmatched buys
+        $currentPrices = $this->getCurrentPrices(array_column($orders, 'symbol'));
+        foreach ($bySymbol as $symbol => $fills) {
+            if (! isset($currentPrices[$symbol])) {
                 continue;
             }
-            $parentId = $dbParentLinks[$o['id']] ?? null;
-            if (! $parentId || ! isset($validBuyIds[$parentId])) {
-                continue;
-            }
+            $currentPrice = (float) $currentPrices[$symbol]['price'];
 
-            if (isset($realizedSellPrices[$parentId])) {
-                $existing = $realizedSellPrices[$parentId];
-                $totalQty = $existing['qty'] + (float) ($o['filled_qty'] ?? 0);
-                $weightedPrice = (($existing['price'] * $existing['qty']) + ((float) ($o['filled_avg_price'] ?? 0) * (float) ($o['filled_qty'] ?? 0))) / $totalQty;
-                $realizedSellPrices[$parentId] = ['price' => round($weightedPrice, 2), 'qty' => $totalQty];
-            } else {
-                $realizedSellPrices[$parentId] = ['price' => (float) ($o['filled_avg_price'] ?? 0), 'qty' => (float) ($o['filled_qty'] ?? 0)];
+            foreach ($fills as $o) {
+                if (($o['side'] ?? '') !== 'buy') {
+                    continue;
+                }
+                $buyId = $o['id'];
+                if (isset($realizedSellPrices[$buyId])) {
+                    continue;
+                }
+                $buyPrice = (float) ($o['filled_avg_price'] ?? 0);
+                $buyQty = (float) ($o['filled_qty'] ?? 0);
+                if ($buyPrice <= 0 || $buyQty <= 0) {
+                    continue;
+                }
+                $summaryPlDollar += ($currentPrice - $buyPrice) * $buyQty;
             }
         }
-
-        // Phase 2 is NOT needed — all trades are same-day and sells have parent_alpaca_order_id set.
-        // Any remaining unmatched buys are open positions (unrealized P&L).
 
         return Inertia::render('alpaca-orders-api/index', [
             'orders' => $orders,
@@ -120,8 +207,10 @@ class AlpacaOrdersApiController extends Controller
                 'end_date' => $endDate,
                 'only_owned' => $onlyOwned,
             ],
-            'currentPrices' => $this->getCurrentPrices(array_column($orders, 'symbol')),
+            'currentPrices' => $currentPrices,
             'ownedQuantities' => $ownedQuantities,
+            'summaryPlDollar' => round($summaryPlDollar, 2),
+            'summaryTotalBought' => round($summaryTotalBought, 2),
             'realizedSellPrices' => $realizedSellPrices,
         ]);
     }
