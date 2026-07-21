@@ -52,6 +52,8 @@ export default function AlpacaOrdersApi({
     filters,
     currentPrices,
     ownedQuantities,
+    summaryPlDollar,
+    summaryTotalBought,
     realizedSellPrices,
 }: PageProps<{
     orders: AlpacaApiOrder[];
@@ -64,6 +66,8 @@ export default function AlpacaOrdersApi({
     };
     currentPrices: Record<string, CurrentPrice>;
     ownedQuantities: Record<string, number>;
+    summaryPlDollar: number;
+    summaryTotalBought: number;
     realizedSellPrices: Record<string, { price: number; qty: number }>;
 }>) {
     const breadcrumbs: BreadcrumbItem[] = [
@@ -82,7 +86,7 @@ export default function AlpacaOrdersApi({
         const avgPrice = parseFloat(order.filled_avg_price);
         const qty = actualQty || parseFloat(order.filled_qty);
 
-        // For buy orders: use realized sell price if the stop fired, else current price
+        // For buy orders: use realized sell price if matched via FIFO, else current price
         if (order.side === 'buy') {
             const realized = realizedSellPrices[order.id];
             if (realized) {
@@ -104,7 +108,6 @@ export default function AlpacaOrdersApi({
         }
 
         // For sell orders: show informational P/L (sell price vs current market)
-        // Positive = you sold above current price (good), negative = price went up after selling
         if (!currentPrices[order.symbol]) {
             return { plPct: 0, plDollar: 0, isRealized: false };
         }
@@ -169,53 +172,13 @@ export default function AlpacaOrdersApi({
         }
     };
 
-    // P&L calculation — uses backend-built realizedSellPrices map keyed by
-    // BUY alpaca_order_id. For buy orders, realizedSellPrices[buy.id] gives
-    // the weighted sell price. For sell orders, show informational P/L.
-    const calculatePLForSummary = (order: AlpacaApiOrder) => {
-        if (!order.filled_avg_price || !order.filled_qty) {
-            return null;
-        }
-        const qty = parseFloat(order.filled_qty);
-        const avgPrice = parseFloat(order.filled_avg_price);
-
-        if (order.side === 'buy') {
-            const realized = realizedSellPrices[order.id];
-            if (realized) {
-                const sellPrice = realized.price;
-                const matchedQty = Math.min(qty, realized.qty);
-                const plDollar = (sellPrice - avgPrice) * matchedQty;
-                return { plDollar, isRealized: true };
-            }
-            // Unmatched buy — use current price
-            if (currentPrices[order.symbol]) {
-                const current = parseFloat(currentPrices[order.symbol].price);
-                return { plDollar: (current - avgPrice) * qty, isRealized: false };
-            }
-            return null;
-        }
-
-        // For sells: informational P/L — positive when sold above current, negative when price rose after selling
-        if (currentPrices[order.symbol]) {
-            const current = parseFloat(currentPrices[order.symbol].price);
-            return { plDollar: (avgPrice - current) * qty, isRealized: false };
-        }
-        return null;
-    };
-
-    const filledOrders = orders.filter((o) => o.status === 'filled');
+    const filledOrders = orders.filter((o) => parseFloat(o.filled_qty || '0') > 0);
     const buyCount = filledOrders.filter((o) => o.side === 'buy').length;
     const sellCount = filledOrders.filter((o) => o.side === 'sell').length;
 
-    let plDollar = 0;
-    let totalBought = 0;
-    for (const order of filledOrders) {
-        if (order.side !== 'buy') continue;
-        const pl = calculatePLForSummary(order);
-        if (!pl) continue;
-        plDollar += pl.plDollar;
-        totalBought += parseFloat(order.filled_avg_price || '0') * parseFloat(order.filled_qty || '0');
-    }
+    // Use server-computed summary (built from API data with symbol+FIFO matching)
+    const plDollar = summaryPlDollar;
+    const totalBought = summaryTotalBought;
     const plPct = totalBought > 0 ? (plDollar / totalBought) * 100 : 0;
 
     return (
@@ -308,7 +271,7 @@ export default function AlpacaOrdersApi({
                             <div>
                                 <div className="text-sm text-muted-foreground">P/L $</div>
                                 <div className={`text-xl font-bold ${plDollar >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                    {plDollar >= 0 ? '+' : ''}{plDollar.toFixed(2)}
+                                    {plDollar >= 0 ? '+' : ''}${plDollar.toFixed(2)}
                                 </div>
                             </div>
                             <div>
