@@ -232,8 +232,8 @@ class AlpacaPythonService
                     ]);
                 } elseif ($this->isStopPriceError($scriptName, $error)) {
                     $reason = 'stop_price >= market price';
-                    if (preg_match('/"market_price":"([\d.]+)"/', $error, $m)) {
-                        $reason = 'stop ($'.round((float) $error).') >= market ($'.$m[1].')';
+                    if (preg_match('/"market_price"\s*:\s*"?([\d.]+)"?/i', $error, $m)) {
+                        $reason = 'stop ($'.round((float) $this->extractStopPriceFromArgs($args), 2).') >= market ($'.$m[1].')';
                     }
                     Log::warning("Python script place_order failed ({$reason}) — retry will adjust stop: {$scriptName}", [
                         'command' => implode(' ', $command),
@@ -294,6 +294,45 @@ class AlpacaPythonService
     }
 
     /**
+     * Check if the error is a wash trade rejection (opposite side order exists).
+     */
+    public static function isWashTradeError(string $error): bool
+    {
+        return str_contains($error, '40310000')
+            || str_contains($error, 'opposite side limit order exists')
+            || str_contains($error, 'potential wash trade detected');
+    }
+
+    /**
+     * Extract the market price from a stop-order rejection error message.
+     * Alpaca includes a JSON payload with "market_price" when a stop order
+     * is rejected for being at or above the current trading price.
+     *
+     * Also tries to parse the price from plain-text error formats.
+     *
+     * @return float|null The market price, or null if not found
+     */
+    public static function extractMarketPriceFromError(string $error): ?float
+    {
+        // Try JSON payload: {"market_price": "12.87"}
+        if (preg_match('/"market_price"\s*:\s*"?([\d.]+)"?/i', $error, $matches)) {
+            return (float) $matches[1];
+        }
+
+        // Try "stop price must be less than current price of $12.87"
+        if (preg_match('/current price of \$?([\d.]+)/i', $error, $matches)) {
+            return (float) $matches[1];
+        }
+
+        // Try "current price ([0-9.]+)"
+        if (preg_match('/current price[:\s]+\$?([\d.]+)/i', $error, $matches)) {
+            return (float) $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
      * Check if the error is an "insufficient qty" response — the position is already
      * tied up in another open order (e.g. a duplicate stop-loss) or was already sold.
      * This is a normal operational occurrence, not a system error.
@@ -316,6 +355,20 @@ class AlpacaPythonService
         return ($symbolIndex !== false && isset($args[$symbolIndex + 1]))
             ? (string) $args[$symbolIndex + 1]
             : 'unknown';
+    }
+
+    /**
+     * Extract the stop price from the command-line args array.
+     *
+     * @param  array<int, string>  $args
+     */
+    protected function extractStopPriceFromArgs(array $args): float
+    {
+        $stopIndex = array_search('--stop-price', $args, true);
+
+        return ($stopIndex !== false && isset($args[$stopIndex + 1]))
+            ? (float) $args[$stopIndex + 1]
+            : 0.0;
     }
 
     /**

@@ -40,6 +40,7 @@ export default function AlpacaPlaceOrderIndex({ todayAlerts }: Props) {
     const [notes, setNotes] = useState('');
     const [isPlacing, setIsPlacing] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [boughtToday, setBoughtToday] = useState(false);
 
     // Derived total order value
     const sharesNum = parseInt(shares, 10);
@@ -99,6 +100,7 @@ const csrfToken = (): string =>
     const handleSymbolSelect = (sym: string) => {
         setSearchTerm(sym);
         setShowSuggestions(false);
+        setBoughtToday(false);
         // Fetch current price for selected symbol
         fetch('/alpaca-place-order/lookup', {
             method: 'POST',
@@ -110,6 +112,9 @@ const csrfToken = (): string =>
                 if (data.price) {
                     setEntryPrice(String(data.price));
                 }
+                if (data.bought_today) {
+                    setBoughtToday(true);
+                }
             })
             .catch(() => {});
     };
@@ -118,6 +123,7 @@ const csrfToken = (): string =>
         setSearchTerm('');
         setSuggestions([]);
         setEntryPrice('');
+        setBoughtToday(false);
     };
 
     const handleSubmit = async (e: FormEvent) => {
@@ -173,6 +179,12 @@ const csrfToken = (): string =>
                         }`}
                     >
                         {status.message}
+                    </div>
+                )}
+
+                {boughtToday && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        {searchTerm} was already bought today. Placing another order may trigger a wash trade or duplicate the position.
                     </div>
                 )}
 

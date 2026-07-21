@@ -196,6 +196,43 @@ class UpdateTrailingStopLosses extends Command
                     if ($result['success']) {
                         $this->saveOrderToDatabase($result['output']);
                         $this->info("{$symbol}: Successfully placed initial stop order");
+                    } elseif (AlpacaPythonService::isWashTradeError($result['error'] ?? '')) {
+                        $this->warn("{$symbol}: Wash trade detected — cancelling conflicting orders");
+                        $alpacaPythonService->cancelOrdersBySymbol($symbol);
+                    } else {
+                        // Retry with progressively lower stop prices (same logic as trailing stop)
+                        $errorMsg = $result['error'] ?? '';
+                        $realMarket = AlpacaPythonService::extractMarketPriceFromError($errorMsg);
+
+                        if ($realMarket !== null) {
+                            $retryCount = 0;
+                            $maxRetries = 5;
+
+                            while ($retryCount < $maxRetries) {
+                                $retryStop = round($realMarket * (1.0 - 0.005 * ($retryCount + 1)), 2);
+                                $this->warn("{$symbol}: Initial stop \${$initialStopPrice} rejected (market=\${$realMarket}), retry #".($retryCount + 1)." at \${$retryStop}");
+
+                                $retryResult = $alpacaPythonService->placeOrder(
+                                    symbol: $symbol, qty: floor($currentQty),
+                                    side: 'sell', stopPrice: $retryStop, stopOnly: true
+                                );
+
+                                if ($retryResult['success']) {
+                                    $this->saveOrderToDatabase($retryResult['output']);
+                                    $this->info("{$symbol}: Retry #".($retryCount + 1)." succeeded — stop at \${$retryStop}");
+
+                                    break;
+                                }
+
+                                $retryCount++;
+                            }
+
+                            if ($retryCount >= $maxRetries) {
+                                $this->error("{$symbol}: All {$maxRetries} initial stop retries failed — ".($retryResult['error'] ?? ''));
+                            }
+                        } else {
+                            $this->error("{$symbol}: Failed to place initial stop order — {$errorMsg}");
+                        }
                     }
                 }
 
@@ -333,22 +370,44 @@ class UpdateTrailingStopLosses extends Command
                     $this->info("{$symbol}: Successfully placed stop order at \${$newStopPrice}");
                 } else {
                     $errorMsg = $result['error'] ?? '';
+
+                    // Wash trade: an opposite-side order is blocking. Cancel it.
+                    if (AlpacaPythonService::isWashTradeError($errorMsg)) {
+                        $this->warn("{$symbol}: Wash trade detected — cancelling conflicting orders");
+                        $alpacaPythonService->cancelOrdersBySymbol($symbol);
+
+                        continue;
+                    }
+
                     $realMarket = AlpacaPythonService::extractMarketPriceFromError($errorMsg);
 
                     if ($realMarket !== null) {
-                        $adjustedStop = round($realMarket * 0.99, 2);
-                        $this->warn("{$symbol}: Stop \${$newStopPrice} rejected (market=\${$realMarket}), retrying at \${$adjustedStop}");
+                        // Retry up to 5 times, stepping stop price down by 0.5% each attempt
+                        $retryCount = 0;
+                        $maxRetries = 5;
+                        $retryStop = round($realMarket * 0.995, 2);
 
-                        $retryResult = $alpacaPythonService->placeOrder(
-                            symbol: $symbol, qty: floor($currentQty),
-                            side: 'sell', stopPrice: $adjustedStop, stopOnly: true
-                        );
+                        while ($retryCount < $maxRetries) {
+                            $retryStop = round($realMarket * (1.0 - 0.005 * ($retryCount + 1)), 2);
+                            $this->warn("{$symbol}: Stop rejected (market=\${$realMarket}), retry #".($retryCount + 1)." at \${$retryStop}");
 
-                        if ($retryResult['success']) {
-                            $this->saveOrderToDatabase($retryResult['output']);
-                            $this->info("{$symbol}: Retry succeeded — stop at \${$adjustedStop}");
-                        } else {
-                            $this->error("{$symbol}: Retry also failed — ".($retryResult['error'] ?? ''));
+                            $retryResult = $alpacaPythonService->placeOrder(
+                                symbol: $symbol, qty: floor($currentQty),
+                                side: 'sell', stopPrice: $retryStop, stopOnly: true
+                            );
+
+                            if ($retryResult['success']) {
+                                $this->saveOrderToDatabase($retryResult['output']);
+                                $this->info("{$symbol}: Retry #".($retryCount + 1)." succeeded — stop at \${$retryStop}");
+
+                                break;
+                            }
+
+                            $retryCount++;
+                        }
+
+                        if ($retryCount >= $maxRetries) {
+                            $this->error("{$symbol}: All {$maxRetries} retries failed — ".($retryResult['error'] ?? ''));
                         }
                     } else {
                         $this->error("{$symbol}: Failed to place stop order — {$errorMsg}");
