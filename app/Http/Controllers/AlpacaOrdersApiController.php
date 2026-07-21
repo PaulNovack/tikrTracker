@@ -57,82 +57,58 @@ class AlpacaOrdersApiController extends Controller
             $error = $result['error'] ?? 'Failed to fetch orders from Alpaca API';
         }
 
-        // Build realizedSellPrices: match sells to buys by parent_order_id or chronologically
+        // Build realizedSellPrices using ONLY our DB's parent_alpaca_order_id
+        // (which is now reliably populated). Alpaca's parent_order_id is empty
+        // for standalone stops, so using it would cause wrong FIFO matching.
         $realizedSellPrices = [];
         $filledOrders = array_filter($orders, fn ($o) => ($o['status'] ?? '') === 'filled');
 
-        // Build a lookup of buy IDs from the API data
-        $buyIds = [];
-        $buyOrders = [];
+        // Cross-reference DB for parent_alpaca_order_id on standalone stops
+        $sellAlpacaIds = [];
+        foreach ($filledOrders as $o) {
+            if (($o['side'] ?? '') === 'sell') {
+                $sellAlpacaIds[] = $o['id'];
+            }
+        }
+        $dbParentLinks = [];
+        if ($sellAlpacaIds !== []) {
+            $dbParentLinks = DB::table('alpaca_orders')
+                ->whereIn('alpaca_order_id', $sellAlpacaIds)
+                ->whereNotNull('parent_alpaca_order_id')
+                ->pluck('parent_alpaca_order_id', 'alpaca_order_id')
+                ->toArray();
+        }
+
+        // Build valid buy IDs from the Alpaca data
+        $validBuyIds = [];
         foreach ($filledOrders as $o) {
             if (($o['side'] ?? '') === 'buy') {
-                $buyIds[$o['id']] = true;
-                $buyOrders[] = $o;
+                $validBuyIds[$o['id']] = true;
             }
         }
 
-        // Phase 1: match sells to buys by parent_order_id
-        $matchedSellIds = [];
+        // Phase 1: match sells to buys by DB parent_alpaca_order_id (only if parent is a valid buy)
         foreach ($filledOrders as $o) {
-            if (($o['side'] ?? '') === 'sell' && ! empty($o['parent_order_id']) && isset($buyIds[$o['parent_order_id']])) {
-                $parentId = $o['parent_order_id'];
-                $matchedSellIds[$o['id']] = true;
-                if (isset($realizedSellPrices[$parentId])) {
-                    $existing = $realizedSellPrices[$parentId];
-                    $totalQty = $existing['qty'] + (float) ($o['filled_qty'] ?? 0);
-                    $weightedPrice = (($existing['price'] * $existing['qty']) + ((float) ($o['filled_avg_price'] ?? 0) * (float) ($o['filled_qty'] ?? 0))) / $totalQty;
-                    $realizedSellPrices[$parentId] = ['price' => round($weightedPrice, 2), 'qty' => $totalQty];
-                } else {
-                    $realizedSellPrices[$parentId] = ['price' => (float) ($o['filled_avg_price'] ?? 0), 'qty' => (float) ($o['filled_qty'] ?? 0)];
-                }
+            if (($o['side'] ?? '') !== 'sell') {
+                continue;
+            }
+            $parentId = $dbParentLinks[$o['id']] ?? null;
+            if (! $parentId || ! isset($validBuyIds[$parentId])) {
+                continue;
+            }
+
+            if (isset($realizedSellPrices[$parentId])) {
+                $existing = $realizedSellPrices[$parentId];
+                $totalQty = $existing['qty'] + (float) ($o['filled_qty'] ?? 0);
+                $weightedPrice = (($existing['price'] * $existing['qty']) + ((float) ($o['filled_avg_price'] ?? 0) * (float) ($o['filled_qty'] ?? 0))) / $totalQty;
+                $realizedSellPrices[$parentId] = ['price' => round($weightedPrice, 2), 'qty' => $totalQty];
+            } else {
+                $realizedSellPrices[$parentId] = ['price' => (float) ($o['filled_avg_price'] ?? 0), 'qty' => (float) ($o['filled_qty'] ?? 0)];
             }
         }
 
-        // Phase 2: FIFO chronological match for unmatched sells
-        $unmatchedSells = [];
-        foreach ($filledOrders as $o) {
-            if (($o['side'] ?? '') === 'sell' && $o['filled_qty'] > 0 && ! isset($matchedSellIds[$o['id']])) {
-                $unmatchedSells[] = $o;
-            }
-        }
-
-        if ($unmatchedSells !== [] && $buyOrders !== []) {
-            // Sort chronologically
-            usort($buyOrders, fn ($a, $b) => strtotime((string) ($a['submitted_at'] ?? '0')) <=> strtotime((string) ($b['submitted_at'] ?? '0')));
-            usort($unmatchedSells, fn ($a, $b) => strtotime((string) ($a['submitted_at'] ?? '0')) <=> strtotime((string) ($b['submitted_at'] ?? '0')));
-
-            // Per-symbol FIFO
-            $symbolBuyQueue = [];
-            foreach ($buyOrders as $b) {
-                $symbolBuyQueue[$b['symbol']][] = ['id' => $b['id'], 'qty' => (float) ($b['filled_qty'] ?? 0)];
-            }
-
-            foreach ($unmatchedSells as $sell) {
-                $sym = $sell['symbol'];
-                if (empty($symbolBuyQueue[$sym])) {
-                    continue;
-                }
-                $remainingQty = (float) ($sell['filled_qty'] ?? 0);
-                while ($remainingQty > 0 && ! empty($symbolBuyQueue[$sym])) {
-                    $buy = &$symbolBuyQueue[$sym][0];
-                    $matched = min($remainingQty, $buy['qty']);
-                    $buyId = $buy['id'];
-                    if (isset($realizedSellPrices[$buyId])) {
-                        $existing = $realizedSellPrices[$buyId];
-                        $totalQty = $existing['qty'] + $matched;
-                        $weightedPrice = (($existing['price'] * $existing['qty']) + ((float) ($sell['filled_avg_price'] ?? 0) * $matched)) / $totalQty;
-                        $realizedSellPrices[$buyId] = ['price' => round($weightedPrice, 2), 'qty' => $totalQty];
-                    } else {
-                        $realizedSellPrices[$buyId] = ['price' => (float) ($sell['filled_avg_price'] ?? 0), 'qty' => $matched];
-                    }
-                    $remainingQty -= $matched;
-                    $buy['qty'] -= $matched;
-                    if ($buy['qty'] <= 0.001) {
-                        array_shift($symbolBuyQueue[$sym]);
-                    }
-                }
-            }
-        }
+        // Phase 2 is NOT needed — all sells have parent_alpaca_order_id set now.
+        // Any remaining unmatched buys are open positions (unrealized P&L).
 
         return Inertia::render('alpaca-orders-api/index', [
             'orders' => $orders,

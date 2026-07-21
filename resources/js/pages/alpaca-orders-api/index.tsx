@@ -143,26 +143,38 @@ export default function AlpacaOrdersApi({
         }
     };
 
-    // P&L calculation — same pattern as alpaca-orders/index.tsx.
-    // Uses backend-built realizedSellPrices map for accurate buy→sell matching.
+    // P&L calculation — uses backend-built realizedSellPrices map keyed by
+    // BUY alpaca_order_id. For buy orders, realizedSellPrices[buy.id] gives
+    // the weighted sell price. For sell orders or unmatched buys, use current price.
     const calculatePLForSummary = (order: AlpacaApiOrder) => {
-        if (order.side !== 'buy' || !order.filled_avg_price || !order.filled_qty) {
+        if (!order.filled_avg_price || !order.filled_qty) {
             return null;
         }
         const qty = parseFloat(order.filled_qty);
         const avgPrice = parseFloat(order.filled_avg_price);
 
-        const realized = realizedSellPrices[order.id];
-        if (realized) {
-            const sellPrice = realized.price;
-            const plDollar = (sellPrice - avgPrice) * qty;
-            return { plDollar, isRealized: true };
+        if (order.side === 'buy') {
+            const realized = realizedSellPrices[order.id];
+            if (realized) {
+                const sellPrice = realized.price;
+                const matchedQty = Math.min(qty, realized.qty);
+                const plDollar = (sellPrice - avgPrice) * matchedQty;
+                return { plDollar, isRealized: true };
+            }
+            // Unmatched buy — use current price
+            if (currentPrices[order.symbol]) {
+                const current = parseFloat(currentPrices[order.symbol].price);
+                return { plDollar: (current - avgPrice) * qty, isRealized: false };
+            }
+            return null;
         }
 
-        if (!currentPrices[order.symbol]) return null;
-        const current = parseFloat(currentPrices[order.symbol].price);
-        const plDollar = (current - avgPrice) * qty;
-        return { plDollar, isRealized: false };
+        // For sells, just show current vs avg (informational)
+        if (currentPrices[order.symbol]) {
+            const current = parseFloat(currentPrices[order.symbol].price);
+            return { plDollar: (current - avgPrice) * qty, isRealized: false };
+        }
+        return null;
     };
 
     const filledOrders = orders.filter((o) => o.status === 'filled');

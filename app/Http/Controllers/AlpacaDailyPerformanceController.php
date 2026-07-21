@@ -19,26 +19,19 @@ class AlpacaDailyPerformanceController extends Controller
         $mode = $request->input('mode', config('alpaca.paper_trading') ? 'paper' : 'live'); // 'live', 'paper', or 'all'
         $pipeline = $request->input('pipeline');
 
-        // Get all orders with filled quantity (includes filled, partially_filled, and
-        // canceled orders that were partially filled before cancellation)
+        // Get all orders — no status filter, matching AlpacaOrderController approach.
+        // The per-symbol P&L section below filters to filled/partially_filled/canceled
+        // with filled_qty > 0 for actual P&L computation.
         $query = AlpacaOrder::with('tradeAlert:id,ml_win_prob,version,pipeline_run')
-            ->where(function ($query) {
-                $query->where('status', 'filled')
-                    ->orWhere(function ($q) {
-                        $q->whereIn('status', ['partially_filled', 'canceled'])
-                            ->where('filled_qty', '>', 0);
-                    });
-            })
-            ->whereNotNull('submitted_at')
             ->when($mode === 'live', fn ($q) => $q->where('is_paper', false))
             ->when($mode === 'paper', fn ($q) => $q->where('is_paper', true));
 
-        // Apply date filters using created_at to match alpaca-orders page methodology
+        // Apply date filters using datetime range (matching AlpacaOrderController)
         if ($startDate) {
-            $query->whereDate('created_at', '>=', $startDate);
+            $query->where('created_at', '>=', $startDate.' 00:00:00');
         }
         if ($endDate) {
-            $query->whereDate('created_at', '<=', $endDate);
+            $query->where('created_at', '<=', $endDate.' 23:59:59');
         }
 
         // Filter by pipeline if specified (via tradeAlert relationship)
@@ -120,116 +113,121 @@ class AlpacaDailyPerformanceController extends Controller
         // Group by date using created_at to match alpaca-orders page methodology
         $dailyPerformance = $orders->groupBy(function ($order) {
             return $order->created_at->format('Y-m-d');
-        })->map(function ($dayOrders, $date) use ($orders, $mlThreshold, $currentPrices) {
-            // Per-symbol P&L: mirror the alpaca-orders page by evaluating each
-            // buy order individually — realized P&L via parent_alpaca_order_id,
-            // unrealized via one_minute_prices.
-            $symbols = $dayOrders->groupBy('symbol')->map(function ($symbolOrders, $symbol) use ($orders, $date, $currentPrices, $mlThreshold) {
-                $buys = $symbolOrders->where('side', 'buy');
-                $sells = $symbolOrders->where('side', 'sell');
+        })->map(function ($dayOrders, $date) use ($mlThreshold, $currentPrices) {
+            $daySymbols = $dayOrders->pluck('symbol')->unique()->values()->toArray();
+
+            // Build realizedSellPrices using canonical AlpacaOrderController algorithm
+            // Phase 1: exact parent_alpaca_order_id matching
+            $realizedSellPrices = [];
+
+            $matchedSells = AlpacaOrder::whereIn('symbol', $daySymbols)
+                ->where('side', 'sell')
+                ->where('status', 'filled')
+                ->where('filled_qty', '>', 0)
+                ->whereNotNull('filled_avg_price')
+                ->whereNotNull('parent_alpaca_order_id')
+                ->where('created_at', '>=', $date.' 00:00:00')
+                ->where('created_at', '<=', $date.' 23:59:59')
+                ->get(['filled_avg_price', 'filled_qty', 'parent_alpaca_order_id', 'symbol', 'created_at']);
+
+            $validBuyIds = AlpacaOrder::whereIn('symbol', $daySymbols)
+                ->where('side', 'buy')
+                ->where('status', 'filled')
+                ->whereNotNull('alpaca_order_id')
+                ->where('created_at', '>=', $date.' 00:00:00')
+                ->where('created_at', '<=', $date.' 23:59:59')
+                ->pluck('alpaca_order_id')
+                ->toArray();
+
+            $phase1UnmatchedSells = [];
+
+            foreach ($matchedSells as $sell) {
+                $parentId = $sell->parent_alpaca_order_id;
+
+                if (! in_array($parentId, $validBuyIds, true)) {
+                    $phase1UnmatchedSells[] = $sell;
+
+                    continue;
+                }
+
+                if (isset($realizedSellPrices[$parentId])) {
+                    $existing = $realizedSellPrices[$parentId];
+                    $totalQty = (float) $existing['qty'] + (float) $sell->filled_qty;
+                    $weightedPrice = ((float) $existing['price'] * (float) $existing['qty'] + (float) $sell->filled_avg_price * (float) $sell->filled_qty) / $totalQty;
+                    $realizedSellPrices[$parentId] = ['price' => (string) round($weightedPrice, 2), 'qty' => (string) $totalQty];
+                } else {
+                    $realizedSellPrices[$parentId] = ['price' => (string) $sell->filled_avg_price, 'qty' => (string) $sell->filled_qty];
+                }
+            }
+
+            // Phase 2: FIFO for orphan sells (NULL parents + Phase 1 rejects)
+            $orphanSells = AlpacaOrder::whereIn('symbol', $daySymbols)
+                ->where('side', 'sell')
+                ->where('status', 'filled')
+                ->where('filled_qty', '>', 0)
+                ->whereNotNull('filled_avg_price')
+                ->whereNull('parent_alpaca_order_id')
+                ->where('created_at', '>=', $date.' 00:00:00')
+                ->where('created_at', '<=', $date.' 23:59:59')
+                ->orderBy('created_at')
+                ->get(['symbol', 'filled_avg_price', 'filled_qty', 'created_at']);
+
+            if ($phase1UnmatchedSells !== []) {
+                $orphanSells = $orphanSells->concat($phase1UnmatchedSells)->sortBy('created_at');
+            }
+
+            if ($orphanSells->isNotEmpty()) {
+                $allBuys = AlpacaOrder::whereIn('symbol', $daySymbols)
+                    ->where('side', 'buy')
+                    ->where('status', 'filled')
+                    ->where('filled_qty', '>', 0)
+                    ->whereNotNull('filled_avg_price')
+                    ->where('created_at', '>=', $date.' 00:00:00')
+                    ->where('created_at', '<=', $date.' 23:59:59')
+                    ->orderBy('created_at')
+                    ->get(['symbol', 'alpaca_order_id', 'filled_qty', 'filled_avg_price', 'created_at']);
+
+                foreach ($orphanSells as $sell) {
+                    $remainingQty = (float) $sell->filled_qty;
+                    foreach ($allBuys as $buy) {
+                        if ($buy->symbol !== $sell->symbol) {
+                            continue;
+                        }
+                        $alreadySold = $realizedSellPrices[$buy->alpaca_order_id]['qty'] ?? 0;
+                        $availableQty = max(0, (float) $buy->filled_qty - (float) $alreadySold);
+                        if ($availableQty <= 0) {
+                            continue;
+                        }
+                        $matchedQty = min($remainingQty, $availableQty);
+                        if (isset($realizedSellPrices[$buy->alpaca_order_id])) {
+                            $existing = $realizedSellPrices[$buy->alpaca_order_id];
+                            $totalQty = (float) $existing['qty'] + $matchedQty;
+                            $weightedPrice = ((float) $existing['price'] * (float) $existing['qty'] + (float) $sell->filled_avg_price * $matchedQty) / $totalQty;
+                            $realizedSellPrices[$buy->alpaca_order_id] = ['price' => (string) round($weightedPrice, 2), 'qty' => (string) $totalQty];
+                        } else {
+                            $realizedSellPrices[$buy->alpaca_order_id] = ['price' => (string) $sell->filled_avg_price, 'qty' => (string) $matchedQty];
+                        }
+                        $remainingQty -= $matchedQty;
+                        if ($remainingQty <= 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Per-symbol aggregation using the canonical $realizedSellPrices
+            $symbols = $dayOrders->groupBy('symbol')->map(function ($symbolOrders, $symbol) use ($mlThreshold, $currentPrices, $realizedSellPrices) {
+                $buys = $symbolOrders->where('side', 'buy')->filter(fn ($o) => $o->status === 'filled'
+                    || (in_array($o->status, ['partially_filled', 'canceled']) && $o->filled_qty > 0)
+                );
+                $sells = $symbolOrders->where('side', 'sell')->filter(fn ($o) => $o->status === 'filled'
+                    || (in_array($o->status, ['partially_filled', 'canceled']) && $o->filled_qty > 0)
+                );
 
                 $buyQty = $buys->sum('filled_qty');
                 $sellQty = $sells->sum('filled_qty');
                 $buyCost = $buys->sum(fn ($o) => $o->filled_qty * $o->filled_avg_price);
                 $sellProceeds = $sells->sum(fn ($o) => $o->filled_qty * $o->filled_avg_price);
-
-                // Collect all orders for this symbol up to this date (for buy/sell matching).
-                $allSymbolOrders = $orders->where('symbol', $symbol)
-                    ->filter(fn ($o) => $o->created_at->format('Y-m-d') <= $date);
-
-                // Build lookup: buy alpaca_order_id → sell price using FIFO matching.
-                // Parent_alpaca_order_id can be wrong (e.g. from UpdateTrailingStopLosses),
-                // so after direct matching we FIFO-match remaining sells to buys.
-                $allSells = $allSymbolOrders->where('side', 'sell')->where('status', 'filled')->whereNotNull('filled_avg_price');
-                $buySellMap = [];
-
-                // Pass 1: direct parent_alpaca_order_id matching (same-day preferred)
-                foreach ($allSells as $sell) {
-                    if ($sell->parent_alpaca_order_id) {
-                        $buyRow = $allSymbolOrders->where('side', 'buy')->first(fn ($b) => $b->alpaca_order_id === $sell->parent_alpaca_order_id);
-                        $sellDay = $sell->submitted_at?->format('Y-m-d');
-                        $buyDay = $buyRow?->submitted_at?->format('Y-m-d');
-                        if ($buyDay && $sellDay === $buyDay) {
-                            $buySellMap[$sell->parent_alpaca_order_id] = (float) $sell->filled_avg_price;
-                        } elseif (! isset($buySellMap[$sell->parent_alpaca_order_id])) {
-                            $buySellMap[$sell->parent_alpaca_order_id] = (float) $sell->filled_avg_price;
-                        }
-                    }
-                }
-
-                // Pass 2: FIFO chronological matching for unmatched buys.
-                // Only match sells from the same date to avoid cross-day mixing.
-                $unmatchedBuys = $buys->filter(fn ($b) => $b->alpaca_order_id && ! isset($buySellMap[$b->alpaca_order_id]))
-                    ->sortBy('submitted_at')->values();
-
-                if ($unmatchedBuys->isNotEmpty()) {
-                    // Use sells from this day only — same as $symbolOrders scope
-                    $daySells = $symbolOrders->where('side', 'sell')
-                        ->where('status', 'filled')
-                        ->where('filled_qty', '>', 0)
-                        ->whereNotNull('filled_avg_price')
-                        ->sortBy('submitted_at');
-
-                    // Track qty consumed by pass-1 matches
-                    $consumedByBuyId = [];
-                    foreach ($daySells as $sell) {
-                        if ($sell->parent_alpaca_order_id && isset($buySellMap[$sell->parent_alpaca_order_id])) {
-                            $matchedBuy = $buys->first(fn ($b) => $b->alpaca_order_id === $sell->parent_alpaca_order_id);
-                            if ($matchedBuy) {
-                                $consumedByBuyId[$sell->parent_alpaca_order_id] = ($consumedByBuyId[$sell->parent_alpaca_order_id] ?? 0) + (float) $sell->filled_qty;
-                            }
-                        }
-                    }
-
-                    // Remaining sell inventory (FIFO order)
-                    $remainingSells = [];
-                    foreach ($daySells as $sell) {
-                        $consumed = $sell->parent_alpaca_order_id && isset($consumedByBuyId[$sell->parent_alpaca_order_id])
-                            ? $consumedByBuyId[$sell->parent_alpaca_order_id] : 0;
-                        $remaining = (float) $sell->filled_qty - $consumed;
-                        if ($remaining > 0) {
-                            $remainingSells[] = ['price' => (float) $sell->filled_avg_price, 'qty' => $remaining];
-                        }
-                    }
-
-                    // FIFO: match buys against remaining sells.
-                    // Each buy consumes from sells until its qty is satisfied or
-                    // sell inventory runs out. Unmatched buy qty stays unrealized.
-                    $sellIdx = 0;
-                    foreach ($unmatchedBuys as $buy) {
-                        $remainingBuyQty = (float) $buy->filled_qty;
-                        $weightedSum = 0.0;
-                        $matchedQtyTotal = 0.0;
-
-                        while ($remainingBuyQty > 0 && $sellIdx < count($remainingSells)) {
-                            $matchedQty = min($remainingBuyQty, $remainingSells[$sellIdx]['qty']);
-                            $sellPrice = $remainingSells[$sellIdx]['price'];
-                            $weightedSum += $sellPrice * $matchedQty;
-                            $matchedQtyTotal += $matchedQty;
-
-                            $remainingSells[$sellIdx]['qty'] -= $matchedQty;
-                            $remainingBuyQty -= $matchedQty;
-
-                            if ($remainingSells[$sellIdx]['qty'] <= 0) {
-                                $sellIdx++;
-                            }
-                        }
-
-                        if ($matchedQtyTotal > 0) {
-                            $buySellMap[$buy->alpaca_order_id] = $weightedSum / $matchedQtyTotal;
-                        }
-                    }
-                }
-
-                // Determine open/closed status: a symbol is closed when every
-                // buy with an alpaca_order_id has been matched to a sell in the
-                // buySellMap. This mirrors the alpaca-orders page logic and is
-                // robust against fractional-share data anomalies that break
-                // simple net-position (buy qty === sell qty) checks.
-                $matchableBuys = $allSymbolOrders->where('side', 'buy')
-                    ->filter(fn ($b) => $b->alpaca_order_id);
-                $matchedCount = $matchableBuys->filter(fn ($b) => isset($buySellMap[$b->alpaca_order_id]))->count();
-                $status = $matchableBuys->isEmpty() ? 'open' : ($matchedCount === $matchableBuys->count() ? 'closed' : 'open');
 
                 $totalPL = 0;
                 $realizedPL = 0;
@@ -238,11 +236,10 @@ class AlpacaDailyPerformanceController extends Controller
                 foreach ($buys as $buy) {
                     $qty = (float) $buy->filled_qty;
                     $avgPrice = (float) $buy->filled_avg_price;
-                    $sellPrice = $buy->alpaca_order_id && isset($buySellMap[$buy->alpaca_order_id])
-                        ? $buySellMap[$buy->alpaca_order_id]
-                        : null;
+                    $buyId = $buy->alpaca_order_id;
 
-                    if ($sellPrice !== null) {
+                    if ($buyId && isset($realizedSellPrices[$buyId])) {
+                        $sellPrice = (float) $realizedSellPrices[$buyId]['price'];
                         $pl = ($sellPrice - $avgPrice) * $qty;
                         $realizedPL += $pl;
                         $totalPL += $pl;
@@ -275,6 +272,11 @@ class AlpacaDailyPerformanceController extends Controller
                         return null;
                     }
                 }
+
+                // Determine open/closed: a symbol is closed when no buy has open shares
+                $allBuysForSymbol = $symbolOrders->where('side', 'buy')->filter(fn ($b) => $b->alpaca_order_id);
+                $matchedBuys = $allBuysForSymbol->filter(fn ($b) => isset($realizedSellPrices[$b->alpaca_order_id]));
+                $status = $allBuysForSymbol->isEmpty() ? 'open' : ($matchedBuys->count() === $allBuysForSymbol->count() ? 'closed' : 'open');
 
                 return [
                     'symbol' => $symbol,
