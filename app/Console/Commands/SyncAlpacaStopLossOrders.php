@@ -77,8 +77,16 @@ class SyncAlpacaStopLossOrders extends Command
             ]);
         }
 
+        // Fix any filled/partially-filled sells that still have null parent_alpaca_order_id.
+        // These can accumulate from UpdateTrailingStopLosses placing stops before the sync
+        // auto-link runs, or from sell orders reconciled by reconcileOrphanedPositions.
+        $this->fixNullParentSells($isDryRun);
+
         if ($stopLossOrders->isEmpty()) {
             $this->info($allOrders ? 'No open orders found.' : 'No open stop loss orders found.');
+
+            // Even with no open orders, still fix any filled sells with null parent.
+            $this->fixNullParentSells($isDryRun);
 
             return Command::SUCCESS;
         }
@@ -147,6 +155,25 @@ class SyncAlpacaStopLossOrders extends Command
                 $apiOrder = $statusData['order'];
                 $newStatus = $apiOrder['status'] ?? 'unknown';
 
+                // Auto-link: fix null parent_alpaca_order_id on ANY sell order
+                // regardless of status change. Runs on every sync cycle so
+                // newly-created stop-loss orders get their parent buy linked ASAP.
+                if ($order->side === 'sell' && $order->parent_alpaca_order_id === null) {
+                    $matchingBuy = AlpacaOrder::where('symbol', $order->symbol)
+                        ->where('side', 'buy')
+                        ->where('status', 'filled')
+                        ->whereNotNull('alpaca_order_id')
+                        ->orderBy('filled_at', 'desc')
+                        ->first();
+
+                    if ($matchingBuy) {
+                        $order->update(['parent_alpaca_order_id' => $matchingBuy->alpaca_order_id]);
+                        $order->refresh();
+                        Log::info("[Sync] auto-linked sell {$order->alpaca_order_id} ({$order->symbol}) to buy {$matchingBuy->alpaca_order_id}");
+                        $this->line("  Auto-linked to buy {$matchingBuy->alpaca_order_id}");
+                    }
+                }
+
                 // Check if status has changed
                 if ($newStatus === $order->status) {
                     $this->line("  Status unchanged: {$newStatus}");
@@ -162,29 +189,6 @@ class SyncAlpacaStopLossOrders extends Command
                     'updated_at' => now(),
                     'paper' => (bool) config('alpaca.paper_trading', true),
                 ];
-
-                // When a sell fills and has no parent link, find the matching
-                // buy order on the same symbol + date via chronological order.
-                // We do NOT use Alpaca's parent_order_id because stop-only orders
-                // sometimes reference the stop order ID rather than the entry buy.
-                if ($newStatus === 'filled'
-                    && $order->side === 'sell'
-                    && $order->parent_alpaca_order_id === null
-                ) {
-                    $tradingDate = $order->created_at->format('Y-m-d');
-                    $matchingBuy = AlpacaOrder::where('symbol', $order->symbol)
-                        ->where('side', 'buy')
-                        ->where('status', 'filled')
-                        ->whereNotNull('alpaca_order_id')
-                        ->whereDate('created_at', $tradingDate)
-                        ->orderBy('created_at', 'desc')
-                        ->first();
-
-                    if ($matchingBuy) {
-                        $updateData['parent_alpaca_order_id'] = $matchingBuy->alpaca_order_id;
-                        Log::info("[Sync] auto-linked sell {$order->alpaca_order_id} ({$order->symbol}) to buy {$matchingBuy->alpaca_order_id}");
-                    }
-                }
 
                 // Set filled_at timestamp if order is filled
                 if ($newStatus === 'filled') {
@@ -261,6 +265,10 @@ class SyncAlpacaStopLossOrders extends Command
         if ($errors > 0) {
             $this->error("Errors: {$errors}");
         }
+
+        // Final pass: backfill parent_alpaca_order_id on already-filled sells
+        // that slipped through before the auto-link was added.
+        $this->fixNullParentSells($isDryRun);
 
         return Command::SUCCESS;
     }
@@ -516,6 +524,50 @@ class SyncAlpacaStopLossOrders extends Command
             $this->info("Reconciled: {$reconciled}");
             if ($skippedNoSell > 0) {
                 $this->warn("Skipped (no closed sell found on Alpaca): {$skippedNoSell}");
+            }
+        }
+    }
+
+    /**
+     * Fix any filled/partially-filled sells that still have null parent_alpaca_order_id.
+     * Runs after the main sync loop and orphan reconciliation to catch sells that
+     * already transitioned to filled before the sync could auto-link them.
+     */
+    protected function fixNullParentSells(bool $isDryRun): void
+    {
+        $orphanSells = AlpacaOrder::where('side', 'sell')
+            ->whereIn('status', ['filled', 'partially_filled'])
+            ->where('filled_qty', '>', 0)
+            ->whereNull('parent_alpaca_order_id')
+            ->get();
+
+        if ($orphanSells->isEmpty()) {
+            return;
+        }
+
+        $this->newLine();
+        $this->info("Backfilling {$orphanSells->count()} filled sell(s) with null parent_alpaca_order_id...");
+
+        foreach ($orphanSells as $sell) {
+            $buy = AlpacaOrder::where('symbol', $sell->symbol)
+                ->where('side', 'buy')
+                ->where('status', 'filled')
+                ->whereNotNull('alpaca_order_id')
+                ->orderBy('filled_at', 'desc')
+                ->first();
+
+            if (! $buy) {
+                $this->warn("  {$sell->symbol} (sell {$sell->alpaca_order_id}): no matching buy found");
+
+                continue;
+            }
+
+            if ($isDryRun) {
+                $this->line("  [DRY RUN] {$sell->symbol}: sell {$sell->alpaca_order_id} → buy {$buy->alpaca_order_id}");
+            } else {
+                $sell->update(['parent_alpaca_order_id' => $buy->alpaca_order_id]);
+                Log::info("[Sync] backfilled parent_alpaca_order_id on sell {$sell->alpaca_order_id} ({$sell->symbol}) → buy {$buy->alpaca_order_id}");
+                $this->line("  ✓ {$sell->symbol}: sell {$sell->alpaca_order_id} → buy {$buy->alpaca_order_id}");
             }
         }
     }

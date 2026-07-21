@@ -153,6 +153,33 @@ class AlpacaPlaceOrderController extends Controller
         $asOfTsEst = $now->format('Y-m-d H:i:s');
 
         // ──────────────────────────────────────────────────────────────
+        // Block if this symbol was already bought today
+        // ──────────────────────────────────────────────────────────────
+        $boughtToday = AlpacaOrder::where('symbol', $symbol)
+            ->where('side', 'buy')
+            ->where('status', 'filled')
+            ->whereDate('filled_at', $now->toDateString())
+            ->exists();
+
+        if ($boughtToday) {
+            return response()->json([
+                'error' => "{$symbol} was already bought today. Placing another order may trigger a wash trade.",
+            ], 409);
+        }
+
+        // Also check for open buy orders (not yet filled)
+        $openBuyOrder = AlpacaOrder::where('symbol', $symbol)
+            ->where('side', 'buy')
+            ->whereIn('status', ['new', 'partially_filled', 'accepted', 'pending_new'])
+            ->exists();
+
+        if ($openBuyOrder) {
+            return response()->json([
+                'error' => "{$symbol} already has an open buy order. Please wait for it to fill or cancel it first.",
+            ], 409);
+        }
+
+        // ──────────────────────────────────────────────────────────────
         // Position sizing (shares = 0 means auto-calculate)
         // ──────────────────────────────────────────────────────────────
         $requestedShares = (int) $data['shares'];

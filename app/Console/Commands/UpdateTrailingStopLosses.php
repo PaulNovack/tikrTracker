@@ -7,6 +7,7 @@ use App\Services\AlpacaPythonService;
 use App\Services\Trading\ProfitProtectionStopCalculator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class UpdateTrailingStopLosses extends Command
 {
@@ -502,9 +503,15 @@ class UpdateTrailingStopLosses extends Command
             $buyOrder ??= AlpacaOrder::where('symbol', $order['symbol'])
                 ->where('side', 'buy')
                 ->where('status', 'filled')
-                ->whereDate('filled_at', now()->toDateString())
                 ->orderBy('filled_at', 'desc')
                 ->first();
+
+            if (! $buyOrder) {
+                Log::warning('[UpdateTrailingStop] Could not determine parent buy for trailing stop', [
+                    'symbol' => $order['symbol'],
+                    'new_stop_alpaca_id' => $order['id'],
+                ]);
+            }
 
             AlpacaOrder::create([
                 'alpaca_order_id' => $order['id'],
