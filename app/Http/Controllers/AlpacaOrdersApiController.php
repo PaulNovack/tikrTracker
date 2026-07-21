@@ -57,38 +57,14 @@ class AlpacaOrdersApiController extends Controller
             $error = $result['error'] ?? 'Failed to fetch orders from Alpaca API';
         }
 
-        // Compute P&L from API data. Strategy per symbol:
-        // 1. Sort fills chronologically
-        // 2. Match sells to buys FIFO (for same-day buy→sell pairs)
-        // 3. For sells without a FIFO match (closing prior-day positions),
-        //    look up the parent buy's entry price from alpaca_orders DB
+        // Compute P&L from API data: group fills by symbol, sort chronologically,
+        // match sells to buys FIFO. All sells are same-day buys, so no DB needed.
         $realizedSellPrices = [];
         $summaryPlDollar = 0.0;
         $summaryTotalBought = 0.0;
 
-        // Include orders with filled_qty > 0 (matches working pages — catches
-        // partially-filled-then-canceled orders that still transacted shares)
         $filledOrders = array_values(array_filter($orders, fn ($o) => (float) ($o['filled_qty'] ?? 0) > 0));
 
-        // Collect sell IDs for DB parent lookup (used for sells without FIFO match)
-        $allSellIds = [];
-        foreach ($filledOrders as $o) {
-            if (($o['side'] ?? '') === 'sell') {
-                $allSellIds[] = $o['id'];
-            }
-        }
-
-        // Batch fetch DB parent_alpaca_order_id for all sells
-        $dbParentLinks = [];
-        if ($allSellIds !== []) {
-            $dbParentLinks = DB::table('alpaca_orders')
-                ->whereIn('alpaca_order_id', $allSellIds)
-                ->whereNotNull('parent_alpaca_order_id')
-                ->pluck('parent_alpaca_order_id', 'alpaca_order_id')
-                ->toArray();
-        }
-
-        // Group fills by symbol
         $bySymbol = [];
         foreach ($filledOrders as $o) {
             $sym = $o['symbol'] ?? '';
@@ -99,7 +75,6 @@ class AlpacaOrdersApiController extends Controller
         }
 
         foreach ($bySymbol as $symbol => $fills) {
-            // Sort by filled_at chronologically
             usort($fills, function ($a, $b) {
                 $ta = $a['filled_at'] ?? $a['submitted_at'] ?? '';
                 $tb = $b['filled_at'] ?? $b['submitted_at'] ?? '';
@@ -107,7 +82,6 @@ class AlpacaOrdersApiController extends Controller
                 return $ta <=> $tb;
             });
 
-            // FIFO buy queue: each entry is [buyId, buyPrice, remainingQty]
             $buyQueue = [];
 
             foreach ($fills as $o) {
@@ -125,7 +99,6 @@ class AlpacaOrdersApiController extends Controller
                 } elseif ($side === 'sell') {
                     $remainingSell = $qty;
 
-                    // Step 1: FIFO match against today's buys
                     while ($remainingSell > 0 && $buyQueue !== []) {
                         $buy = &$buyQueue[0];
                         $matched = min($remainingSell, $buy['remaining']);
@@ -151,28 +124,11 @@ class AlpacaOrdersApiController extends Controller
                             array_shift($buyQueue);
                         }
                     }
-
-                    // Step 2: unmatched portion = closing a prior-day position
-                    // Look up parent buy from DB for entry price
-                    if ($remainingSell > 0) {
-                        $parentId = $dbParentLinks[$o['id']] ?? null;
-                        if ($parentId) {
-                            $buyPrice = DB::table('alpaca_orders')
-                                ->where('alpaca_order_id', $parentId)
-                                ->where('side', 'buy')
-                                ->whereNotNull('filled_avg_price')
-                                ->value('filled_avg_price');
-
-                            if ($buyPrice && (float) $buyPrice > 0) {
-                                $summaryPlDollar += ($price - (float) $buyPrice) * $remainingSell;
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        // Add unrealized P&L for unmatched buys
+        // Unrealized P&L for unmatched buys
         $currentPrices = $this->getCurrentPrices(array_column($orders, 'symbol'));
         foreach ($bySymbol as $symbol => $fills) {
             if (! isset($currentPrices[$symbol])) {

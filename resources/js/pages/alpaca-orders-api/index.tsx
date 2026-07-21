@@ -172,7 +172,7 @@ export default function AlpacaOrdersApi({
         }
     };
 
-    const filledOrders = orders.filter((o) => o.status === 'filled');
+    const filledOrders = orders.filter((o) => parseFloat(o.filled_qty || '0') > 0);
     const buyCount = filledOrders.filter((o) => o.side === 'buy').length;
     const sellCount = filledOrders.filter((o) => o.side === 'sell').length;
 
