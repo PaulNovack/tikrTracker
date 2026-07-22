@@ -13,3 +13,6 @@ SQLAlchemy
 TA-Lib
 webull
 xgboost
+transformers 
+torch 
+yfinance

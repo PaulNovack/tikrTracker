@@ -289,24 +289,26 @@ class AlpacaDailyPerformanceController extends Controller
                     'total_pl' => round($totalPL, 2),
                     'pl_pct' => round($plPct, 2),
                     'status' => $status,
-                    'trades' => $symbolOrders->map(function ($order) {
-                        $qty = (float) ($order->filled_qty ?? 0);
-                        $price = (float) ($order->filled_avg_price ?? 0);
-                        $mlWinProb = $order->tradeAlert ? (float) $order->tradeAlert->ml_win_prob : null;
-                        $version = $order->tradeAlert?->version;
+                    'trades' => $symbolOrders
+                        ->filter(fn ($order) => (float) ($order->filled_qty ?? 0) > 0 && (float) ($order->filled_avg_price ?? 0) > 0)
+                        ->map(function ($order) {
+                            $qty = (float) ($order->filled_qty ?? 0);
+                            $price = (float) ($order->filled_avg_price ?? 0);
+                            $mlWinProb = $order->tradeAlert ? (float) $order->tradeAlert->ml_win_prob : null;
+                            $version = $order->tradeAlert?->version;
 
-                        return [
-                            'id' => $order->id,
-                            'side' => $order->side,
-                            'ml_win_prob' => $mlWinProb,
-                            'version' => $version,
-                            'qty' => round($qty, 2),
-                            'price' => round($price, 2),
-                            'amount' => round($qty * $price, 2),
-                            'submitted_at' => $order->submitted_at?->setTimezone('America/New_York')->format('g:i:s A T'),
-                            'filled_at' => $order->filled_at?->setTimezone('America/New_York')->format('g:i:s A T'),
-                        ];
-                    })->values(),
+                            return [
+                                'id' => $order->id,
+                                'side' => $order->side,
+                                'ml_win_prob' => $mlWinProb,
+                                'version' => $version,
+                                'qty' => round($qty, 2),
+                                'price' => round($price, 2),
+                                'amount' => round($qty * $price, 2),
+                                'submitted_at' => $order->submitted_at?->setTimezone('America/New_York')->format('g:i:s A T'),
+                                'filled_at' => $order->filled_at?->setTimezone('America/New_York')->format('g:i:s A T'),
+                            ];
+                        })->values(),
                 ];
             })->filter()->values();
 
