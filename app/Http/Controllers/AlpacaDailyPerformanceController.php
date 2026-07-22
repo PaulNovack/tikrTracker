@@ -270,10 +270,12 @@ class AlpacaDailyPerformanceController extends Controller
                     }
                 }
 
-                // Determine open/closed: a symbol is closed when no buy has open shares
+                // Determine open/closed: a symbol is closed when every buy with
+                // alpaca_order_id has either a matching sell OR was cancelled
+                // (the unfilled portion was cancelled, and filled shares were sold).
                 $allBuysForSymbol = $symbolOrders->where('side', 'buy')->filter(fn ($b) => $b->alpaca_order_id);
-                $matchedBuys = $allBuysForSymbol->filter(fn ($b) => isset($realizedSellPrices[$b->alpaca_order_id]));
-                $status = $allBuysForSymbol->isEmpty() ? 'open' : ($matchedBuys->count() === $allBuysForSymbol->count() ? 'closed' : 'open');
+                $closedBuys = $allBuysForSymbol->filter(fn ($b) => $b->status === 'canceled' || isset($realizedSellPrices[$b->alpaca_order_id]));
+                $status = $allBuysForSymbol->isEmpty() ? 'open' : ($closedBuys->count() === $allBuysForSymbol->count() ? 'closed' : 'open');
 
                 return [
                     'symbol' => $symbol,

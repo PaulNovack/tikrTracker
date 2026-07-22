@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { show as showAsset } from '@/routes/asset-info';
 import { BarChart3, CandlestickChart, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
+import { PatternDescriptionCard } from './pattern-descriptions';
 import {
     ComposedChart,
     Bar,
@@ -180,6 +181,9 @@ export default function TaLibAnalysis({ patterns, selectedPattern, results, limi
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Pattern description */}
+                {selectedPattern && <PatternDescriptionCard pattern={selectedPattern} />}
 
                 {filteredResults.length > 0 && (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
