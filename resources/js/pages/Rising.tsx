@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 
 interface RisingStock {
     symbol: string;
@@ -30,6 +31,9 @@ interface RisingProps {
     selectedTimestamp: string;
     selectedTimestampEst: string;
     assetTypeFilter: 'stock';
+    filters: {
+        date: string | null;
+    };
 }
 
 export default function Rising({
@@ -38,9 +42,19 @@ export default function Rising({
     selectedTimestamp,
     selectedTimestampEst,
     assetTypeFilter,
+    filters,
 }: RisingProps) {
+    const [selectedDate, setSelectedDate] = useState(filters?.date || '');
+
+    const handleDateChange = (date: string) => {
+        setSelectedDate(date);
+        router.visit(`/rising?filter=${assetTypeFilter}${date ? `&date=${date}` : ''}`, {
+            preserveScroll: true,
+        });
+    };
+
     const handleFilterChange = (newFilter: 'stock') => {
-        router.visit(`/rising?filter=${newFilter}`, {
+        router.visit(`/rising?filter=${newFilter}${selectedDate ? `&date=${selectedDate}` : ''}`, {
             preserveScroll: true,
         });
     };
@@ -135,19 +149,30 @@ export default function Rising({
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {/* Filter Buttons */}
-                            <div className="mb-4 flex gap-2">
-                                <Button
-                                    variant={
-                                        assetTypeFilter === 'stock'
-                                            ? 'default'
-                                            : 'outline'
-                                    }
-                                    onClick={() => handleFilterChange('stock')}
-                                >
-                                    Stocks
-                                </Button>
+                            {/* Filters */}
+                            <div className="mb-4 flex flex-wrap items-end gap-4">
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant={
+                                            assetTypeFilter === 'stock'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                        onClick={() => handleFilterChange('stock')}
+                                    >
+                                        Stocks
+                                    </Button>
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Date</label>
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => handleDateChange(e.target.value)}
+                                        className="rounded-md border px-3 py-2 text-sm bg-background"
+                                    />
+                                </div>
+                            </div>
 
                             {stocks.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">

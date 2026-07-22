@@ -230,6 +230,26 @@ Schedule::command('scan:last-4-1min-up --no-interaction')
     ->name('scan-last-4-1min-up')
     ->description('Scan for stocks with 4 consecutive up 1-min bars');
 
+// Scan for CDL3WHITESOLDIERS (Three Advancing White Soldiers) candlestick pattern
+// Calls the same Flask API as the /ta-lib-analysis/five-minute page
+// Runs 24/7 on weekdays to catch pre-market and after-hours patterns
+Schedule::command('scan:three-white-soldiers-live --no-interaction')
+    ->everyMinute()
+    ->weekdays()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->name('scan-three-white-soldiers-live')
+    ->description('Scan for Three Advancing White Soldiers patterns every minute (24/7 weekdays)')
+    ->before(function () {
+        Log::channel('scheduled')->info('[Scheduler] Starting scan:three-white-soldiers-live');
+    })
+    ->after(function () {
+        Log::channel('scheduled')->info('[Scheduler] Completed scan:three-white-soldiers-live');
+    })
+    ->onFailure(function () {
+        Log::channel('scheduled')->error('[Scheduler] FAILED scan:three-white-soldiers-live');
+    });
+
 // Runs at 5:00 PM ET — price data should be fully synced by then.
 // Populates exit_price and pnl_percent on trade_alerts for the backtest vs actual page.
 // Analyze today's trade alerts with ATR exits after market close for all active pipelines.

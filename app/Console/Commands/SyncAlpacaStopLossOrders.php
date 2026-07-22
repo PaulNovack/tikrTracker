@@ -230,6 +230,9 @@ class SyncAlpacaStopLossOrders extends Command
                     'alpaca_order_id' => $order->alpaca_order_id,
                     'old_status' => $order->status,
                     'new_status' => $newStatus,
+                    'stop_price' => $order->stop_price,
+                    'current_price' => $order->filled_avg_price,
+                    'symbol' => $order->symbol,
                 ]);
 
                 // Update database

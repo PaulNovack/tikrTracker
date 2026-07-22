@@ -208,7 +208,7 @@ class EarlyCandidateDetectorService
             $this->bumpSkipReason('score_too_low');
 
             if (($this->skipReasons['score_too_low'] ?? 0) % 50 === 1) {
-                Log::info('[CandidateDetect] Score too low (sample)', [
+                Log::debug('[CandidateDetect] Score too low (sample)', [
                     'symbol' => $symbol,
                     'early_score' => $earlyScore,
                     'rvol' => $rvol,

@@ -393,7 +393,7 @@ class TradeAlertWriterV1
         // Centralized run_cron gate: if pipeline is disabled, block alert creation
         // regardless of caller (live, backtest, manual, stream watcher, etc.).
         if (! TradingSettingService::isPipelineRunCronEnabled($pipelineRun)) {
-            \Log::channel('scheduled')->info("[TradeAlertWriter] Pipeline {$pipelineRun} disabled (run_cron=0) — alert suppressed.", [
+            \Log::channel('scheduled')->debug("[TradeAlertWriter] Pipeline {$pipelineRun} disabled (run_cron=0) — alert suppressed.", [
                 'symbol' => $signal['symbol'] ?? null,
                 'pipeline' => $pipelineRun,
             ]);

@@ -341,6 +341,18 @@ class TradingSettingService
     }
 
     // -------------------------------------------------------------------------
+    // Scanner
+    // -------------------------------------------------------------------------
+
+    public static function isThreeWhiteSoldiersScanEnabled(): bool
+    {
+        return (bool) self::get(
+            'trading.scanner.three_white_soldiers_enabled',
+            config('trading.scanner.three_white_soldiers_enabled', false)
+        );
+    }
+
+    // -------------------------------------------------------------------------
     // Circuit breaker
     // -------------------------------------------------------------------------
 

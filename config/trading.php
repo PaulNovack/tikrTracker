@@ -48,6 +48,17 @@ return [
 
     // Position sizing configuration
     'position_size_mode' => env('AUTO_ALPACA_POSITION_SIZE_MODE', 'fixed'), // 'fixed' or 'dynamic'
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scanner Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'scanner' => [
+        // Enable/disable the CDL3WHITESOLDIERS candlestick scanner command (scan:three-white-soldiers-live)
+        'three_white_soldiers_enabled' => (bool) env('TRADING_SCANNER_THREE_WHITE_SOLDIERS_ENABLED', false),
+    ],
     'max_position_pct_of_liquidity' => (float) env('AUTO_ALPACA_MAX_POSITION_PCT_OF_LIQUIDITY', 10.0),
     'min_position_size' => (float) env('AUTO_ALPACA_MIN_POSITION_SIZE', 500),
     'max_position_size' => (float) env('AUTO_ALPACA_MAX_POSITION_SIZE', 5000),

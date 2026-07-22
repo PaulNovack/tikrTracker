@@ -106,6 +106,7 @@ Route::middleware(['auth', 'verified'])->prefix('trading-settings-2')->name('tra
     Route::patch('/stale-rescore', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateStaleRescore'])->name('stale-rescore');
     Route::patch('/benchmark-vwap-gate', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateBenchmarkVwapGate'])->name('benchmark-vwap-gate');
     Route::patch('/realtime', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateRealtime'])->name('realtime');
+    Route::patch('/other', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateOther'])->name('other');
 });
 
 // Pipeline Observability routes - accessible to guests with disclaimer

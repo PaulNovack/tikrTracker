@@ -47,7 +47,31 @@ class TradingSettings2Controller extends Controller
             'pipelineDisplayNames' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
                 $p => config("trading.pipeline_display_names.{$p}", strtoupper($p)),
             ])->all(),
+            'threeWhiteSoldiersScanEnabled' => TradingSettingService::isThreeWhiteSoldiersScanEnabled(),
         ]);
+    }
+
+    /**
+     * Update other / misc settings.
+     */
+    public function updateOther(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'three_white_soldiers_scan_enabled' => ['boolean'],
+        ]);
+
+        TradingSettingService::set(
+            'trading.scanner.three_white_soldiers_enabled',
+            $validated['three_white_soldiers_scan_enabled'] ? '1' : '0'
+        );
+
+        Log::info('[TradingSettings2] Other scanner settings updated by '.auth()->user()?->email, [
+            'three_white_soldiers_scan_enabled' => $validated['three_white_soldiers_scan_enabled'],
+        ]);
+
+        return back()->with('status', 'other-updated');
     }
 
     /**
@@ -63,7 +87,7 @@ class TradingSettings2Controller extends Controller
             'has_model_paths' => $request->has('model_paths'),
             'has_scorer_scripts' => $request->has('scorer_scripts'),
         ];
-        \Illuminate\Support\Facades\Log::error('[TradingSettings2 DEBUG] ' . json_encode($debug));
+        \Illuminate\Support\Facades\Log::error('[TradingSettings2 DEBUG] '.json_encode($debug));
 
         // Determine which section we're updating
         if ($request->has('scorer_scripts')) {
@@ -180,11 +204,11 @@ class TradingSettings2Controller extends Controller
         \Illuminate\Support\Facades\Log::info('[TradingSettings2] envUpdates', $envUpdates);
 
         $envPath = base_path('.env');
-        \Illuminate\Support\Facades\Log::error('[TradingSettings2] envPath=' . $envPath . ' exists=' . (file_exists($envPath)?'Y':'N') . ' writable=' . (is_writable($envPath)?'Y':'N'));
+        \Illuminate\Support\Facades\Log::error('[TradingSettings2] envPath='.$envPath.' exists='.(file_exists($envPath) ? 'Y' : 'N').' writable='.(is_writable($envPath) ? 'Y' : 'N'));
 
         if (file_exists($envPath) && is_writable($envPath)) {
             $content = file_get_contents($envPath);
-            \Illuminate\Support\Facades\Log::error('[TradingSettings2] BEFORE: ' . substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
+            \Illuminate\Support\Facades\Log::error('[TradingSettings2] BEFORE: '.substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
             foreach ($envUpdates as $key => $value) {
                 $pattern = "/^{$key}=.*$/m";
                 if (preg_match($pattern, $content)) {
@@ -193,7 +217,7 @@ class TradingSettings2Controller extends Controller
                     $content .= PHP_EOL."{$key}={$value}";
                 }
             }
-            \Illuminate\Support\Facades\Log::error('[TradingSettings2] AFTER: ' . substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
+            \Illuminate\Support\Facades\Log::error('[TradingSettings2] AFTER: '.substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
             file_put_contents($envPath, $content);
             \Illuminate\Support\Facades\Artisan::call('config:clear');
         } else {

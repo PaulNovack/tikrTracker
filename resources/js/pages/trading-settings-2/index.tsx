@@ -1,4 +1,4 @@
-import { edit, update } from '@/actions/App/Http/Controllers/TradingSettings2Controller';
+import { edit, update, updateOther } from '@/actions/App/Http/Controllers/TradingSettings2Controller';
 import HeadingSmall from '@/components/heading-small';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ type Props = {
     scorerScripts: Record<string, string>;
     modelPaths: Record<string, string>;
     pipelineDisplayNames: Record<string, string>;
+    threeWhiteSoldiersScanEnabled: boolean;
 };
 
 function SavedBadge({ show }: { show: boolean }) {
@@ -263,7 +264,56 @@ function ModelPathsForm({ initial, displayNames }: { initial: Record<string, str
     );
 }
 
-export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading }: Props) {
+function OtherForm({ initial }: { initial: boolean }) {
+    const form = useForm({ three_white_soldiers_scan_enabled: initial });
+
+    function save(e: React.FormEvent) {
+        e.preventDefault();
+        form.patch(updateOther().url, { preserveScroll: true });
+    }
+
+    return (
+        <form onSubmit={save} className="space-y-6 max-w-2xl">
+            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+                <HeadingSmall
+                    title="Scanner Settings"
+                    description="Controls for automated pattern scanning commands."
+                />
+                <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="font-medium">Three White Soldiers Scanner</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Runs <code className="text-xs bg-muted px-1 py-0.5 rounded">scan:three-white-soldiers-live</code> every minute to detect CDL3WHITESOLDIERS patterns.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={form.data.three_white_soldiers_scan_enabled}
+                            onClick={() => {
+                                form.setData('three_white_soldiers_scan_enabled', !form.data.three_white_soldiers_scan_enabled);
+                                // Auto-save on toggle
+                                setTimeout(() => form.patch(updateOther().url, { preserveScroll: true }), 50);
+                            }}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${form.data.three_white_soldiers_scan_enabled ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                        >
+                            <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${form.data.three_white_soldiers_scan_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div className="flex items-center justify-end gap-4">
+                <Button type="submit" disabled={form.processing}>
+                    {form.processing ? 'Saving...' : 'Save Settings'}
+                </Button>
+                <SavedBadge show={form.recentlySuccessful} />
+            </div>
+        </form>
+    );
+}
+
+export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading, threeWhiteSoldiersScanEnabled }: Props) {
     return (
         <>
             <Head title="Trade Settings 2" />
@@ -281,6 +331,7 @@ export default function TradingSettings2({ credentials, scorerScripts, modelPath
                             <TabsTrigger value="credentials">Credentials</TabsTrigger>
                             <TabsTrigger value="scorer-scripts">Scorer Scripts</TabsTrigger>
                             <TabsTrigger value="model-paths">Model Paths</TabsTrigger>
+                            <TabsTrigger value="other">Other</TabsTrigger>
                         </TabsList>
                         <TabsContent value="credentials">
                             <CredentialsForm initial={credentials} isPaperTrading={isPaperTrading} />
@@ -290,6 +341,9 @@ export default function TradingSettings2({ credentials, scorerScripts, modelPath
                         </TabsContent>
                         <TabsContent value="model-paths">
                             <ModelPathsForm initial={modelPaths} displayNames={pipelineDisplayNames} />
+                        </TabsContent>
+                        <TabsContent value="other">
+                            <OtherForm initial={threeWhiteSoldiersScanEnabled} />
                         </TabsContent>
                     </Tabs>
                 </div>

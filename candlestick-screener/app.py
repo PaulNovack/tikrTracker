@@ -54,11 +54,25 @@ def get_ohlc_data(symbol: str) -> pd.DataFrame:
 
 
 @cached(ttl_seconds=3600)
-def get_intraday_ohlc_data(symbol: str) -> pd.DataFrame:
-    """Get 5-minute OHLC bars aggregated from five_minute_prices for the last 24 hours."""
+def get_intraday_ohlc_data(symbol: str, before: str | None = None) -> pd.DataFrame:
+    """Get 5-minute OHLC bars from five_minute_prices, optionally cut off before a given timestamp."""
+    if before:
+        return pd.read_sql(
+            "SELECT "
+            "  CONCAT(DATE_FORMAT(ts_est, '%%Y-%%m-%%d %%h:%%i %%p'), ' EST') AS date, "
+            "  open, high, low, price AS close, volume "
+            "FROM five_minute_prices "
+            "WHERE symbol = %(symbol)s "
+            "  AND ts <= %(before)s "
+            "ORDER BY ts ASC "
+            "LIMIT 80",
+            engine,
+            params={'symbol': symbol, 'before': before},
+        )
+
     return pd.read_sql(
         "SELECT "
-        "  DATE_FORMAT(ts, '%%Y-%%m-%%d %%H:%%i') AS date, "
+        "  CONCAT(DATE_FORMAT(ts_est, '%%Y-%%m-%%d %%h:%%i %%p'), ' EST') AS date, "
         "  open, high, low, price AS close, volume "
         "FROM five_minute_prices "
         "WHERE symbol = %(symbol)s "
@@ -71,7 +85,7 @@ def get_intraday_ohlc_data(symbol: str) -> pd.DataFrame:
 
 
 
-def scan_symbols(pattern: str, limit: int, data_fn: callable) -> list[dict]:
+def scan_symbols(pattern: str, limit: int, data_fn: callable, before: str | None = None) -> list[dict]:
     """Run TA-Lib pattern scan across symbols using the provided data function."""
     results = []
     symbols = get_all_symbols()[:limit]
@@ -88,7 +102,10 @@ def scan_symbols(pattern: str, limit: int, data_fn: callable) -> list[dict]:
 
     for symbol in symbols:
         try:
-            df = data_fn(symbol)
+            if before:
+                df = data_fn(symbol, before=before)
+            else:
+                df = data_fn(symbol)
             if df.empty or len(df) < 10:
                 continue
 
@@ -144,11 +161,16 @@ def api_scan():
 def api_scan_intraday():
     pattern = request.args.get('pattern', '')
     limit = int(request.args.get('limit', 750))
+    before = request.args.get('before')  # optional: only use bars up to this UTC timestamp
 
     if not pattern or pattern not in candlestick_patterns:
         return jsonify({'error': 'Invalid pattern', 'available': list(candlestick_patterns.keys())}), 400
 
-    results = scan_symbols(pattern, limit, get_intraday_ohlc_data)
+    kwargs = {}
+    if before:
+        kwargs['before'] = before
+
+    results = scan_symbols(pattern, limit, get_intraday_ohlc_data, **kwargs)
 
     return jsonify({
         'pattern': pattern,
@@ -156,6 +178,31 @@ def api_scan_intraday():
         'total_scanned': min(len(get_all_symbols()), limit),
         'hits': len(results),
         'results': results,
+    })
+
+
+@app.route('/api/scan-intraday-at')
+def api_scan_intraday_at():
+    """Scan as if at a specific 5-minute bar time (UTC). Only uses bars up to and including that time."""
+    pattern = request.args.get('pattern', '')
+    limit = int(request.args.get('limit', 750))
+    before = request.args.get('before')  # UTC timestamp like '2025-07-21 13:35:00'
+
+    if not pattern or pattern not in candlestick_patterns:
+        return jsonify({'error': 'Invalid pattern', 'available': list(candlestick_patterns.keys())}), 400
+
+    if not before:
+        return jsonify({'error': 'before parameter is required'}), 400
+
+    results = scan_symbols(pattern, limit, get_intraday_ohlc_data, before=before)
+
+    return jsonify({
+        'pattern': pattern,
+        'pattern_name': candlestick_patterns.get(pattern, ''),
+        'total_scanned': min(len(get_all_symbols()), limit),
+        'hits': len(results),
+        'results': results,
+        'before': before,
     })
 
 

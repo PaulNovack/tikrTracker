@@ -363,6 +363,7 @@ class TradingSettingsSeeder extends Seeder
             'trading.pipeline_c.live_rescore_enabled' => '1',
             'trading.pipeline_m.live_rescore_enabled' => '1',
             'trading.pipeline_x.run_cron' => '0',
+            'trading.scanner.three_white_soldiers_enabled' => '0',
         ];
 
         foreach ($settings as $name => $value) {

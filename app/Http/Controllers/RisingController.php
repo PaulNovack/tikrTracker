@@ -15,32 +15,25 @@ class RisingController extends Controller
 {
     public function index(): \Inertia\Response|\Illuminate\Http\RedirectResponse
     {
-        // Set memory limit for processing all stocks
         ini_set('memory_limit', '2048M');
 
-        // Get filter from request
-        $assetTypeFilter = request('filter', 'stock'); // Default to stocks
+        $assetTypeFilter = request('filter', 'stock');
+        $selectedDate = request('date'); // YYYY-MM-DD, null = today
 
-        // Validate filter - redirect if invalid (like 'all')
         if (! in_array($assetTypeFilter, ['stock', 'crypto'])) {
             return redirect('/rising?filter=stock');
         }
 
-        // Cache key for this request
-        $cacheKey = "rising_simple_{$assetTypeFilter}";
+        $cacheKey = $selectedDate
+            ? "rising_simple_{$assetTypeFilter}_{$selectedDate}"
+            : "rising_simple_{$assetTypeFilter}";
 
-        // Try to get from cache first
         $data = Cache::get($cacheKey);
 
         if ($data === null) {
-            // Cache miss - generate fresh data
-            $data = $this->getSimpleRisingStocksFromCache($assetTypeFilter);
-
-            // Cache the fresh data for other users (2 minutes)
+            $data = $this->getSimpleRisingStocksFromCache($assetTypeFilter, $selectedDate);
             Cache::put($cacheKey, $data, 120);
-
-            // Optional: Log cache miss for monitoring
-            \Log::info("Cache miss for rising: {$assetTypeFilter}");
+            \Log::info("Cache miss for rising: {$assetTypeFilter}".($selectedDate ? " date:{$selectedDate}" : ''));
         }
 
         return Inertia::render('Rising', [
@@ -50,25 +43,27 @@ class RisingController extends Controller
             'selectedTimestampEst' => now()->setTimezone('America/New_York')->format('Y-m-d\TH:i'),
             'dataSource' => $data['dataSource'] ?? 'hourly',
             'assetTypeFilter' => $assetTypeFilter,
+            'filters' => [
+                'date' => $selectedDate,
+            ],
         ]);
     }
 
-    private function getSimpleRisingStocks(string $assetTypeFilter): array
+    private function getSimpleRisingStocks(string $assetTypeFilter, ?string $selectedDate = null): array
     {
-        // Set memory limit for processing
         ini_set('memory_limit', '2048M');
 
-        // Use daily data to match original functionality with multiple day timeframes
         $timeRanges = [1 => '1d', 2 => '2d', 3 => '3d', 5 => '5d', 7 => '7d'];
 
-        // Calculate cutoff date (7 days ago)
-        $cutoffDate = now()->subDays(7)->format('Y-m-d');
-        $lookbackDate = now()->subDays(14)->format('Y-m-d'); // Need more history for change calculations
+        $now = $selectedDate ? \Carbon\Carbon::parse($selectedDate) : now();
+        $cutoffDate = $now->copy()->subDays(7)->format('Y-m-d');
+        $lookbackDate = $now->copy()->subDays(14)->format('Y-m-d');
 
-        // Get active symbols that have recent data
+        // Get active symbols that have data up to the selected date
         $activeSymbols = DailyPrice::query()
             ->select('symbol')
             ->where('date', '>=', $cutoffDate)
+            ->where('date', '<=', $selectedDate ?: now()->format('Y-m-d'))
             ->when($assetTypeFilter !== 'all', fn ($q) => $q->where('asset_type', $assetTypeFilter))
             ->distinct()
             ->orderBy('symbol')
@@ -198,18 +193,16 @@ class RisingController extends Controller
         ];
     }
 
-    private function getSimpleRisingStocksFromCache(string $assetTypeFilter): array
+    private function getSimpleRisingStocksFromCache(string $assetTypeFilter, ?string $selectedDate = null): array
     {
-        // Try the new optimized cache first
-        $optimizedCacheKey = "rising_stocks_optimized_{$assetTypeFilter}";
+        $optimizedCacheKey = "rising_stocks_optimized_{$assetTypeFilter}".($selectedDate ? "_{$selectedDate}" : '');
         $cachedData = Cache::get($optimizedCacheKey);
 
         if ($cachedData) {
             return $cachedData;
         }
 
-        // Fallback to direct GROUP_CONCAT query if cache is empty
-        return $this->calculateRisingStocksOptimized($assetTypeFilter);
+        return $this->calculateRisingStocksOptimized($assetTypeFilter, $selectedDate);
     }
 
     private function calculateRisingStocksOptimized(string $assetTypeFilter): array
