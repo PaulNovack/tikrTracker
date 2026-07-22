@@ -53,6 +53,30 @@ interface Props {
     error: string | null;
 }
 
+/**
+ * Convert a MySQL DATETIME string (YYYY-MM-DD HH:MM) stored in UTC
+ * to EST (America/New_York) with AM/PM and "EST" suffix.
+ */
+function formatLastDateEst(rawDate: string): string {
+    if (!rawDate) {
+        return '';
+    }
+    // Parse "2026-07-22 14:30" as UTC
+    const d = new Date(rawDate.replace(' ', 'T') + '+00:00');
+    if (isNaN(d.getTime())) {
+        return rawDate;
+    }
+    return d.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    }).replace(',', '') + ' EST';
+}
+
 function MiniCandlestickChart({ data, signal }: { data: OHLCBar[]; signal: 'bullish' | 'bearish' }) {
     const chartData = data.map((bar) => ({
         ...bar,
@@ -75,6 +99,7 @@ function MiniCandlestickChart({ data, signal }: { data: OHLCBar[]; signal: 'bull
                     <Tooltip
                         contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
                         labelStyle={{ color: '#9ca3af' }}
+                        labelFormatter={(label: string) => formatLastDateEst(label)}
                         formatter={(value: number, name: string) => [value.toFixed(2), name]}
                     />
                     <Bar dataKey="close" fill="#22c55e" barSize={4}>
@@ -1496,7 +1521,7 @@ export default function FiveMinuteAnalysis({ patterns, selectedPattern, results,
                                             {r.signal}
                                         </Badge>
                                     </div>
-                                    <CardDescription>Last bar: {r.last_date}</CardDescription>
+                                    <CardDescription>Last bar: {formatLastDateEst(r.last_date)}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <MiniCandlestickChart data={r.ohlc} signal={r.signal} />

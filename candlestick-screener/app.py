@@ -53,13 +53,13 @@ def get_ohlc_data(symbol: str) -> pd.DataFrame:
     )
 
 
-@cached(ttl_seconds=3600)
+@cached(ttl_seconds=30)
 def get_intraday_ohlc_data(symbol: str, before: str | None = None) -> pd.DataFrame:
     """Get 5-minute OHLC bars from five_minute_prices, optionally cut off before a given timestamp."""
     if before:
         return pd.read_sql(
             "SELECT "
-            "  CONCAT(DATE_FORMAT(ts_est, '%%Y-%%m-%%d %%h:%%i %%p'), ' EST') AS date, "
+            "  DATE_FORMAT(ts, '%%Y-%%m-%%d %%H:%%i') AS date, "
             "  open, high, low, price AS close, volume "
             "FROM five_minute_prices "
             "WHERE symbol = %(symbol)s "
@@ -72,7 +72,7 @@ def get_intraday_ohlc_data(symbol: str, before: str | None = None) -> pd.DataFra
 
     return pd.read_sql(
         "SELECT "
-        "  CONCAT(DATE_FORMAT(ts_est, '%%Y-%%m-%%d %%h:%%i %%p'), ' EST') AS date, "
+        "  DATE_FORMAT(ts, '%%Y-%%m-%%d %%H:%%i') AS date, "
         "  open, high, low, price AS close, volume "
         "FROM five_minute_prices "
         "WHERE symbol = %(symbol)s "
