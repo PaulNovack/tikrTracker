@@ -36,7 +36,7 @@ def cached(ttl_seconds: int = 28800):
             key_parts = [func.__name__]
             key_parts.extend(str(a) for a in args)
             key_parts.extend(f'{k}={v}' for k, v in sorted(kwargs.items()))
-            cache_key = f'flask_cache:{"|".join(key_parts)}'
+            cache_key = f'flask_cache:v2:{"|".join(key_parts)}'
 
             r = _get_redis_client()
             cached_value = r.get(cache_key)
