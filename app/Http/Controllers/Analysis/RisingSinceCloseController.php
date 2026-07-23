@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Analysis;
 
 use App\Http\Controllers\Controller;
 use App\Models\MarketSchedule;
+use App\Services\TradingSettingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,17 +17,17 @@ class RisingSinceCloseController extends Controller
 {
     /**
      * Show stocks that have risen most since the last market close.
-     * Uses the market schedule to determine the last open day, accounting
-     * for weekends and holidays.
+     * Uses 1-minute price data from 4:00 PM of the prior open day forward,
+     * so premarket and after-hours trading is included.
      *
-     * Performance: uses a single SQL query with a join between daily_prices
-     * (last close) and five_minute_prices (current price) limited to symbols
-     * that have recent trading data, returning only the top 200 risers.
+     * The "Open" column is blank if the market hasn't opened yet today.
      */
     public function index(Request $request): Response
     {
         $tz = 'America/New_York';
         $now = Carbon::now($tz);
+        $todayDate = $now->toDateString();
+        $limit = min((int) $request->get('limit', 200), 500);
 
         // Find the last close date (walk back up to 14 days)
         $lastCloseDate = $this->resolveLastCloseDate($now);
@@ -39,44 +40,38 @@ class RisingSinceCloseController extends Controller
             ]);
         }
 
-        $todayDate = $now->toDateString();
-        $limit = min((int) $request->get('limit', 200), 500);
+        // Determine if the market has opened yet today
+        $marketOpenET = Carbon::today($tz)->setTime(9, 30, 0);
+        $isMarketOpen = $now->gte($marketOpenET);
 
-        // Fetch latest 5-min price for each symbol today (one row per symbol)
+        // Check if today is a trading day
+        $todaySchedule = MarketSchedule::byMarketType('stock')
+            ->where('date', $todayDate)
+            ->first();
+        $isTradingDay = ! ($todaySchedule && $todaySchedule->isClosed())
+            && ! in_array((int) $now->format('N'), [6, 7], true);
+
+        $shouldFetchOpen = $isMarketOpen && $isTradingDay;
+
+        // Latest 1-min price for each symbol (from 4 PM last close day forward)
+        // one_minute_prices includes premarket and after-hours bars
+        $lastCloseDateTime = Carbon::parse($lastCloseDate, $tz)->setTime(16, 0, 0)->utc();
+
         $latestRows = DB::connection('mysql')
             ->select("
-                SELECT fmp.symbol, fmp.price, fmp.ts_est
-                FROM five_minute_prices fmp
+                SELECT omp.symbol, omp.price, omp.ts_est
+                FROM one_minute_prices omp
                 INNER JOIN (
-                    SELECT symbol, MAX(ts_est) AS max_ts
-                    FROM five_minute_prices
-                    WHERE asset_type = 'stock' AND trading_date_est = ?
+                    SELECT symbol, MAX(ts) AS max_ts
+                    FROM one_minute_prices
+                    WHERE asset_type = 'stock' AND ts >= ?
                     GROUP BY symbol
-                ) latest ON latest.symbol = fmp.symbol AND latest.max_ts = fmp.ts_est
-            ", [$todayDate]);
+                ) latest ON latest.symbol = omp.symbol AND latest.max_ts = omp.ts
+            ", [$lastCloseDateTime]);
 
-        // Index by symbol
         $latestBySymbol = [];
         foreach ($latestRows as $row) {
             $latestBySymbol[$row->symbol] = $row;
-        }
-
-        // Fetch first (open) 5-min price for each symbol today
-        $firstRows = DB::connection('mysql')
-            ->select("
-                SELECT fmp.symbol, fmp.price AS open_price
-                FROM five_minute_prices fmp
-                INNER JOIN (
-                    SELECT symbol, MIN(ts_est) AS min_ts
-                    FROM five_minute_prices
-                    WHERE asset_type = 'stock' AND trading_date_est = ?
-                    GROUP BY symbol
-                ) first_bar ON first_bar.symbol = fmp.symbol AND first_bar.min_ts = fmp.ts_est
-            ", [$todayDate]);
-
-        $openBySymbol = [];
-        foreach ($firstRows as $row) {
-            $openBySymbol[$row->symbol] = (float) $row->open_price;
         }
 
         if (empty($latestBySymbol)) {
@@ -85,6 +80,27 @@ class RisingSinceCloseController extends Controller
                 'lastCloseDate' => $lastCloseDate,
                 'totalSymbols' => 0,
             ]);
+        }
+
+        // Fetch open prices (first 1-min bar at/after 9:30 AM today) only if market is open
+        $openBySymbol = [];
+        if ($shouldFetchOpen) {
+            $marketOpenUTC = $marketOpenET->clone()->utc();
+            $openRows = DB::connection('mysql')
+                ->select("
+                    SELECT omp.symbol, omp.price AS open_price
+                    FROM one_minute_prices omp
+                    INNER JOIN (
+                        SELECT symbol, MIN(ts) AS min_ts
+                        FROM one_minute_prices
+                        WHERE asset_type = 'stock' AND ts >= ?
+                        GROUP BY symbol
+                    ) first_bar ON first_bar.symbol = omp.symbol AND first_bar.min_ts = omp.ts
+                ", [$marketOpenUTC]);
+
+            foreach ($openRows as $row) {
+                $openBySymbol[$row->symbol] = (float) $row->open_price;
+            }
         }
 
         // Fetch close prices for the last close date (only symbols with current data)
@@ -148,6 +164,7 @@ class RisingSinceCloseController extends Controller
             'stocks' => $stocks,
             'lastCloseDate' => $lastCloseDate,
             'totalSymbols' => count($stocks),
+            'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
         ]);
     }
 

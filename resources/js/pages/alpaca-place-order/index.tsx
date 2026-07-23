@@ -39,7 +39,7 @@ export default function AlpacaPlaceOrderIndex({ todayAlerts }: Props) {
     const [stopPrice, setStopPrice] = useState('');
     const [notes, setNotes] = useState('');
     const [isPlacing, setIsPlacing] = useState(false);
-    const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string; adjustmentNote?: string } | null>(null);
     const [boughtToday, setBoughtToday] = useState(false);
 
     // Derived total order value
@@ -147,7 +147,7 @@ const csrfToken = (): string =>
 
             const data = await res.json();
             if (res.ok && data.success) {
-                setStatus({ type: 'success', message: data.message });
+                setStatus({ type: 'success', message: data.message, adjustmentNote: data.adjustment_note ?? undefined });
                 handleClearSymbol();
                 setShares('0');
                 setEntryPrice('');
@@ -171,14 +171,21 @@ const csrfToken = (): string =>
                 <h1 className="text-2xl font-bold tracking-tight">Place Alpaca Order</h1>
 
                 {status && (
-                    <div
-                        className={`rounded-lg border px-4 py-3 text-sm ${
-                            status.type === 'success'
-                                ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                                : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
-                        }`}
-                    >
-                        {status.message}
+                    <div>
+                        <div
+                            className={`rounded-lg border px-4 py-3 text-sm ${
+                                status.type === 'success'
+                                    ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
+                                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
+                            }`}
+                        >
+                            {status.message}
+                        </div>
+                        {status.adjustmentNote && (
+                            <div className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
+                                ⚠ {status.adjustmentNote}
+                            </div>
+                        )}
                     </div>
                 )}
 

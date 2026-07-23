@@ -492,6 +492,23 @@ class AlpacaOrderController extends Controller
             $sellSubmittedAt = $sellOrderData['submitted_at'] ?? now();
             $sellFilledAt = $sellOrderData['filled_at'] ?? null;
 
+            // Cancel stale synthetic sell records from a prior partial sell BEFORE
+            // creating new records for this sell. These have synthetic IDs
+            // (e.g. <uuid>__buy_<id>) that cannot be looked up via Alpaca's API.
+            $canceledStale = AlpacaOrder::where('symbol', $order->symbol)
+                ->where('side', 'sell')
+                ->where('alpaca_order_id', 'like', '%__buy_%')
+                ->whereIn('status', ['pending_new', 'new', 'accepted', 'pending_replace', 'partially_filled'])
+                ->update([
+                    'status' => 'canceled',
+                    'canceled_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            if ($canceledStale > 0) {
+                \Log::info("Canceled {$canceledStale} stale synthetic sell records for {$order->symbol} before placing sell");
+            }
+
             foreach ($allBuys as $buy) {
                 if ($remainingSellQty <= 0) {
                     break;

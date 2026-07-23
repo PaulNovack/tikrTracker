@@ -210,11 +210,14 @@ class AlpacaPlaceOrderController extends Controller
 
         // Max position size from settings (default $25k)
         $maxPositionCost = TradingSettingService::getMaxPositionSize();
+        $availableBuyingPower = null;
         try {
             $bpService = app(\App\Services\AlpacaPythonService::class);
             $bpResult = $bpService->runScript('account_details.py');
             if ($bpResult['success'] && preg_match('/"buying_power":\s*([\d.]+)/', $bpResult['output'], $bpMatch)) {
-                $maxPositionCost = min((float) $bpMatch[1] * 0.95, $maxPositionCost);
+                $buyingPower = (float) $bpMatch[1];
+                $availableBuyingPower = $buyingPower;
+                $maxPositionCost = min($buyingPower * 0.95, $maxPositionCost);
             }
         } catch (\Throwable) {
             // ignore, fall through to settings default
@@ -400,6 +403,7 @@ class AlpacaPlaceOrderController extends Controller
             }
 
             // The automated trailing-stop system will handle stop-loss after fill.
+            $adjustmentNote = null;
             $alpacaService = app(\App\Services\AlpacaPythonService::class);
             $entryResult = $alpacaService->placeOrder(
                 $symbol,
@@ -413,9 +417,7 @@ class AlpacaPlaceOrderController extends Controller
                 $limitPrice, // limitPrice (null = market order)
             );
             if (! $entryResult['success']) {
-                DB::rollBack();
-
-                // Extract a human-readable message from the raw output (Python traceback or JSON response)
+                // Extract a human-readable message from the raw output
                 $rawError = $entryResult['error'] ?? $entryResult['output'] ?? 'Unknown error';
                 $friendlyError = $rawError;
 
@@ -433,14 +435,74 @@ class AlpacaPlaceOrderController extends Controller
                     $friendlyError = $m[1];
                 }
 
-                Log::error('[AlpacaPlaceOrder] Alpaca order placement failed', [
-                    'symbol' => $symbol,
-                    'error' => $rawError,
-                ]);
+                // Auto-retry with reduced shares on "insufficient buying power" errors.
+                // Parse the "have" amount from Alpaca's error message and retry once.
+                if (preg_match('/have\s+\$?([\d,.]+)/', $friendlyError, $bpMatch)) {
+                    $availableFromError = (float) str_replace(',', '', $bpMatch[1]);
 
-                return response()->json([
-                    'error' => 'Order failed: '.trim($friendlyError),
-                ], 500);
+                    if ($availableFromError > 0 && $entryPrice > 0) {
+                        $retryShares = (int) floor(($availableFromError * 0.98) / $entryPrice);
+
+                        if ($retryShares < 1) {
+                            DB::rollBack();
+
+                            return response()->json([
+                                'error' => "Insufficient buying power. Need at least 1 share at \${$entryPrice} but have \${$availableFromError} available.",
+                            ], 400);
+                        }
+
+                        Log::info('[AlpacaPlaceOrder] Retrying with reduced shares due to buying power', [
+                            'symbol' => $symbol,
+                            'original_shares' => $shares,
+                            'retry_shares' => $retryShares,
+                            'available_buying_power' => round($availableFromError, 2),
+                        ]);
+
+                        $retryResult = $alpacaService->placeOrder(
+                            $symbol,
+                            (float) $retryShares,
+                            'buy',
+                            null, null, null, false, false,
+                            $limitPrice,
+                        );
+
+                        if ($retryResult['success']) {
+                            // Use the retry result going forward
+                            $entryResult = $retryResult;
+                            $originalShares = $shares;
+                            $shares = $retryShares;
+                            $adjustmentNote = "Buying power reduced from {$originalShares} to {$retryShares} shares (\$".number_format($availableFromError, 2).' available).';
+                            // Fall through to success path below
+                        } else {
+                            DB::rollBack();
+                            Log::error('[AlpacaPlaceOrder] Retry also failed', [
+                                'symbol' => $symbol,
+                                'retry_shares' => $retryShares,
+                                'error' => $retryResult['error'] ?? 'Unknown',
+                            ]);
+
+                            return response()->json([
+                                'error' => 'Order failed even after reducing shares: '.trim($retryResult['error'] ?? $retryResult['output'] ?? 'Unknown error'),
+                            ], 500);
+                        }
+                    } else {
+                        DB::rollBack();
+
+                        return response()->json([
+                            'error' => "Insufficient buying power. Need \${$shares} but only \${$availableFromError} available.",
+                        ], 400);
+                    }
+                } else {
+                    DB::rollBack();
+                    Log::error('[AlpacaPlaceOrder] Alpaca order placement failed', [
+                        'symbol' => $symbol,
+                        'error' => $rawError,
+                    ]);
+
+                    return response()->json([
+                        'error' => 'Order failed: '.trim($friendlyError),
+                    ], 500);
+                }
             }
 
             // Parse order ID from Alpaca output (JSON: {"mode":"...","order":{"id":"uuid",...}})
@@ -501,6 +563,7 @@ class AlpacaPlaceOrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Buy order placed for {$shares} shares of {$symbol} at \${$entryPrice}",
+                'adjustment_note' => $adjustmentNote,
                 'alert_id' => $alertId,
                 'order_id' => $orderId,
             ]);

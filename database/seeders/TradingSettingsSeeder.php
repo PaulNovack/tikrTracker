@@ -364,7 +364,7 @@ class TradingSettingsSeeder extends Seeder
             'trading.pipeline_m.live_rescore_enabled' => '1',
             'trading.pipeline_x.run_cron' => '0',
             'trading.scanner.three_white_soldiers_enabled' => '1',
-            'trading.news_link' => 'https://finance.yahoo.com/quote/<SYMBOL>/news/',
+            'trading.news_link' => 'https://finance.yahoo.com/quote/<SYMBOL>/latest-news/',
         ];
 
         foreach ($settings as $name => $value) {

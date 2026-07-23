@@ -250,6 +250,23 @@ Schedule::command('scan:three-white-soldiers-live --no-interaction')
         Log::channel('scheduled')->error('[Scheduler] FAILED scan:three-white-soldiers-live');
     });
 
+// Fetch FinBERT-scored news for all intraday_universe symbols nightly at 2 AM EST.
+Schedule::command('news:fetch-stock --no-interaction')
+    ->dailyAt('02:00')
+    ->timezone('America/New_York')
+    ->name('fetch-stock-news-nightly')
+    ->withoutOverlapping()
+    ->description('Fetch FinBERT-scored news for all intraday_universe symbols nightly at 2:00 AM EST')
+    ->before(function () {
+        Log::channel('scheduled')->info('[Scheduler] Starting news:fetch-stock');
+    })
+    ->after(function () {
+        Log::channel('scheduled')->info('[Scheduler] Completed news:fetch-stock');
+    })
+    ->onFailure(function () {
+        Log::channel('scheduled')->error('[Scheduler] FAILED news:fetch-stock');
+    });
+
 // Runs at 5:00 PM ET — price data should be fully synced by then.
 // Populates exit_price and pnl_percent on trade_alerts for the backtest vs actual page.
 // Analyze today's trade alerts with ATR exits after market close for all active pipelines.

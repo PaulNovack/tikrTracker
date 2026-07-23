@@ -8,7 +8,9 @@ umask(0);
 ini_set('memory_limit', '2048M');
 
 // Increase execution timeout for heavy data processing
-ini_set('max_execution_time', 240);
+// CLI (queue workers, scheduled commands) need unlimited time for long Python scripts.
+// Web requests keep a reasonable 240s limit.
+ini_set('max_execution_time', PHP_SAPI === 'cli' ? 0 : 240);
 
 // Increase input timeout for large requests
 ini_set('max_input_time', 240);

@@ -50,13 +50,21 @@ class SyncAlpacaStopLossOrders extends Command
         // Get pending orders - either all or just stop losses
         $query = AlpacaOrder::query()
             ->whereIn('status', ['pending_new', 'new', 'accepted', 'pending_replace', 'partially_filled', 'pending_cancel'])
-            ->whereNotNull('alpaca_order_id');
+            ->whereNotNull('alpaca_order_id')
+            // Exclude synthetic sell reconciliation IDs (not real Alpaca UUIDs)
+            ->where('alpaca_order_id', 'not like', '%__buy_%');
 
         if (! $allOrders) {
             // Only sync stop loss orders by default
             $query->where('order_type', 'stop')
                 ->where('side', 'sell');
         }
+
+        // Auto-cancel stale synthetic sell reconciliation records
+        // These have `__buy_` in alpaca_order_id and are created by the
+        // manual sell flow for P&L tracking. If they're still pending,
+        // the sell has completed and they should be marked canceled.
+        $this->cancelSyntheticSellRecords($isDryRun);
 
         $stopLossOrders = $query->get();
 
@@ -279,6 +287,48 @@ class SyncAlpacaStopLossOrders extends Command
     /**
      * Cancel unfilled buy limit orders that have been open longer than the configured threshold.
      */
+    /**
+     * Cancel stale synthetic sell reconciliation records.
+     *
+     * When a manual sell goes through, the sell controller creates DB records
+     * with synthetic alpaca_order_id values (e.g. "<uuid>__buy_<id>") to track
+     * which buy position each portion of the sell covers. These are not real
+     * Alpaca order IDs and cannot be looked up via the Alpaca API.
+     *
+     * If a sell filled but these records remain in pending status, mark them
+     * as canceled so the sync doesn't try to check them.
+     */
+    protected function cancelSyntheticSellRecords(bool $isDryRun): void
+    {
+        $syntheticOrders = AlpacaOrder::query()
+            ->whereIn('status', ['pending_new', 'new', 'accepted', 'pending_replace'])
+            ->where('alpaca_order_id', 'like', '%__buy_%')
+            ->get();
+
+        if ($syntheticOrders->isEmpty()) {
+            return;
+        }
+
+        foreach ($syntheticOrders as $order) {
+            $this->warn("  Synthetic sell record {$order->alpaca_order_id} ({$order->symbol}) is still pending; marking canceled.");
+
+            Log::channel('stale-alerts')->info('[Sync] Canceling stale synthetic sell record', [
+                'id' => $order->id,
+                'alpaca_order_id' => $order->alpaca_order_id,
+                'symbol' => $order->symbol,
+                'status' => $order->status,
+            ]);
+
+            if (! $isDryRun) {
+                $order->update([
+                    'status' => 'canceled',
+                    'canceled_at' => $order->canceled_at ?: now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
     protected function cancelStaleUnfilledOrders(int $cancelMinutes, bool $isDryRun): void
     {
         $cutoff = now()->subMinutes($cancelMinutes);
