@@ -47,7 +47,7 @@ MODEL_NAME = "ProsusAI/finbert"
 DEFAULT_SYMBOLS = ["AAPL", "TSLA", "NVDA", "GOOG", "MSFT"]
 
 MAX_HEADLINES = 10
-MAX_ARTICLES_TO_FETCH = 5
+MAX_ARTICLES_TO_FETCH = 10
 MAX_SENTENCES_PER_ARTICLE = 25
 
 URL_PATTERN = re.compile(r"^https?://", flags=re.IGNORECASE)
@@ -718,7 +718,7 @@ def summarize_symbol(
             article_results,
             key=lambda result: abs(result["impact"]),
             reverse=True,
-        )[:5],
+        )[:10],
     }
 
 
