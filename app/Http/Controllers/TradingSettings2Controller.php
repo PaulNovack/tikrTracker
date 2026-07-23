@@ -48,6 +48,7 @@ class TradingSettings2Controller extends Controller
                 $p => config("trading.pipeline_display_names.{$p}", strtoupper($p)),
             ])->all(),
             'threeWhiteSoldiersScanEnabled' => TradingSettingService::isThreeWhiteSoldiersScanEnabled(),
+            'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
         ]);
     }
 
@@ -60,12 +61,17 @@ class TradingSettings2Controller extends Controller
 
         $validated = $request->validate([
             'three_white_soldiers_scan_enabled' => ['boolean'],
+            'news_link' => ['nullable', 'string', 'max:500'],
         ]);
 
         TradingSettingService::set(
             'trading.scanner.three_white_soldiers_enabled',
             $validated['three_white_soldiers_scan_enabled'] ? '1' : '0'
         );
+
+        if (isset($validated['news_link'])) {
+            TradingSettingService::set('trading.news_link', $validated['news_link']);
+        }
 
         Log::info('[TradingSettings2] Other scanner settings updated by '.auth()->user()?->email, [
             'three_white_soldiers_scan_enabled' => $validated['three_white_soldiers_scan_enabled'],

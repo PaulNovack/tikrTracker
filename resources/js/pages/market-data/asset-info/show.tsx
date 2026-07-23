@@ -61,6 +61,7 @@ interface Props {
     lastOpenDay?: string | null;
     isWatched: boolean;
     customDate?: string | null;
+    newsLink: string;
 }
 
 type TimeRange =
@@ -84,6 +85,7 @@ export default function AssetInfoShow({
     lastOpenDay,
     isWatched,
     customDate,
+    newsLink,
 }: Props) {
     const defaultRange = useMemo<TimeRange>(() => {
         if (chartData['1D'] && chartData['1D'].length > 0) {
@@ -1028,6 +1030,23 @@ export default function AssetInfoShow({
                                     Show Candles
                                 </Button>
                             </div>
+
+                            {/* News Link */}
+                            {newsLink && asset.symbol && (
+                                <div className="mb-4">
+                                    <a
+                                        href={newsLink.replace('<SYMBOL>', asset.symbol)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-950/60"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                        </svg>
+                                        News for {asset.symbol}
+                                    </a>
+                                </div>
+                            )}
 
                             {/* Chart */}
                             {showCandles ? (
