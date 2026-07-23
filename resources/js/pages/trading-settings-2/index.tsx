@@ -23,6 +23,7 @@ type Props = {
     modelPaths: Record<string, string>;
     pipelineDisplayNames: Record<string, string>;
     threeWhiteSoldiersScanEnabled: boolean;
+    newsLink: string;
 };
 
 function SavedBadge({ show }: { show: boolean }) {
@@ -264,8 +265,8 @@ function ModelPathsForm({ initial, displayNames }: { initial: Record<string, str
     );
 }
 
-function OtherForm({ initial }: { initial: boolean }) {
-    const form = useForm({ three_white_soldiers_scan_enabled: initial });
+function OtherForm({ initial, newsLink }: { initial: boolean; newsLink: string }) {
+    const form = useForm({ three_white_soldiers_scan_enabled: initial, news_link: newsLink });
 
     function save(e: React.FormEvent) {
         e.preventDefault();
@@ -303,6 +304,22 @@ function OtherForm({ initial }: { initial: boolean }) {
                     </div>
                 </div>
             </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+                <HeadingSmall
+                    title="News Link"
+                    description="URL template for stock news pages. Use &lt;SYMBOL&gt; as a placeholder for the ticker symbol."
+                />
+                <div className="mt-4">
+                    <Label htmlFor="news_link">News URL</Label>
+                    <Input
+                        id="news_link"
+                        type="text"
+                        className="mt-1 w-full font-mono text-sm"
+                        value={form.data.news_link}
+                        onChange={(e) => form.setData('news_link', e.target.value)}
+                    />
+                </div>
+            </div>
             <div className="flex items-center justify-end gap-4">
                 <Button type="submit" disabled={form.processing}>
                     {form.processing ? 'Saving...' : 'Save Settings'}
@@ -313,7 +330,7 @@ function OtherForm({ initial }: { initial: boolean }) {
     );
 }
 
-export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading, threeWhiteSoldiersScanEnabled }: Props) {
+export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading, threeWhiteSoldiersScanEnabled, newsLink }: Props) {
     return (
         <>
             <Head title="Trade Settings 2" />
@@ -343,7 +360,7 @@ export default function TradingSettings2({ credentials, scorerScripts, modelPath
                             <ModelPathsForm initial={modelPaths} displayNames={pipelineDisplayNames} />
                         </TabsContent>
                         <TabsContent value="other">
-                            <OtherForm initial={threeWhiteSoldiersScanEnabled} />
+                            <OtherForm initial={threeWhiteSoldiersScanEnabled} newsLink={newsLink} />
                         </TabsContent>
                     </Tabs>
                 </div>

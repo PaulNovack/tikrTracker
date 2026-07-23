@@ -7,10 +7,11 @@ use App\Jobs\Market\UpdateStockDataJob;
 use App\Models\AssetInfo;
 use App\Models\MarketSchedule;
 use App\Services\Market\WikimediaService;
+use App\Services\TradingSettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -558,6 +559,7 @@ class AssetInfoController extends Controller
             'lastOpenDay' => $lastOpenDay,
             'isWatched' => $isWatched,
             'customDate' => $customDate,
+            'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
         ]);
     }
 
@@ -797,17 +799,17 @@ class AssetInfoController extends Controller
                 $validated['common_name']
             );
         }
-            $chartData = Cache::remember($cacheKey, $cacheTTL, $buildChartData);
+        $chartData = Cache::remember($cacheKey, $cacheTTL, $buildChartData);
 
-            $hasTodayOneMinuteData = $assetInfo->isStock()
-                && $assetInfo->oneMinutePrices()
-                    ->where('ts', '>=', $todayStart)
-                    ->exists();
+        $hasTodayOneMinuteData = $assetInfo->isStock()
+            && $assetInfo->oneMinutePrices()
+                ->where('ts', '>=', $todayStart)
+                ->exists();
 
-            if ($hasTodayOneMinuteData && isset($chartData['1D']) && $chartData['1D']->isEmpty()) {
-                Cache::forget($cacheKey);
-                $chartData = Cache::remember($cacheKey, now()->addMinutes(5), $buildChartData);
-            }
+        if ($hasTodayOneMinuteData && isset($chartData['1D']) && $chartData['1D']->isEmpty()) {
+            Cache::forget($cacheKey);
+            $chartData = Cache::remember($cacheKey, now()->addMinutes(5), $buildChartData);
+        }
 
         // Create the new asset
         $asset = AssetInfo::create([
