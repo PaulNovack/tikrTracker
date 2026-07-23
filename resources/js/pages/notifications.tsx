@@ -19,7 +19,7 @@ import { destroy, markAllAsRead, markAsRead, deleteAll } from '@/routes/notifica
 import { show as showAsset } from '@/routes/asset-info';
 import { Head, router, usePage } from '@inertiajs/react';
 import { AlertCircle, Bell, CheckCircle2, Info, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Notification {
     id: number;
@@ -174,6 +174,15 @@ export default function NotificationsPage() {
     // Dialog state for delete confirmation
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+    // Auto-refresh every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            router.reload({ only: ['notifications'], preserveState: true, preserveScroll: true });
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, []);
+
     const handleMarkAllAsRead = () => {
         router.post(
             markAllAsRead().url,
@@ -290,7 +299,7 @@ export default function NotificationsPage() {
                                                         {makeSymbolsClickable(notification.title, notification)}
                                                     </CardTitle>
                                                     <CardDescription className="mt-1">
-                                                        {makeSymbolsClickable(notification.description, notification)}
+                                                        <div dangerouslySetInnerHTML={{ __html: notification.description }} />
                                                     </CardDescription>
                                                     <p className="mt-2 text-xs text-muted-foreground">
                                                         {new Date(

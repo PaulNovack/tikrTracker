@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TradingSettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
@@ -106,6 +107,7 @@ class CandlestickScreenerController extends Controller
             'results' => $results,
             'limit' => $limit,
             'error' => $error,
+            'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
         ]);
     }
 }

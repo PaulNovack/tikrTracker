@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreSymbolRequest;
+use App\Jobs\FetchStockNewsJob;
 use App\Jobs\Market\UpdateStockDataJob;
 use App\Models\AssetInfo;
 use App\Models\MarketSchedule;
+use App\Models\StockNews;
 use App\Services\Market\WikimediaService;
 use App\Services\TradingSettingService;
 use Illuminate\Http\JsonResponse;
@@ -548,6 +550,14 @@ class AssetInfoController extends Controller
             ->where('asset_info_id', $assetInfo->id)
             ->exists();
 
+        $latestNews = $this->getLatestNews($assetInfo->symbol);
+
+        // If no news for today, fire-and-forget a background fetch.
+        // Frontend polls every 10s until data appears.
+        if (! $latestNews || $latestNews->fetched_at_utc->startOfDay()->lt(today('UTC')->startOfDay())) {
+            $this->dispatchNewsFetch($assetInfo->symbol);
+        }
+
         return Inertia::render('market-data/asset-info/show', [
             'asset' => $assetInfo,
             'latestPrice' => $latestPrice,
@@ -560,7 +570,29 @@ class AssetInfoController extends Controller
             'isWatched' => $isWatched,
             'customDate' => $customDate,
             'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
+            'latestNews' => $latestNews,
         ]);
+    }
+
+    private function dispatchNewsFetch(string $symbol): void
+    {
+        $lockKey = "news_fetching_{$symbol}";
+
+        if (Cache::has($lockKey)) {
+            return;
+        }
+
+        Cache::put($lockKey, true, now()->addMinutes(5));
+
+        FetchStockNewsJob::dispatch(strtoupper($symbol));
+    }
+
+    private function getLatestNews(string $symbol): ?StockNews
+    {
+        return StockNews::with('articles')
+            ->where('symbol', $symbol)
+            ->latest('fetched_at_utc')
+            ->first();
     }
 
     public function getLiveQuote(AssetInfo $assetInfo): JsonResponse

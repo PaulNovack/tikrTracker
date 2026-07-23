@@ -32,6 +32,41 @@ interface DailyPrice {
     volume: number;
 }
 
+interface StockNewsArticle {
+    id: number;
+    title: string;
+    source: string | null;
+    url: string | null;
+    pub_date: string | null;
+    sentiment: string;
+    impact: number;
+    score_1_100: number;
+    finding_category: string | null;
+    matched_phrase: string | null;
+    evidence: string | null;
+}
+
+interface StockNewsData {
+    id: number;
+    symbol: string;
+    sentiment: string | null;
+    confidence: number | null;
+    sentiment_score_1_100: number | null;
+    headline_count: number;
+    positive_count: number;
+    negative_count: number;
+    neutral_count: number;
+    top_finding: string | null;
+    top_matched_phrase: string | null;
+    top_source: string | null;
+    top_title: string | null;
+    top_article_score: number | null;
+    top_evidence: string | null;
+    top_url: string | null;
+    fetched_at_utc: string;
+    articles: StockNewsArticle[];
+}
+
 interface Props {
     asset: AssetInfo;
     latestPrice: DailyPrice | FiveMinutePrice | null;
@@ -62,6 +97,7 @@ interface Props {
     isWatched: boolean;
     customDate?: string | null;
     newsLink: string;
+    latestNews?: StockNewsData | null;
 }
 
 type TimeRange =
@@ -86,6 +122,7 @@ export default function AssetInfoShow({
     isWatched,
     customDate,
     newsLink,
+    latestNews,
 }: Props) {
     const defaultRange = useMemo<TimeRange>(() => {
         if (chartData['1D'] && chartData['1D'].length > 0) {
@@ -130,6 +167,22 @@ export default function AssetInfoShow({
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const searchRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Poll for news if none is available yet (background fetch may be running).
+    const [newsPollCount, setNewsPollCount] = useState(0);
+
+    useEffect(() => {
+        if (latestNews || newsPollCount >= 6) {
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setNewsPollCount((c) => c + 1);
+            router.reload({ only: ['latestNews'], preserveState: true, preserveScroll: true });
+        }, 10000);
+
+        return () => clearTimeout(timer);
+    }, [latestNews, newsPollCount]);
 
     // Check if user is a guest (not logged in or has guest role)
     const { auth } = usePage().props;
@@ -1035,7 +1088,7 @@ export default function AssetInfoShow({
                             {newsLink && asset.symbol && (
                                 <div className="mb-4">
                                     <a
-                                        href={newsLink.replace('<SYMBOL>', asset.symbol)}
+                                        href={newsLink.replace(/<SYMBOL>/gi, asset.symbol)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-950/60"
@@ -1341,6 +1394,220 @@ export default function AssetInfoShow({
                                         </div>
                                     ),
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sentiments Panel */}
+                {latestNews ? (
+                    <div className="rounded-lg border bg-card p-6">
+                        <h3 className="mb-4 text-lg font-semibold">
+                            Sentiment Analysis
+                        </h3>
+
+                        {/* Sentiment Indicator */}
+                        <div className="mb-4 flex items-center gap-4">
+                            <div
+                                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                                    latestNews.sentiment === 'Positive'
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                        : latestNews.sentiment === 'Negative'
+                                          ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                                }`}
+                            >
+                                <span className="text-lg">
+                                    {latestNews.sentiment === 'Positive'
+                                        ? '🟢'
+                                        : latestNews.sentiment === 'Negative'
+                                          ? '🔴'
+                                          : '⚪'}
+                                </span>
+                                {latestNews.sentiment ?? 'No Data'}
+                            </div>
+                            {(latestNews.confidence !== null || latestNews.sentiment_score_1_100 !== null) && (
+                                <div className="text-sm text-muted-foreground">
+                                    Score:{' '}
+                                    <span className="font-medium text-foreground">
+                                        {latestNews.sentiment_score_1_100 ?? '—'}/100
+                                    </span>
+                                    {' '}
+                                    {latestNews.confidence !== null && (
+                                        <span>
+                                            ({Number(latestNews.confidence).toFixed(1)}% confidence)
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            <div className="text-xs text-muted-foreground">
+                                {latestNews.headline_count} headlines •{' '}
+                                {(() => {
+                                    if (!latestNews.fetched_at_utc) return '—';
+                                    const d = new Date(latestNews.fetched_at_utc);
+                                    if (!isNaN(d.getTime())) return d.toLocaleString();
+                                    // fallback: try adding T separator for MySQL-style datetimes
+                                    const d2 = new Date(latestNews.fetched_at_utc.replace(' ', 'T'));
+                                    return isNaN(d2.getTime()) ? latestNews.fetched_at_utc : d2.toLocaleString();
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Top Finding / Reason */}
+                        {latestNews.top_finding && (
+                            <div className="mb-4 rounded-md border bg-muted/30 p-3">
+                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    Primary Finding
+                                </div>
+                                <div className="mt-1 text-sm font-medium">
+                                    {latestNews.top_finding}
+                                    {latestNews.top_matched_phrase && (
+                                        <span className="font-normal text-muted-foreground">
+                                            {' '}— &ldquo;{latestNews.top_matched_phrase}&rdquo;
+                                        </span>
+                                    )}
+                                </div>
+                                {latestNews.top_evidence && (
+                                    <p className="mt-1 text-xs text-muted-foreground line-clamp-3">
+                                        {latestNews.top_evidence}
+                                    </p>
+                                )}
+                                {latestNews.top_source && (
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        Source: {latestNews.top_source}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Breakdown Bar */}
+                        {latestNews.headline_count > 0 && (
+                            <div className="mb-4">
+                                <div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    Sentiment Breakdown
+                                </div>
+                                <div className="flex h-5 w-full overflow-hidden rounded-full">
+                                    {latestNews.positive_count > 0 && (
+                                        <div
+                                            className="bg-emerald-500 transition-all"
+                                            style={{
+                                                width: `${(latestNews.positive_count / latestNews.headline_count) * 100}%`,
+                                            }}
+                                            title={`Positive: ${latestNews.positive_count}`}
+                                        />
+                                    )}
+                                    {latestNews.neutral_count > 0 && (
+                                        <div
+                                            className="bg-gray-400 transition-all"
+                                            style={{
+                                                width: `${(latestNews.neutral_count / latestNews.headline_count) * 100}%`,
+                                            }}
+                                            title={`Neutral: ${latestNews.neutral_count}`}
+                                        />
+                                    )}
+                                    {latestNews.negative_count > 0 && (
+                                        <div
+                                            className="bg-red-500 transition-all"
+                                            style={{
+                                                width: `${(latestNews.negative_count / latestNews.headline_count) * 100}%`,
+                                            }}
+                                            title={`Negative: ${latestNews.negative_count}`}
+                                        />
+                                    )}
+                                </div>
+                                <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
+                                    <span>
+                                        🟢 {latestNews.positive_count} positive
+                                    </span>
+                                    <span>
+                                        ⚪ {latestNews.neutral_count} neutral
+                                    </span>
+                                    <span>
+                                        🔴 {latestNews.negative_count} negative
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* News Article Links */}
+                        {latestNews.articles && latestNews.articles.length > 0 && (
+                            <div>
+                                <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    Top Articles ({latestNews.articles.length})
+                                </div>
+                                <div className="space-y-2">
+                                    {latestNews.articles.map((article) => (
+                                        <div
+                                            key={article.id}
+                                            className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/30 transition-colors"
+                                        >
+                                            <div
+                                                className={`mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${
+                                                    article.sentiment === 'positive'
+                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                                        : article.sentiment === 'negative'
+                                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                                                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                                                }`}
+                                            >
+                                                {article.score_1_100}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                {article.url ? (
+                                                    <a
+                                                        href={article.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 underline break-all"
+                                                    >
+                                                        {article.title}
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-sm font-medium">
+                                                        {article.title}
+                                                    </span>
+                                                )}
+                                                {article.finding_category && (
+                                                    <div className="mt-0.5 text-xs text-muted-foreground">
+                                                        {article.finding_category}
+                                                        {article.matched_phrase && (
+                                                            <span> — &ldquo;{article.matched_phrase}&rdquo;</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {(article.source || article.pub_date) && (
+                                                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                                                        {article.source && <span>{article.source}</span>}
+                                                        {article.pub_date && <span>{new Date(article.pub_date).toLocaleDateString()}</span>}
+                                                        {article.impact !== undefined && (
+                                                            <span className="ml-2">
+                                                                Impact: {(article.impact > 0 ? '+' : '')}{Number(article.impact).toFixed(3)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {(!latestNews.articles || latestNews.articles.length === 0) && !latestNews.top_finding && (
+                            <p className="text-sm text-muted-foreground">
+                                No recent sentiment data available for this symbol.
+                            </p>
+                        )}
+                    </div>
+                ) : (
+                    <div className="rounded-lg border bg-card p-6">
+                        <div className="flex items-center gap-3">
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
+                            <div>
+                                <h3 className="text-lg font-semibold">Sentiment Analysis</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Fetching latest news &amp; sentiment{newsPollCount > 0 ? ` (attempt ${newsPollCount}/6)` : ''}...
+                                </p>
                             </div>
                         </div>
                     </div>

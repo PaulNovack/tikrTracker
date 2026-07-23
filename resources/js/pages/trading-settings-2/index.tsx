@@ -309,7 +309,12 @@ function OtherForm({ initial, newsLink }: { initial: boolean; newsLink: string }
                     title="News Link"
                     description="URL template for stock news pages. Use &lt;SYMBOL&gt; as a placeholder for the ticker symbol."
                 />
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
+                    <div className="text-xs text-muted-foreground space-y-1">
+                        <p className="font-medium">Examples:</p>
+                        <p className="font-mono">Yahoo: https://finance.yahoo.com/quote/&lt;SYMBOL&gt;/latest-news/</p>
+                        <p className="font-mono">Google: https://www.google.com/search?q=&lt;SYMBOL&gt;+stock&amp;tbm=nws&amp;tbs=sbd:1</p>
+                    </div>
                     <Label htmlFor="news_link">News URL</Label>
                     <Input
                         id="news_link"

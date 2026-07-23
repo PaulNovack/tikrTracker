@@ -87,10 +87,13 @@ class ScanThreeWhiteSoldiersLive extends Command
                 'sent_at' => now(),
             ]);
 
+            $newsLink = TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/latest-news/');
+            $newsUrl = str_replace('<SYMBOL>', $symbol, $newsLink);
+
             $this->createNotification(
                 $userId,
                 "Three White Soldiers: {$symbol}",
-                "📈 {$symbol} triggered a Three Advancing White Soldiers candlestick pattern".($closePrice ? ' near $'.number_format($closePrice, 2) : '').'.',
+                "📈 {$symbol} triggered a Three Advancing White Soldiers candlestick pattern".($closePrice ? ' near $'.number_format($closePrice, 2) : '').'. <a href="'.$newsUrl.'" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;">Check news on '.$symbol.' here</a>',
                 'success',
                 $hit['asset_id'] ?? null,
             );

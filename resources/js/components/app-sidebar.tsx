@@ -132,6 +132,7 @@ export function AppSidebar() {
                     href: '/alpaca-daily-performance',
                     icon: TrendingUp,
                     disabled: isGuest,
+                    openInNewTab: true,
                 },
                 {
                     title: 'ML Threshold P/L',
@@ -168,6 +169,7 @@ export function AppSidebar() {
                     href: '/alpaca-orders',
                     icon: List,
                     disabled: isGuest,
+                    openInNewTab: true,
                 },
             ],
         },

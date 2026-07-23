@@ -20,9 +20,10 @@ interface Props {
     stocks: RisingStock[];
     lastCloseDate: string;
     totalSymbols: number;
+    newsLink: string;
 }
 
-export default function RisingSinceCloseIndex({ stocks, lastCloseDate, totalSymbols }: Props) {
+export default function RisingSinceCloseIndex({ stocks, lastCloseDate, totalSymbols, newsLink }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Analysis', href: '/analysis/vwap-status' },
         { title: 'Rising Since Close', href: '/analysis/rising-since-close' },
@@ -124,14 +125,30 @@ export default function RisingSinceCloseIndex({ stocks, lastCloseDate, totalSymb
                                         <tr key={stock.symbol} className="hover:bg-muted/50">
                                             <td className="py-1.5 pr-3 text-muted-foreground">{i + 1}</td>
                                             <td className="py-1.5 pr-3 font-medium">
-                                                <a
-                                                    href={`/market-data/assets/${stock.asset_info_id}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-                                                >
-                                                    {stock.symbol}
-                                                </a>
+                                                <div className="flex items-center gap-1.5">
+                                                    <a
+                                                        href={`/market-data/assets/${stock.asset_info_id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                                    >
+                                                        {stock.symbol}
+                                                    </a>
+                                                    {newsLink && (
+                                                        <a
+                                                            href={newsLink.replace(/<SYMBOL>/gi, stock.symbol)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-0.5 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                            title={`News for ${stock.symbol}`}
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                                            </svg>
+                                                            News
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-1.5 pr-3 text-right font-mono">
                                                 ${stock.close_price.toFixed(2)}

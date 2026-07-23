@@ -51,6 +51,7 @@ interface Props {
     results: ScanResponse | null;
     limit: number;
     error: string | null;
+    newsLink: string;
 }
 
 /**
@@ -1190,7 +1191,7 @@ function PatternDescriptionCard({ pattern }: { pattern: string }) {
     );
 }
 
-export default function FiveMinuteAnalysis({ patterns, selectedPattern, results, limit, error }: Props) {
+export default function FiveMinuteAnalysis({ patterns, selectedPattern, results, limit, error, newsLink }: Props) {
     const [isLoading, setIsLoading] = useState(false);
     const [showBullishOnly, setShowBullishOnly] = useState(true);
 
@@ -1502,14 +1503,30 @@ export default function FiveMinuteAnalysis({ patterns, selectedPattern, results,
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between">
                                         <CardTitle className="text-lg">
-                                            <a
-                                                href={showAsset.url(r.asset_id)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-700 hover:underline font-bold dark:text-blue-400 dark:hover:text-blue-300"
-                                            >
-                                                {r.symbol}
-                                            </a>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={showAsset.url(r.asset_id)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:text-blue-700 hover:underline font-bold dark:text-blue-400 dark:hover:text-blue-300"
+                                                >
+                                                    {r.symbol}
+                                                </a>
+                                                {newsLink && (
+                                                    <a
+                                                        href={newsLink.replace(/<SYMBOL>/gi, r.symbol)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                        title={`News for ${r.symbol}`}
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                                        </svg>
+                                                        News
+                                                    </a>
+                                                )}
+                                            </div>
                                         </CardTitle>
                                         <Badge variant={r.signal === 'bullish' ? 'default' : 'destructive'}
                                                className={r.signal === 'bullish' ? 'bg-green-600' : ''}>

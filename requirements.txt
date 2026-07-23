@@ -16,3 +16,7 @@ xgboost
 transformers 
 torch 
 yfinance
+beautifulsoup4
+lxml
+trafilatura
+urllib3
