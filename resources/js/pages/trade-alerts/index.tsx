@@ -71,6 +71,9 @@ interface TradeAlert {
     mlLiveWinProb?: number | null;
     ml_live_scored_at?: string | null;
     mlLiveScoredAt?: string | null;
+    entryScore?: number | null;
+    sentimentBoost?: number | null;
+    sentimentScore?: number | null;
     meta?: {
         price?: number;
         volume?: number;
@@ -537,6 +540,29 @@ export default function TradeAlertsPage({
                                         {(alert.ml_win_prob * 100).toFixed(1)}%
                                     </span>
                                 )}
+                            {alert.sentimentBoost != null && alert.sentimentBoost !== 0 && (
+                                <span
+                                    className={(() => {
+                                        const s = alert.sentimentScore ?? 50;
+                                        if (s >= 80) {
+                                            return 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium border-green-300 bg-green-50 text-green-700 dark:border-green-600 dark:bg-green-950 dark:text-green-300';
+                                        }
+                                        if (s >= 60) {
+                                            return 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-600 dark:bg-emerald-950 dark:text-emerald-300';
+                                        }
+                                        if (s >= 40) {
+                                            return 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300';
+                                        }
+                                        if (s >= 20) {
+                                            return 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-600 dark:bg-orange-950 dark:text-orange-300';
+                                        }
+                                        return 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900 dark:text-red-200';
+                                    })()}
+                                >
+                                    📰 Sentiment:{' '}
+                                    {alert.sentimentScore != null ? alert.sentimentScore : '—'}
+                                </span>
+                            )}
                             {alert.ml_live_win_prob != null && (
                                 <span
                                     title={`Live-rescored at order time${alert.ml_live_scored_at ? ' · ' + alert.ml_live_scored_at : ''}`}
@@ -672,6 +698,17 @@ export default function TradeAlertsPage({
                                 </div>
                             )}
 
+                            {alert.sentimentBoost != null && (
+                                <div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Sentiment Boost
+                                    </p>
+                                    <p className={`font-medium ${alert.sentimentBoost > 0 ? 'text-green-600 dark:text-green-400' : alert.sentimentBoost < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                                        {alert.sentimentBoost > 0 ? '+' : ''}{formatNumber(alert.sentimentBoost, 3)}
+                                    </p>
+                                </div>
+                            )}
+
                             {alert.meta?.vol_ratio && (
                                 <div>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -734,7 +771,7 @@ export default function TradeAlertsPage({
             />
             <Toaster position="top-right" />
 
-            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
                     <div>

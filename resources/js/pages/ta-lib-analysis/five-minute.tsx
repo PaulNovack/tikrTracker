@@ -35,6 +35,7 @@ interface ScanResult {
     signal_value: number;
     last_date: string;
     ohlc: OHLCBar[];
+    sentimentScore?: number | null;
 }
 
 interface ScanResponse {
@@ -1537,6 +1538,28 @@ export default function FiveMinuteAnalysis({ patterns, selectedPattern, results,
                                             )}
                                             {r.signal}
                                         </Badge>
+                                        {r.sentimentScore != null && (
+                                            <span
+                                                className={(() => {
+                                                    const s = r.sentimentScore;
+                                                    if (s >= 80) {
+                                                        return 'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium border-green-300 bg-green-50 text-green-700 dark:border-green-600 dark:bg-green-950 dark:text-green-300';
+                                                    }
+                                                    if (s >= 60) {
+                                                        return 'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-600 dark:bg-emerald-950 dark:text-emerald-300';
+                                                    }
+                                                    if (s >= 40) {
+                                                        return 'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300';
+                                                    }
+                                                    if (s >= 20) {
+                                                        return 'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-600 dark:bg-orange-950 dark:text-orange-300';
+                                                    }
+                                                    return 'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900 dark:text-red-200';
+                                                })()}
+                                            >
+                                                📰 Sentiment {r.sentimentScore}
+                                            </span>
+                                        )}
                                     </div>
                                     <CardDescription>Last bar: {formatLastDateEst(r.last_date)}</CardDescription>
                                 </CardHeader>

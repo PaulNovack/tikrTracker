@@ -61,6 +61,17 @@ class PlaceAlpacaOrderForHighScoreAlerts
             return;
         }
 
+        // --- News Sentiment Boost: adjust effective ML score when sentiment is enabled ---
+        $effectiveScore = (float) $event->mlWinProb;
+        $sentimentEnabled = TradingSettingService::get('trading.news_sentiment.enabled', 'true') === 'true';
+        $sentimentBoost = isset($alert->sentiment_boost) ? (float) $alert->sentiment_boost : 0.0;
+
+        if ($sentimentEnabled && $sentimentBoost !== 0.0) {
+            $effectiveScore += $sentimentBoost;
+            Log::info("Alert {$event->alertId} ({$alert->symbol}) sentiment boost applied: ml_win_prob={$event->mlWinProb}, boost={$sentimentBoost}, effective={$effectiveScore}");
+        }
+        // --------------------------------------------------------------------------------
+
         // Phase 2: per-pipeline threshold override (e.g. Pipeline F needs a higher bar due to low base win rate).
         $pipelineRun = $alert->pipeline_run ?? '';
         $mlThreshold = TradingSettingService::getPipelineMlThreshold((string) $pipelineRun);
@@ -72,8 +83,8 @@ class PlaceAlpacaOrderForHighScoreAlerts
             config('trading.auto_alpaca_orders.paper_bypass_ml_threshold', false)
         ) && TradingSettingService::isPaperTrading();
 
-        if (! $isPaperBypass && $event->mlWinProb < $mlThreshold) {
-            Log::info("Alert {$event->alertId} ({$pipelineRun}) ML score {$event->mlWinProb} below pipeline threshold {$mlThreshold}, skipping order");
+        if (! $isPaperBypass && $effectiveScore < $mlThreshold) {
+            Log::info("Alert {$event->alertId} ({$pipelineRun}) effective score {$effectiveScore} (ml={$event->mlWinProb}, boost={$sentimentBoost}) below pipeline threshold {$mlThreshold}, skipping order");
 
             return;
         }

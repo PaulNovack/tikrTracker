@@ -93,6 +93,22 @@ class CandlestickScreenerController extends Controller
 
                 if ($scanResponse->successful()) {
                     $results = $scanResponse->json();
+
+                    // Enrich results with sentiment scores from StockNews
+                    if (! empty($results['results'])) {
+                        $symbols = array_column($results['results'], 'symbol');
+                        $sentiments = \App\Models\StockNews::query()
+                            ->whereIn('symbol', $symbols)
+                            ->orderByDesc('fetched_at_utc')
+                            ->get(['symbol', 'sentiment_score_1_100'])
+                            ->keyBy('symbol');
+
+                        foreach ($results['results'] as &$entry) {
+                            $news = $sentiments[$entry['symbol']] ?? null;
+                            $entry['sentimentScore'] = $news?->sentiment_score_1_100 ?? null;
+                        }
+                        unset($entry);
+                    }
                 } else {
                     $error = $scanResponse->json()['error'] ?? 'Scan failed';
                 }
