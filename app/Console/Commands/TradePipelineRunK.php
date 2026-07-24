@@ -367,7 +367,7 @@ class TradePipelineRunK extends Command
         $stopLossPct = $this->calculateStopLoss($entry);
         $stopPrice = $entryPrice > 0 ? round($entryPrice * (1 - $stopLossPct / 100), 4) : 0;
 
-        $atrMultiplier = (float) config('trading.auto_alpaca_orders.stop_loss_atr_multiplier', 4.0);
+        $atrMultiplier = TradingSettingService::getStopLossAtrMultiplier();
         $rawTrailingStopPct = isset($entry['atr_pct']) ? (float) $entry['atr_pct'] * $atrMultiplier : null;
 
         return array_merge($entry, [

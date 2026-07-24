@@ -23,9 +23,9 @@ class MonitorAlpacaOrderFillAndPlaceStopLoss implements ShouldBeUniqueUntilProce
     public int $tries = 30;
 
     /**
-     * Number of seconds to wait before retrying
+     * Number of seconds to wait before retrying (5s so manual orders beat the 60s cron)
      */
-    public int $backoff = 30;
+    public int $backoff = 5;
 
     /**
      * Guard prevents infinite retry loop when stop price adjustment keeps failing
@@ -233,8 +233,9 @@ class MonitorAlpacaOrderFillAndPlaceStopLoss implements ShouldBeUniqueUntilProce
                 // This can happen on low-priced stocks where ATR min bound pushes the stop too high.
                 $currentMarketPrice = (float) ($positionData['position']['current_price'] ?? 0);
                 if ($currentMarketPrice > 0 && $actualStopPrice >= $currentMarketPrice) {
-                    $adjustedStopPrice = floor($currentMarketPrice * 0.99 * 100) / 100;
-                    Log::warning("Stop price \${$actualStopPrice} >= current price \${$currentMarketPrice} for {$this->symbol} — adjusting stop to \${$adjustedStopPrice} (1% below market)");
+                    $retryStep = \App\Services\TradingSettingService::getStopLossRetryStepPct();
+                    $adjustedStopPrice = floor($currentMarketPrice * (1.0 - $retryStep / 100.0) * 100) / 100;
+                    Log::warning("Stop price \${$actualStopPrice} >= current price \${$currentMarketPrice} for {$this->symbol} — adjusting stop to \${$adjustedStopPrice} (retry step", ['symbol' => $this->symbol, 'stop' => $actualStopPrice, 'market' => $currentMarketPrice, 'adjusted' => $adjustedStopPrice, 'retry_step' => $retryStep]);
                     $actualStopPrice = $adjustedStopPrice;
                 }
 
@@ -345,9 +346,9 @@ class MonitorAlpacaOrderFillAndPlaceStopLoss implements ShouldBeUniqueUntilProce
                     }
                 } elseif ($alert && isset($alert->atr) && $alert->atr > 0 && $filledPrice > 0) {
                     $atr = (float) $alert->atr;
-                    $configMultiplier = (float) config('trading.auto_alpaca_orders.stop_loss_atr_multiplier', 2.0);
-                    $minPct = (float) config('trading.auto_alpaca_orders.stop_loss_atr_min_pct', 0.50);
-                    $maxPct = (float) config('trading.auto_alpaca_orders.stop_loss_atr_max_pct', 2.00);
+                    $configMultiplier = TradingSettingService::getStopLossAtrMultiplier();
+                    $minPct = TradingSettingService::getStopLossAtrMinPct();
+                    $maxPct = TradingSettingService::getStopLossAtrMaxPct();
                     $calculatedPct = (($atr * $configMultiplier) / $filledPrice) * 100.0;
                     $stopPct = max($minPct, min($maxPct, $calculatedPct));
                 } else {
@@ -499,14 +500,15 @@ class MonitorAlpacaOrderFillAndPlaceStopLoss implements ShouldBeUniqueUntilProce
                     $marketPrice = (float) $m[1];
                 }
                 if ($marketPrice > 0 && $this->stopPlacementAttempts < self::MAX_STOP_PLACEMENT_ATTEMPTS) {
-                    $adjustedStop = floor($marketPrice * 0.99 * 100) / 100;
+                    $retryStep = \App\Services\TradingSettingService::getStopLossRetryStepPct();
+                    $adjustedStop = floor($marketPrice * (1.0 - $retryStep / 100.0) * 100) / 100;
                     if ($adjustedStop <= 0) {
                         Log::error("Stop price for {$this->symbol} would be \$0.00 after adjustment (market=\${$marketPrice}) — aborting stop placement");
 
                         return;
                     }
 
-                    Log::warning("Stop price \${$actualStopPrice} >= market \${$marketPrice} for {$this->symbol} — retrying with \${$adjustedStop} (1% below market, attempt {$this->stopPlacementAttempts}/".self::MAX_STOP_PLACEMENT_ATTEMPTS.')');
+                    Log::warning("Stop price \${$actualStopPrice} >= market \${$marketPrice} for {$this->symbol} — retrying with \${$adjustedStop} (retry step, attempt {$this->stopPlacementAttempts}/".self::MAX_STOP_PLACEMENT_ATTEMPTS.')', ['symbol' => $this->symbol, 'stop' => $actualStopPrice, 'market' => $marketPrice, 'adjusted' => $adjustedStop, 'attempt' => $this->stopPlacementAttempts]);
                     $this->placeStopLoss($alpacaService, $entryOrder, $adjustedStop, $actualQty);
 
                     return;

@@ -65,6 +65,7 @@ class TradingSettingsController extends Controller
                 'atr_multiplier' => TradingSettingService::getStopLossAtrMultiplier(),
                 'atr_min_pct' => TradingSettingService::getStopLossAtrMinPct(),
                 'atr_max_pct' => TradingSettingService::getStopLossAtrMaxPct(),
+                'retry_step_pct' => TradingSettingService::getStopLossRetryStepPct(),
             ],
             'limitOrderSettings' => [
                 'use_limit_orders' => TradingSettingService::isUseLimitOrdersEnabled(),
@@ -648,6 +649,7 @@ class TradingSettingsController extends Controller
             'atr_multiplier' => ['required', 'numeric', 'min:0.5', 'max:10'],
             'atr_min_pct' => ['required', 'numeric', 'min:0.1', 'max:5'],
             'atr_max_pct' => ['required', 'numeric', 'min:0.1', 'max:10'],
+            'retry_step_pct' => ['required', 'numeric', 'min:0.05', 'max:2.0'],
         ]);
 
         $before = [
@@ -657,6 +659,7 @@ class TradingSettingsController extends Controller
             'atr_multiplier' => TradingSettingService::getStopLossAtrMultiplier(),
             'atr_min_pct' => TradingSettingService::getStopLossAtrMinPct(),
             'atr_max_pct' => TradingSettingService::getStopLossAtrMaxPct(),
+            'retry_step_pct' => TradingSettingService::getStopLossRetryStepPct(),
         ];
 
         TradingSettingService::set('trading.stop_loss.mode', $validated['mode']);
@@ -665,6 +668,7 @@ class TradingSettingsController extends Controller
         TradingSettingService::set('trading.stop_loss.atr_multiplier', (string) $validated['atr_multiplier']);
         TradingSettingService::set('trading.stop_loss.atr_min_pct', (string) $validated['atr_min_pct']);
         TradingSettingService::set('trading.stop_loss.atr_max_pct', (string) $validated['atr_max_pct']);
+        TradingSettingService::set('trading.stop_loss.retry_step_pct', (string) $validated['retry_step_pct']);
 
         $after = $validated;
 

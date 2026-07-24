@@ -919,50 +919,44 @@ class TradingSettingService
 
     public static function getStopLossMode(): string
     {
-        return (string) self::get(
-            'trading.stop_loss.mode',
-            config('trading.auto_alpaca_orders.stop_loss_mode', 'atr')
-        );
+        return (string) self::get('trading.stop_loss.mode', 'atr');
     }
 
     public static function isProfitProtectionEnabled(): bool
     {
-        return (bool) self::get(
-            'trading.stop_loss.profit_protection_enabled',
-            config('trading.auto_alpaca_orders.profit_protection_enabled', false)
-        );
+        return (bool) self::get('trading.stop_loss.profit_protection_enabled', false);
     }
 
     public static function getStopLossFixedPct(): float
     {
-        return (float) self::get(
-            'trading.stop_loss.fixed_pct',
-            config('trading.auto_alpaca_orders.stop_loss_pct', 0.80)
-        );
+        return (float) self::get('trading.stop_loss.fixed_pct', 0.80);
     }
 
     public static function getStopLossAtrMultiplier(): float
     {
-        return (float) self::get(
-            'trading.stop_loss.atr_multiplier',
-            config('trading.auto_alpaca_orders.stop_loss_atr_multiplier', 3.0)
-        );
+        return (float) self::get('trading.stop_loss.atr_multiplier', 1.0);
     }
 
     public static function getStopLossAtrMinPct(): float
     {
-        return (float) self::get(
-            'trading.stop_loss.atr_min_pct',
-            config('trading.auto_alpaca_orders.stop_loss_atr_min_pct', 0.75)
-        );
+        return (float) self::get('trading.stop_loss.atr_min_pct', 0.75);
     }
 
     public static function getStopLossAtrMaxPct(): float
     {
-        return (float) self::get(
-            'trading.stop_loss.atr_max_pct',
-            config('trading.auto_alpaca_orders.stop_loss_atr_max_pct', 2.0)
-        );
+        return (float) self::get('trading.stop_loss.atr_max_pct', 2.0);
+    }
+
+    /**
+     * Retry step size (as a percentage, e.g. 0.15 = 0.15 %) when a stop
+     * loss is rejected for being at or above the current market price.
+     * Each retry lowers the stop by this percentage of the market price.
+     *
+     * Default 0.15 % per step → 5 retries covers up to 0.75 %.
+     */
+    public static function getStopLossRetryStepPct(): float
+    {
+        return (float) self::get('trading.stop_loss.retry_step_pct', 0.15);
     }
 
     // -------------------------------------------------------------------------

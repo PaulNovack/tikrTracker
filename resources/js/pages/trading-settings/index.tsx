@@ -109,6 +109,7 @@ type Props = {
         atr_multiplier: number;
         atr_min_pct: number;
         atr_max_pct: number;
+        retry_step_pct: number;
     };
     limitOrderSettings: {
         use_limit_orders: boolean;
@@ -1856,6 +1857,16 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
                                             </div>
                                         </div>
                                     )}
+                                    <Separator />
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="retry_step_pct">Retry Step Size (%)</Label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            When a stop is rejected (at or above market), each retry steps down by this %. Default 0.15 %.
+                                        </p>
+                                        <Input id="retry_step_pct" type="number" min="0.05" max="2.0" step="0.05" className="w-40"
+                                            value={stopLossForm.data.retry_step_pct}
+                                            onChange={(e) => stopLossForm.setData('retry_step_pct', parseFloat(e.target.value))} />
+                                    </div>
                                 </div>
                             </div>
                             <div className="mt-4 flex items-center gap-3">
