@@ -49,6 +49,14 @@ class TradingSettings2Controller extends Controller
             ])->all(),
             'threeWhiteSoldiersScanEnabled' => TradingSettingService::isThreeWhiteSoldiersScanEnabled(),
             'newsLink' => TradingSettingService::get('trading.news_link', 'https://finance.yahoo.com/quote/<SYMBOL>/news/'),
+            'newsSentimentScores' => [
+                'enabled' => TradingSettingService::get('trading.news_sentiment.enabled', 'true') === 'true',
+                'strong_positive' => (float) TradingSettingService::get('trading.news_sentiment.strong_positive', '0.020'),
+                'moderate_positive' => (float) TradingSettingService::get('trading.news_sentiment.moderate_positive', '0.010'),
+                'neutral' => (float) TradingSettingService::get('trading.news_sentiment.neutral', '0.000'),
+                'moderate_negative' => (float) TradingSettingService::get('trading.news_sentiment.moderate_negative', '-0.010'),
+                'strong_negative' => (float) TradingSettingService::get('trading.news_sentiment.strong_negative', '-0.020'),
+            ],
         ]);
     }
 
@@ -78,6 +86,33 @@ class TradingSettings2Controller extends Controller
         ]);
 
         return back()->with('status', 'other-updated');
+    }
+
+    /**
+     * Update news sentiment score adjustments.
+     */
+    public function updateNewsSentiment(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'strong_positive' => ['required', 'numeric', 'min:0', 'max:1'],
+            'moderate_positive' => ['required', 'numeric', 'min:0', 'max:1'],
+            'neutral' => ['required', 'numeric', 'min:-1', 'max:1'],
+            'moderate_negative' => ['required', 'numeric', 'min:-1', 'max:0'],
+            'strong_negative' => ['required', 'numeric', 'min:-1', 'max:0'],
+        ]);
+
+        TradingSettingService::set('trading.news_sentiment.enabled', $validated['enabled'] ? 'true' : 'false');
+
+        foreach (['strong_positive', 'moderate_positive', 'neutral', 'moderate_negative', 'strong_negative'] as $sentiment) {
+            TradingSettingService::set("trading.news_sentiment.{$sentiment}", (string) $validated[$sentiment]);
+        }
+
+        Log::info('[TradingSettings2] News sentiment scores updated by '.auth()->user()?->email, $validated);
+
+        return back()->with('status', 'news-sentiment-updated');
     }
 
     /**

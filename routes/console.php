@@ -144,23 +144,6 @@ Schedule::command('trading:backfill-five-minute-prices-full --no-interaction')
     ->withoutOverlapping()
     ->description('Backfill five_minute_prices_full table nightly at 9:00 PM EST');
 
-// Restart all Supervisor-managed processes nightly at 2:00 AM EST
-Schedule::exec('supervisorctl restart all')
-    ->dailyAt('02:00')
-    ->timezone('America/New_York')
-    ->name('restart-supervisor-all')
-    ->withoutOverlapping()
-    ->description('Restart all Supervisor-managed processes nightly at 2:00 AM EST')
-    ->before(function () {
-        Log::channel('scheduled')->info('[Scheduler] Starting supervisorctl restart all');
-    })
-    ->after(function () {
-        Log::channel('scheduled')->info('[Scheduler] Completed supervisorctl restart all');
-    })
-    ->onFailure(function () {
-        Log::channel('scheduled')->error('[Scheduler] FAILED supervisorctl restart all');
-    });
-
 // Intraday risk check: every 15 minutes from 9:45 AM – 2:30 PM ET.
 // Disables orders immediately (via TradingSettingService) if today's actual closed P&L
 // falls below trading.intraday_loss_halt_limit (default -$500).

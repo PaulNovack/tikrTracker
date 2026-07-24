@@ -1,4 +1,4 @@
-import { edit, update, updateOther } from '@/actions/App/Http/Controllers/TradingSettings2Controller';
+import { edit, update, updateNewsSentiment, updateOther } from '@/actions/App/Http/Controllers/TradingSettings2Controller';
 import HeadingSmall from '@/components/heading-small';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,14 @@ type Props = {
     pipelineDisplayNames: Record<string, string>;
     threeWhiteSoldiersScanEnabled: boolean;
     newsLink: string;
+    newsSentimentScores: {
+        enabled: boolean;
+        strong_positive: number;
+        moderate_positive: number;
+        neutral: number;
+        moderate_negative: number;
+        strong_negative: number;
+    };
 };
 
 function SavedBadge({ show }: { show: boolean }) {
@@ -268,74 +276,225 @@ function ModelPathsForm({ initial, displayNames }: { initial: Record<string, str
 function OtherForm({ initial, newsLink }: { initial: boolean; newsLink: string }) {
     const form = useForm({ three_white_soldiers_scan_enabled: initial, news_link: newsLink });
 
-    function save(e: React.FormEvent) {
+    function saveScanner(e: React.FormEvent) {
         e.preventDefault();
         form.patch(updateOther().url, { preserveScroll: true });
     }
 
     return (
-        <form onSubmit={save} className="space-y-6 max-w-2xl">
-            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
-                <HeadingSmall
-                    title="Scanner Settings"
-                    description="Controls for automated pattern scanning commands."
-                />
-                <div className="mt-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Label className="font-medium">Three White Soldiers Scanner</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Runs <code className="text-xs bg-muted px-1 py-0.5 rounded">scan:three-white-soldiers-live</code> every minute to detect CDL3WHITESOLDIERS patterns.
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            role="switch"
-                            aria-checked={form.data.three_white_soldiers_scan_enabled}
-                            onClick={() => {
-                                form.setData('three_white_soldiers_scan_enabled', !form.data.three_white_soldiers_scan_enabled);
-                                // Auto-save on toggle
-                                setTimeout(() => form.patch(updateOther().url, { preserveScroll: true }), 50);
-                            }}
-                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${form.data.three_white_soldiers_scan_enabled ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-                        >
-                            <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${form.data.three_white_soldiers_scan_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
-                <HeadingSmall
-                    title="News Link"
-                    description="URL template for stock news pages. Use &lt;SYMBOL&gt; as a placeholder for the ticker symbol."
-                />
-                <div className="mt-4 space-y-3">
-                    <div className="text-xs text-muted-foreground space-y-1">
-                        <p className="font-medium">Examples:</p>
-                        <p className="font-mono">Yahoo: https://finance.yahoo.com/quote/&lt;SYMBOL&gt;/latest-news/</p>
-                        <p className="font-mono">Google: https://www.google.com/search?q=&lt;SYMBOL&gt;+stock&amp;tbm=nws&amp;tbs=sbd:1</p>
-                    </div>
-                    <Label htmlFor="news_link">News URL</Label>
-                    <Input
-                        id="news_link"
-                        type="text"
-                        className="mt-1 w-full font-mono text-sm"
-                        value={form.data.news_link}
-                        onChange={(e) => form.setData('news_link', e.target.value)}
+        <div className="space-y-6">
+            {/* Scanner Settings (uses updateOther) */}
+            <form onSubmit={saveScanner} className="space-y-6 max-w-2xl">
+                <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+                    <HeadingSmall
+                        title="Scanner Settings"
+                        description="Controls for automated pattern scanning commands."
                     />
+                    <div className="mt-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label className="font-medium">Three White Soldiers Scanner</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Runs <code className="text-xs bg-muted px-1 py-0.5 rounded">scan:three-white-soldiers-live</code> every minute to detect CDL3WHITESOLDIERS patterns.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={form.data.three_white_soldiers_scan_enabled}
+                                onClick={() => {
+                                    form.setData('three_white_soldiers_scan_enabled', !form.data.three_white_soldiers_scan_enabled);
+                                    setTimeout(() => form.patch(updateOther().url, { preserveScroll: true }), 50);
+                                }}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${form.data.three_white_soldiers_scan_enabled ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${form.data.three_white_soldiers_scan_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div className="flex items-center justify-end gap-4">
-                <Button type="submit" disabled={form.processing}>
-                    {form.processing ? 'Saving...' : 'Save Settings'}
-                </Button>
-                <SavedBadge show={form.recentlySuccessful} />
-            </div>
-        </form>
+                <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+                    <HeadingSmall
+                        title="News Link"
+                        description="URL template for stock news pages. Use &lt;SYMBOL&gt; as a placeholder for the ticker symbol."
+                    />
+                    <div className="mt-4 space-y-3">
+                        <div className="text-xs text-muted-foreground space-y-1">
+                            <p className="font-medium">Examples:</p>
+                            <p className="font-mono">Yahoo: https://finance.yahoo.com/quote/&lt;SYMBOL&gt;/latest-news/</p>
+                            <p className="font-mono">Google: https://www.google.com/search?q=&lt;SYMBOL&gt;+stock&amp;tbm=nws&amp;tbs=sbd:1</p>
+                        </div>
+                        <Label htmlFor="news_link">News URL</Label>
+                        <Input
+                            id="news_link"
+                            type="text"
+                            className="mt-1 w-full font-mono text-sm"
+                            value={form.data.news_link}
+                            onChange={(e) => form.setData('news_link', e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="flex items-center justify-end gap-4">
+                    <Button type="submit" disabled={form.processing}>
+                        {form.processing ? 'Saving...' : 'Save Scanner Settings'}
+                    </Button>
+                    <SavedBadge show={form.recentlySuccessful} />
+                </div>
+            </form>
+        </div>
     );
 }
 
-export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading, threeWhiteSoldiersScanEnabled, newsLink }: Props) {
+function SentimentForm({ sentimentScores }: { sentimentScores: Props['newsSentimentScores'] }) {
+    const form = useForm({ ...sentimentScores });
+
+    function save(e: React.FormEvent) {
+        e.preventDefault();
+        form.patch(updateNewsSentiment().url, { preserveScroll: true });
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* News Sentiment Scoring (uses updateNewsSentiment) */}
+            <form onSubmit={save} className="space-y-6 max-w-2xl">
+                <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+                    <HeadingSmall
+                        title="News Sentiment Scoring"
+                        description="Score adjustments applied based on FinBERT news sentiment for the symbol. Positive values boost the ML score, negative values penalize it."
+                    />
+                    <div className="mt-6 space-y-6">
+                        {/* Enable / Disable */}
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label className="font-medium">Use News Sentiment Boosting</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    When enabled, the ML score is adjusted using the sentiment values below based on the latest FinBERT news analysis.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={form.data.enabled}
+                                onClick={() => form.setData('enabled', !form.data.enabled)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${form.data.enabled ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${form.data.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Strong Positive */}
+                        <div>
+                            <Label htmlFor="strong_positive" className="font-medium">
+                                Strong Positive
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">80 → 100</span>
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">Strong positive, recent, high-confidence news</p>
+                            <Input
+                                id="strong_positive"
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                max="1"
+                                className="w-32 font-mono text-sm"
+                                value={form.data.strong_positive}
+                                onChange={(e) => form.setData('strong_positive', parseFloat(e.target.value) || 0)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Suggested Boost: +0.03 to +0.05</p>
+                        </div>
+
+                        {/* Moderate Positive */}
+                        <div>
+                            <Label htmlFor="moderate_positive" className="font-medium">
+                                Moderately Positive
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">60 → 80</span>
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">Moderately positive sentiment</p>
+                            <Input
+                                id="moderate_positive"
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                max="1"
+                                className="w-32 font-mono text-sm"
+                                value={form.data.moderate_positive}
+                                onChange={(e) => form.setData('moderate_positive', parseFloat(e.target.value) || 0)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Suggested Boost: +0.01 to +0.025</p>
+                        </div>
+
+                        {/* Neutral */}
+                        <div>
+                            <Label htmlFor="neutral" className="font-medium">
+                                Neutral / Uncertain
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">40 → 60</span>
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">No adjustment for neutral or uncertain sentiment</p>
+                            <Input
+                                id="neutral"
+                                type="number"
+                                step="0.001"
+                                min="-1"
+                                max="1"
+                                className="w-32 font-mono text-sm"
+                                value={form.data.neutral}
+                                onChange={(e) => form.setData('neutral', parseFloat(e.target.value) || 0)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Suggested Boost: 0</p>
+                        </div>
+
+                        {/* Moderate Negative */}
+                        <div>
+                            <Label htmlFor="moderate_negative" className="font-medium">
+                                Moderately Negative
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">20 → 40</span>
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">Moderately negative sentiment</p>
+                            <Input
+                                id="moderate_negative"
+                                type="number"
+                                step="0.001"
+                                min="-1"
+                                max="0"
+                                className="w-32 font-mono text-sm"
+                                value={form.data.moderate_negative}
+                                onChange={(e) => form.setData('moderate_negative', parseFloat(e.target.value) || 0)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Suggested Boost: -0.03 to -0.05</p>
+                        </div>
+
+                        {/* Strong Negative */}
+                        <div>
+                            <Label htmlFor="strong_negative" className="font-medium">
+                                Strong Negative
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">0 → 20</span>
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">Strong negative sentiment</p>
+                            <Input
+                                id="strong_negative"
+                                type="number"
+                                step="0.001"
+                                min="-1"
+                                max="0"
+                                className="w-32 font-mono text-sm"
+                                value={form.data.strong_negative}
+                                onChange={(e) => form.setData('strong_negative', parseFloat(e.target.value) || 0)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Suggested Boost: -0.07 to -0.12</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center justify-end gap-4">
+                    <Button type="submit" disabled={form.processing}>
+                        {form.processing ? 'Saving...' : 'Save Sentiment Scores'}
+                    </Button>
+                    <SavedBadge show={form.recentlySuccessful} />
+                </div>
+            </form>
+        </div>
+    );
+}
+
+export default function TradingSettings2({ credentials, scorerScripts, modelPaths, pipelineDisplayNames, isPaperTrading, threeWhiteSoldiersScanEnabled, newsLink, newsSentimentScores }: Props) {
     return (
         <>
             <Head title="Trade Settings 2" />
@@ -353,6 +512,7 @@ export default function TradingSettings2({ credentials, scorerScripts, modelPath
                             <TabsTrigger value="credentials">Credentials</TabsTrigger>
                             <TabsTrigger value="scorer-scripts">Scorer Scripts</TabsTrigger>
                             <TabsTrigger value="model-paths">Model Paths</TabsTrigger>
+                            <TabsTrigger value="news-sentiment">News Sentiment</TabsTrigger>
                             <TabsTrigger value="other">Other</TabsTrigger>
                         </TabsList>
                         <TabsContent value="credentials">
@@ -363,6 +523,9 @@ export default function TradingSettings2({ credentials, scorerScripts, modelPath
                         </TabsContent>
                         <TabsContent value="model-paths">
                             <ModelPathsForm initial={modelPaths} displayNames={pipelineDisplayNames} />
+                        </TabsContent>
+                        <TabsContent value="news-sentiment">
+                            <SentimentForm sentimentScores={newsSentimentScores} />
                         </TabsContent>
                         <TabsContent value="other">
                             <OtherForm initial={threeWhiteSoldiersScanEnabled} newsLink={newsLink} />

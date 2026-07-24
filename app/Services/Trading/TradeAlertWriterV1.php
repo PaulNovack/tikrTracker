@@ -26,6 +26,45 @@ class TradeAlertWriterV1
 
     private bool $backtestMode = false;
 
+    /**
+     * Look up the FinBERT sentiment_score_1_100 (0-100) for a symbol
+     * and map it to the configured boost value.
+     *
+     * @return array{sentiment_boost: ?float, sentiment_score_1_100: ?int}
+     */
+    private function calculateSentimentBoost(string $symbol): array
+    {
+        $enabled = TradingSettingService::get('trading.news_sentiment.enabled', 'true');
+
+        if ($enabled !== 'true') {
+            return ['sentiment_boost' => null, 'sentiment_score_1_100' => null];
+        }
+
+        $news = \App\Models\StockNews::query()
+            ->where('symbol', $symbol)
+            ->orderByDesc('fetched_at_utc')
+            ->first(['sentiment_score_1_100']);
+
+        if (! $news || $news->sentiment_score_1_100 === null) {
+            return ['sentiment_boost' => 0.0, 'sentiment_score_1_100' => null];
+        }
+
+        $score = (int) $news->sentiment_score_1_100;
+
+        $boost = match (true) {
+            $score >= 80 => (float) TradingSettingService::get('trading.news_sentiment.strong_positive', '0.020'),
+            $score >= 60 => (float) TradingSettingService::get('trading.news_sentiment.moderate_positive', '0.010'),
+            $score >= 40 => (float) TradingSettingService::get('trading.news_sentiment.neutral', '0.000'),
+            $score >= 20 => (float) TradingSettingService::get('trading.news_sentiment.moderate_negative', '-0.010'),
+            default => (float) TradingSettingService::get('trading.news_sentiment.strong_negative', '-0.020'),
+        };
+
+        return [
+            'sentiment_boost' => round($boost, 6),
+            'sentiment_score_1_100' => $score,
+        ];
+    }
+
     private function resolveTimestampToUtc(?string $timestampEst): ?Carbon
     {
         if (! $timestampEst) {
@@ -498,7 +537,7 @@ class TradeAlertWriterV1
                 'full_entry_array' => $entry,
             ]);
         }
-
+        $sentimentResult = $this->calculateSentimentBoost($signal['symbol']);
         $alertData = [
             'symbol' => $signal['symbol'],
             'asset_type' => $signal['asset_type'],
@@ -518,6 +557,8 @@ class TradeAlertWriterV1
             'risk_pct' => $entry['risk_pct'] ?? null,
             'risk_per_share' => $entry['risk_per_share'] ?? $entry['risk_amount'] ?? null, // Support v100 risk_amount
             'score' => $entry['score'] ?? null,
+            'sentiment_boost' => $sentimentResult['sentiment_boost'] ?? null,
+            'sentiment_score_1_100' => $sentimentResult['sentiment_score_1_100'] ?? null,
             'vol_ratio' => $entry['vol_ratio'] ?? null,
             'avg_dollar_volume_per_minute' => $avgDollarVolPerMin,
             'calculated_position_size' => $calculatedPositionSize,

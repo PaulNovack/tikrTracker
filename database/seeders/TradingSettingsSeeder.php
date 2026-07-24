@@ -365,6 +365,12 @@ class TradingSettingsSeeder extends Seeder
             'trading.pipeline_x.run_cron' => '0',
             'trading.scanner.three_white_soldiers_enabled' => '1',
             'trading.news_link' => 'https://finance.yahoo.com/quote/<SYMBOL>/latest-news/',
+            'trading.news_sentiment.enabled' => 'true',
+            'trading.news_sentiment.strong_positive' => '0.020',
+            'trading.news_sentiment.moderate_positive' => '0.010',
+            'trading.news_sentiment.neutral' => '0.000',
+            'trading.news_sentiment.moderate_negative' => '-0.010',
+            'trading.news_sentiment.strong_negative' => '-0.020',
         ];
 
         foreach ($settings as $name => $value) {
