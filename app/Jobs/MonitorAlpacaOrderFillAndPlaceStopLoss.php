@@ -191,25 +191,37 @@ class MonitorAlpacaOrderFillAndPlaceStopLoss implements ShouldBeUniqueUntilProce
                     ]);
                 }
             } elseif ($alert && isset($alert->atr) && $alert->atr > 0 && $filledPrice > 0) {
-                // RECALCULATE stop using current config multiplier and raw ATR (not old suggested_trailing_stop_pct)
-                // This ensures we use the latest config (4x multiplier, 1.0-2.5% bounds) even for old alerts
-                $atr = (float) $alert->atr;
-                $configMultiplier = TradingSettingService::getStopLossAtrMultiplier();
-                $minPct = TradingSettingService::getStopLossAtrMinPct();
-                $maxPct = TradingSettingService::getStopLossAtrMaxPct();
+                // Prefer the alert's already-bounded suggested_trailing_stop_pct so the
+                // stop matches what the user saw at order creation. Only recalculate
+                // from raw ATR if the suggested value is missing or zero.
+                $suggestedPct = (float) ($alert->suggested_trailing_stop_pct ?? 0);
+                if ($suggestedPct > 0) {
+                    $minPct = TradingSettingService::getStopLossAtrMinPct();
+                    $maxPct = TradingSettingService::getStopLossAtrMaxPct();
+                    $stopPct = max($minPct, min($maxPct, $suggestedPct));
 
-                // Calculate: ATR * multiplier / entry price * 100 = stop %
-                $calculatedPct = (($atr * $configMultiplier) / $filledPrice) * 100.0;
-                $stopPct = max($minPct, min($maxPct, $calculatedPct));
+                    Log::info("Using alert's suggested trailing stop for {$this->symbol}", [
+                        'alert_id' => $this->alertId,
+                        'suggested_pct' => $suggestedPct,
+                        'bounded_pct' => round($stopPct, 2),
+                    ]);
+                } else {
+                    $atr = (float) $alert->atr;
+                    $configMultiplier = TradingSettingService::getStopLossAtrMultiplier();
+                    $minPct = TradingSettingService::getStopLossAtrMinPct();
+                    $maxPct = TradingSettingService::getStopLossAtrMaxPct();
 
-                Log::info("Using RECALCULATED ATR-based stop for {$this->symbol}", [
-                    'alert_id' => $this->alertId,
-                    'atr' => $atr,
-                    'multiplier' => $configMultiplier,
-                    'calculated_pct' => round($calculatedPct, 2),
-                    'bounded_pct' => round($stopPct, 2),
-                    'old_suggested_pct' => $alert->suggested_trailing_stop_pct ?? null,
-                ]);
+                    $calculatedPct = (($atr * $configMultiplier) / $filledPrice) * 100.0;
+                    $stopPct = max($minPct, min($maxPct, $calculatedPct));
+
+                    Log::info("Using RECALCULATED ATR-based stop for {$this->symbol}", [
+                        'alert_id' => $this->alertId,
+                        'atr' => $atr,
+                        'multiplier' => $configMultiplier,
+                        'calculated_pct' => round($calculatedPct, 2),
+                        'bounded_pct' => round($stopPct, 2),
+                    ]);
+                }
             } else {
                 // Fallback to 2% if no ATR data available
                 $stopPct = 2.00;
