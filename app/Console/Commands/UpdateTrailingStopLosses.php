@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AlpacaOrder;
 use App\Services\AlpacaPythonService;
 use App\Services\Trading\ProfitProtectionStopCalculator;
+use App\Services\TradingSettingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -209,9 +210,12 @@ class UpdateTrailingStopLosses extends Command
                             $retryCount = 0;
                             $maxRetries = 5;
 
+                            $retryStep = TradingSettingService::getStopLossRetryStepPct();
+
                             while ($retryCount < $maxRetries) {
-                                $retryStop = round($realMarket * (1.0 - 0.005 * ($retryCount + 1)), 2);
+                                $retryStop = round($realMarket * (1.0 - ($retryStep / 100.0) * ($retryCount + 1)), 2);
                                 $this->warn("{$symbol}: Initial stop \${$initialStopPrice} rejected (market=\${$realMarket}), retry #".($retryCount + 1)." at \${$retryStop}");
+                                Log::warning("[TrailingStop-Initial] {$symbol} stop \${$initialStopPrice} rejected, retry #".($retryCount + 1)." at \${$retryStop}", ['symbol' => $symbol, 'initial_stop' => $initialStopPrice, 'market' => $realMarket, 'retry_stop' => $retryStop, 'retry_count' => $retryCount + 1]);
 
                                 $retryResult = $alpacaPythonService->placeOrder(
                                     symbol: $symbol, qty: floor($currentQty),
@@ -221,6 +225,7 @@ class UpdateTrailingStopLosses extends Command
                                 if ($retryResult['success']) {
                                     $this->saveOrderToDatabase($retryResult['output']);
                                     $this->info("{$symbol}: Retry #".($retryCount + 1)." succeeded — stop at \${$retryStop}");
+                                    Log::info("[TrailingStop-Initial] {$symbol} retry #".($retryCount + 1).' succeeded', ['symbol' => $symbol, 'retry_stop' => $retryStop, 'retry_count' => $retryCount + 1]);
 
                                     break;
                                 }
@@ -230,6 +235,7 @@ class UpdateTrailingStopLosses extends Command
 
                             if ($retryCount >= $maxRetries) {
                                 $this->error("{$symbol}: All {$maxRetries} initial stop retries failed — ".($retryResult['error'] ?? ''));
+                                Log::error("[TrailingStop-Initial] {$symbol} all retries failed", ['symbol' => $symbol, 'max_retries' => $maxRetries, 'error' => $retryResult['error'] ?? '']);
                             }
                         } else {
                             $this->error("{$symbol}: Failed to place initial stop order — {$errorMsg}");
@@ -383,14 +389,16 @@ class UpdateTrailingStopLosses extends Command
                     $realMarket = AlpacaPythonService::extractMarketPriceFromError($errorMsg);
 
                     if ($realMarket !== null) {
-                        // Retry up to 5 times, stepping stop price down by 0.5% each attempt
+                        // Retry up to 5 times, stepping stop price down by the configured step % each attempt
                         $retryCount = 0;
                         $maxRetries = 5;
-                        $retryStop = round($realMarket * 0.995, 2);
+
+                        $retryStep = TradingSettingService::getStopLossRetryStepPct();
 
                         while ($retryCount < $maxRetries) {
-                            $retryStop = round($realMarket * (1.0 - 0.005 * ($retryCount + 1)), 2);
+                            $retryStop = round($realMarket * (1.0 - ($retryStep / 100.0) * ($retryCount + 1)), 2);
                             $this->warn("{$symbol}: Stop rejected (market=\${$realMarket}), retry #".($retryCount + 1)." at \${$retryStop}");
+                            Log::warning("[TrailingStop] {$symbol} stop rejected, retry #".($retryCount + 1)." at \${$retryStop}", ['symbol' => $symbol, 'market' => $realMarket, 'retry_stop' => $retryStop, 'retry_count' => $retryCount + 1]);
 
                             $retryResult = $alpacaPythonService->placeOrder(
                                 symbol: $symbol, qty: floor($currentQty),
@@ -400,6 +408,7 @@ class UpdateTrailingStopLosses extends Command
                             if ($retryResult['success']) {
                                 $this->saveOrderToDatabase($retryResult['output']);
                                 $this->info("{$symbol}: Retry #".($retryCount + 1)." succeeded — stop at \${$retryStop}");
+                                Log::info("[TrailingStop] {$symbol} retry #".($retryCount + 1).' succeeded', ['symbol' => $symbol, 'retry_stop' => $retryStop, 'retry_count' => $retryCount + 1]);
 
                                 break;
                             }
@@ -409,6 +418,7 @@ class UpdateTrailingStopLosses extends Command
 
                         if ($retryCount >= $maxRetries) {
                             $this->error("{$symbol}: All {$maxRetries} retries failed — ".($retryResult['error'] ?? ''));
+                            Log::error("[TrailingStop] {$symbol} all retries failed", ['symbol' => $symbol, 'max_retries' => $maxRetries, 'error' => $retryResult['error'] ?? '']);
                         }
                     } else {
                         $this->error("{$symbol}: Failed to place stop order — {$errorMsg}");
@@ -428,7 +438,7 @@ class UpdateTrailingStopLosses extends Command
      */
     private function calculateTrailingStop(string $symbol, float $currentPrice): float
     {
-        $mode = config('trading.auto_alpaca_orders.stop_loss_mode', 'fixed');
+        $mode = TradingSettingService::getStopLossMode();
 
         if ($mode === 'atr') {
             // Find the original buy order to get ATR data
@@ -443,12 +453,12 @@ class UpdateTrailingStopLosses extends Command
                 $rawAtrPct = (float) $buyOrder->atr_pct;
 
                 // Apply ATR multiplier from config (default 2.0x)
-                $multiplier = config('trading.auto_alpaca_orders.stop_loss_atr_multiplier', 2.0);
+                $multiplier = TradingSettingService::getStopLossAtrMultiplier();
                 $trailingStopPct = $rawAtrPct * $multiplier;
 
                 // Apply min/max bounds from config
-                $minPct = config('trading.auto_alpaca_orders.stop_loss_atr_min_pct', 0.50);
-                $maxPct = config('trading.auto_alpaca_orders.stop_loss_atr_max_pct', 2.00);
+                $minPct = TradingSettingService::getStopLossAtrMinPct();
+                $maxPct = TradingSettingService::getStopLossAtrMaxPct();
                 $boundedPct = max($minPct, min($maxPct, $trailingStopPct));
 
                 $stopPrice = round($currentPrice * (1 - $boundedPct / 100), 2);
@@ -463,7 +473,7 @@ class UpdateTrailingStopLosses extends Command
         }
 
         // Fixed percentage mode (default from config)
-        $fixedPct = config('trading.auto_alpaca_orders.stop_loss_pct', 1.00);
+        $fixedPct = TradingSettingService::getStopLossFixedPct();
 
         return round($currentPrice * (1 - $fixedPct / 100), 2);
     }

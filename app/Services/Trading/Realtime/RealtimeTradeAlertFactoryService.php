@@ -410,7 +410,7 @@ class RealtimeTradeAlertFactoryService
     private function computeStopDistancePct(RealtimeTradeCandidate $candidate, float $entryPrice): float
     {
         $atrPct = $this->getRealAtrPct($candidate, $entryPrice);
-        $multiplier = $this->getTradingSetting('trading.auto_alpaca_orders.stop_loss_atr_multiplier', 4.0);
+        $multiplier = \App\Services\TradingSettingService::getStopLossAtrMultiplier();
         $minPct = $this->getTradingSetting('trading.auto_alpaca_orders.stop_loss_atr_min_pct', 1.0);
         $maxPct = $this->getTradingSetting('trading.auto_alpaca_orders.stop_loss_atr_max_pct', 2.0);
 

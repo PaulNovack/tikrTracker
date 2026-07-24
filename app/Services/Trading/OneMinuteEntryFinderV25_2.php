@@ -57,7 +57,7 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
             'min_bars' => (int) config('trading.v25_2.min_bars', 90),
             'min_body_pct' => (float) config('trading.v25_2.min_body_pct', 0.40),
             'require_trend_align' => (bool) config('trading.v25_2.require_trend_align', false),
-            'atr_multiplier' => (float) config('trading.auto_alpaca_stop_loss_atr_multiplier', 2.0),
+            'atr_multiplier' => \App\Services\TradingSettingService::getStopLossAtrMultiplier(),
         ];
     }
 

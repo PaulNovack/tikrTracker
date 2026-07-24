@@ -44,7 +44,7 @@ class OneMinuteEntryFinderV220_0 extends AbstractOneMinuteEntryFinder
             'allow_lunch' => (bool) config('trading.v220.allow_lunch', false),
             'min_bars' => (int) config('trading.v220.min_bars', 60),
             'min_body_pct' => (float) config('trading.v220.min_body_pct', 0.30),
-            'atr_multiplier' => (float) config('trading.auto_alpaca_stop_loss_atr_multiplier', 2.0),
+            'atr_multiplier' => \App\Services\TradingSettingService::getStopLossAtrMultiplier(),
         ];
     }
 

@@ -1495,7 +1495,7 @@ class PlaceAlpacaOrderForHighScoreAlerts
      */
     protected function calculateFixedStopLoss(float $entryPrice): float
     {
-        $stopLossPct = config('trading.auto_alpaca_orders.stop_loss_pct', 0.75);
+        $stopLossPct = TradingSettingService::getStopLossFixedPct();
 
         return round($entryPrice * (1 - $stopLossPct / 100), 2);
     }

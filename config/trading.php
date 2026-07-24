@@ -1290,6 +1290,7 @@ return [
         'stop_loss_atr_multiplier' => (float) env('AUTO_ALPACA_STOP_LOSS_ATR_MULTIPLIER', 4.0),  // ATR multiplier
         'stop_loss_atr_min_pct' => (float) env('AUTO_ALPACA_STOP_LOSS_ATR_MIN_PCT', 1.00),  // Minimum stop %
         'stop_loss_atr_max_pct' => (float) env('AUTO_ALPACA_STOP_LOSS_ATR_MAX_PCT', 2.00),  // Maximum stop %
+        'stop_loss_retry_step_pct' => (float) env('TRADING_STOP_LOSS_RETRY_STEP_PCT', 0.15),  // 0.15% per retry step
 
         'max_trades_per_day' => (int) env('AUTO_ALPACA_MAX_TRADES_PER_DAY', 999),  // Maximum number of buy orders per day (0 = unlimited)
 

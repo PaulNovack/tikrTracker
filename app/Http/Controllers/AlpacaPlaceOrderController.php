@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Jobs\MonitorAlpacaOrderFillAndPlaceStopLoss;
 use App\Models\AlpacaOrder;
 use App\Models\TradeAlert;
 use App\Services\StockPriceService;
@@ -482,8 +483,8 @@ class AlpacaPlaceOrderController extends Controller
                             ]);
 
                             return response()->json([
-                                'error' => 'Order failed even after reducing shares: '.trim($retryResult['error'] ?? $retryResult['output'] ?? 'Unknown error'),
-                            ], 500);
+                                'error' => 'Insufficient buying power even after reducing shares to '.$retryShares.'. Available: $'.number_format($availableFromError, 2).'.',
+                            ], 400);
                         }
                     } else {
                         DB::rollBack();
@@ -500,7 +501,7 @@ class AlpacaPlaceOrderController extends Controller
                     ]);
 
                     return response()->json([
-                        'error' => 'Order failed: '.trim($friendlyError),
+                        'error' => 'Order failed: '.$friendlyError.'. Check logs for details.',
                     ], 500);
                 }
             }
@@ -548,6 +549,26 @@ class AlpacaPlaceOrderController extends Controller
                     'filled_qty' => $orderData['filled_qty'] ?? 0,
                     'filled_avg_price' => $orderData['filled_avg_price'] ?? null,
                 ]);
+
+                // Get the ID of the AlpacaOrder record we just created
+                $entryOrderDbId = AlpacaOrder::where('alpaca_order_id', $orderId)->value('id');
+
+                if ($entryOrderDbId) {
+                    MonitorAlpacaOrderFillAndPlaceStopLoss::dispatch(
+                        entryAlpacaOrderDbId: $entryOrderDbId,
+                        alertId: $alertId,
+                        symbol: $symbol,
+                        qty: (float) $shares,
+                        stopPrice: $stopPrice,
+                    );
+
+                    Log::info('[AlpacaPlaceOrder] Dispatched stop-loss monitor for manual order', [
+                        'symbol' => $symbol,
+                        'alert_id' => $alertId,
+                        'entry_order_db_id' => $entryOrderDbId,
+                        'stop_price' => $stopPrice,
+                    ]);
+                }
             }
 
             DB::commit();
