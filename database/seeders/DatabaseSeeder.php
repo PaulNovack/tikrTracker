@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             AssetInfoSeeder::class,
             TradingSettingsSeeder::class,
             IntradayUniverseSeeder::class,
-            MLProbabilityCalibrationSeeder::class,
+            MlProbabilityCalibrationSeeder::class,
         ]);
     }
 }
