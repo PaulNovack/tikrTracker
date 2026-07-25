@@ -61,7 +61,7 @@ RUN echo "==> Building TA-Lib C library from source..." \
     && tar xzf ta-lib-0.4.0-src.tar.gz \
     && cd ta-lib \
     && ./configure --prefix=/usr 2>&1 | tail -2 \
-    && make 2>&1 | tail -2 \
+    && make -j$(nproc) 2>&1 | tail -2 \
     && make install 2>&1 | tail -2 \
     && ldconfig \
     && rm -rf /tmp/ta-lib /tmp/ta-lib-0.4.0-src.tar.gz \
