@@ -7,12 +7,12 @@ pandas-ta
 PyMySQL
 python-dotenv
 redis
-scikit-learn
+scikit-learn==1.8.0
 scipy
 SQLAlchemy
 TA-Lib
 webull
-xgboost
+xgboost==3.3.0
 transformers 
 torch 
 yfinance

@@ -56,25 +56,26 @@ The trail % above +2% is `max(1.0%, 2 × ATR%) = max(1.0%, 1.6%) = **1.6%**` bel
 
 | System | Behaviour |
 |--------|-----------|
+| **Trading Settings UI** (`/trading-settings` → Stop Loss) | Admins set profit protection, ATR multiplier, min/max %, and mode |
 | **Backtesting** (`AtrPerformanceService`) | Bar-by-bar simulation uses tiered stops when enabled |
 | **Live / paper trading** (`alpaca:update-trailing-stops`) | Called every minute; updates Alpaca stop order when tier triggers |
+| **Analyze ATR** (`analyze:trade-alerts-atr-immediate`) | Retroactively simulates trades using current DB settings |
 
 ---
 
-## .env Settings
+## Settings
 
-```dotenv
-# Master switch — flip to true to enable profit-protection stops
-# false = legacy ATR/fixed trailing stop logic (default)
-AUTO_ALPACA_PROFIT_PROTECTION_ENABLED=true
+All stop-loss and profit-protection settings are managed via the **Trading Settings** page (`/trading-settings` → Stop Loss tab) and stored in the `settings` database table. `.env` values are **fallback defaults only** — the active values always come from the database.
 
-# These settings still apply when profit protection is OFF:
-AUTO_ALPACA_STOP_LOSS_MODE=atr           # 'atr' or 'fixed'
-AUTO_ALPACA_STOP_LOSS_PCT=0.80           # Fixed % used when mode=fixed
-AUTO_ALPACA_STOP_LOSS_ATR_MULTIPLIER=4.0 # ATR × multiplier = initial stop %
-AUTO_ALPACA_STOP_LOSS_ATR_MIN_PCT=1.00   # Minimum initial stop %
-AUTO_ALPACA_STOP_LOSS_ATR_MAX_PCT=2.50   # Maximum initial stop %
-```
+| Setting | DB Key | UI Field | Default |
+|---------|--------|----------|---------|
+| Profit protection master switch | `trading.stop_loss.profit_protection_enabled` | Profit Protection | `false` |
+| Stop loss mode (`atr` or `fixed`) | `trading.stop_loss.mode` | Mode | `fixed` |
+| Fixed stop % (when mode=fixed) | `trading.stop_loss.fixed_pct` | Fixed % | `0.75` |
+| ATR multiplier | `trading.stop_loss.atr_multiplier` | ATR Multiplier | `4.0` |
+| Minimum stop % (floor) | `trading.stop_loss.atr_min_pct` | Min ATR % | `1.00` |
+| Maximum stop % (ceiling) | `trading.stop_loss.atr_max_pct` | Max ATR % | `2.00` |
+| Retry step % | `trading.stop_loss.retry_step_pct` | Retry Step % | `0.15` |
 
 > **Note:** The initial stop placed at fill time (in `MonitorAlpacaOrderFillAndPlaceStopLoss`) is **not** affected by this switch. Profit protection only governs how the stop is *updated* after the initial placement.
 
@@ -84,7 +85,9 @@ AUTO_ALPACA_STOP_LOSS_ATR_MAX_PCT=2.50   # Maximum initial stop %
 
 | File | Role |
 |------|------|
+| `app/Services/TradingSettingService.php` | **Source of truth** — reads settings from `settings` DB table (60s cache, `.env` fallback) |
+| `app/Http/Controllers/TradingSettingsController.php` | `/trading-settings` page — `updateStopLoss()` persists DB values |
 | `app/Services/Trading/ProfitProtectionStopCalculator.php` | Core tier logic — pure service, no side effects |
 | `app/Console/Commands/UpdateTrailingStopLosses.php` | Live/paper trading: calls calculator each minute |
 | `app/Services/AtrPerformanceService.php` | Backtesting: applies tiers bar-by-bar in simulation |
-| `config/trading.php` → `auto_alpaca_orders.profit_protection_enabled` | Config bridge to env |
+| `resources/js/pages/trading-settings/index.tsx` | Stop Loss tab UI (7 fields: mode, profit protection, fixed%, multiplier, min, max, retry step) |

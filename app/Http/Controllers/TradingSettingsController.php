@@ -66,6 +66,17 @@ class TradingSettingsController extends Controller
                 'atr_min_pct' => TradingSettingService::getStopLossAtrMinPct(),
                 'atr_max_pct' => TradingSettingService::getStopLossAtrMaxPct(),
                 'retry_step_pct' => TradingSettingService::getStopLossRetryStepPct(),
+                'protection_tier_1_trigger_pct' => TradingSettingService::getProtectionTier1TriggerPct(),
+                'protection_tier_1_stop_pct' => TradingSettingService::getProtectionTier1StopPct(),
+                'protection_tier_2_trigger_pct' => TradingSettingService::getProtectionTier2TriggerPct(),
+                'protection_tier_2_stop_pct' => TradingSettingService::getProtectionTier2StopPct(),
+                'protection_tier_3_trigger_pct' => TradingSettingService::getProtectionTier3TriggerPct(),
+                'protection_tier_3_stop_pct' => TradingSettingService::getProtectionTier3StopPct(),
+                'protection_trail_trigger_pct' => TradingSettingService::getProtectionTrailTriggerPct(),
+                'protection_trail_atr_multiplier' => TradingSettingService::getProtectionTrailAtrMultiplier(),
+                'protection_trail_min_pct' => TradingSettingService::getProtectionTrailMinPct(),
+                'protection_trail_max_pct' => TradingSettingService::getProtectionTrailMaxPct(),
+                'protection_trail_floor_pct' => TradingSettingService::getProtectionTrailFloorPct(),
             ],
             'limitOrderSettings' => [
                 'use_limit_orders' => TradingSettingService::isUseLimitOrdersEnabled(),
@@ -101,6 +112,7 @@ class TradingSettingsController extends Controller
             'pipelineMlUpdatedAt' => TradingSettingService::getAllPipelineMlUpdatedAt(),
             'pipelineMinAuc' => TradingSettingService::getMinAuc(),
             'pipelineMinPrecisionAtK' => TradingSettingService::getMinPrecisionAt10(),
+            'pipelineMinAvgPnl' => TradingSettingService::getMinAvgPnl(),
             'maxAgeSettings' => collect(self::MAX_AGE_PIPELINES)->mapWithKeys(fn ($p) => [
                 $p => TradingSettingService::getPipelineMaxAgeMinutes($p),
             ])->all(),
@@ -650,6 +662,17 @@ class TradingSettingsController extends Controller
             'atr_min_pct' => ['required', 'numeric', 'min:0.1', 'max:5'],
             'atr_max_pct' => ['required', 'numeric', 'min:0.1', 'max:10'],
             'retry_step_pct' => ['required', 'numeric', 'min:0.05', 'max:2.0'],
+            'protection_tier_1_trigger_pct' => ['required', 'numeric', 'min:0', 'max:10'],
+            'protection_tier_1_stop_pct' => ['required', 'numeric', 'min:-2', 'max:10'],
+            'protection_tier_2_trigger_pct' => ['required', 'numeric', 'min:0', 'max:10'],
+            'protection_tier_2_stop_pct' => ['required', 'numeric', 'min:-2', 'max:10'],
+            'protection_tier_3_trigger_pct' => ['required', 'numeric', 'min:0', 'max:10'],
+            'protection_tier_3_stop_pct' => ['required', 'numeric', 'min:-2', 'max:10'],
+            'protection_trail_trigger_pct' => ['required', 'numeric', 'min:0', 'max:10'],
+            'protection_trail_atr_multiplier' => ['required', 'numeric', 'min:0.5', 'max:10'],
+            'protection_trail_min_pct' => ['required', 'numeric', 'min:0.1', 'max:5'],
+            'protection_trail_max_pct' => ['required', 'numeric', 'min:0.1', 'max:10'],
+            'protection_trail_floor_pct' => ['required', 'numeric', 'min:0', 'max:5'],
         ]);
 
         $before = [
@@ -660,6 +683,17 @@ class TradingSettingsController extends Controller
             'atr_min_pct' => TradingSettingService::getStopLossAtrMinPct(),
             'atr_max_pct' => TradingSettingService::getStopLossAtrMaxPct(),
             'retry_step_pct' => TradingSettingService::getStopLossRetryStepPct(),
+            'protection_tier_1_trigger_pct' => TradingSettingService::getProtectionTier1TriggerPct(),
+            'protection_tier_1_stop_pct' => TradingSettingService::getProtectionTier1StopPct(),
+            'protection_tier_2_trigger_pct' => TradingSettingService::getProtectionTier2TriggerPct(),
+            'protection_tier_2_stop_pct' => TradingSettingService::getProtectionTier2StopPct(),
+            'protection_tier_3_trigger_pct' => TradingSettingService::getProtectionTier3TriggerPct(),
+            'protection_tier_3_stop_pct' => TradingSettingService::getProtectionTier3StopPct(),
+            'protection_trail_trigger_pct' => TradingSettingService::getProtectionTrailTriggerPct(),
+            'protection_trail_atr_multiplier' => TradingSettingService::getProtectionTrailAtrMultiplier(),
+            'protection_trail_min_pct' => TradingSettingService::getProtectionTrailMinPct(),
+            'protection_trail_max_pct' => TradingSettingService::getProtectionTrailMaxPct(),
+            'protection_trail_floor_pct' => TradingSettingService::getProtectionTrailFloorPct(),
         ];
 
         TradingSettingService::set('trading.stop_loss.mode', $validated['mode']);
@@ -669,6 +703,17 @@ class TradingSettingsController extends Controller
         TradingSettingService::set('trading.stop_loss.atr_min_pct', (string) $validated['atr_min_pct']);
         TradingSettingService::set('trading.stop_loss.atr_max_pct', (string) $validated['atr_max_pct']);
         TradingSettingService::set('trading.stop_loss.retry_step_pct', (string) $validated['retry_step_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_1_trigger_pct', (string) $validated['protection_tier_1_trigger_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_1_stop_pct', (string) $validated['protection_tier_1_stop_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_2_trigger_pct', (string) $validated['protection_tier_2_trigger_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_2_stop_pct', (string) $validated['protection_tier_2_stop_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_3_trigger_pct', (string) $validated['protection_tier_3_trigger_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_tier_3_stop_pct', (string) $validated['protection_tier_3_stop_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_trail_trigger_pct', (string) $validated['protection_trail_trigger_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_trail_atr_multiplier', (string) $validated['protection_trail_atr_multiplier']);
+        TradingSettingService::set('trading.stop_loss.protection_trail_min_pct', (string) $validated['protection_trail_min_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_trail_max_pct', (string) $validated['protection_trail_max_pct']);
+        TradingSettingService::set('trading.stop_loss.protection_trail_floor_pct', (string) $validated['protection_trail_floor_pct']);
 
         $after = $validated;
 
@@ -861,20 +906,25 @@ class TradingSettingsController extends Controller
         $validated = $request->validate([
             'min_auc' => ['required', 'numeric', 'min:0', 'max:1'],
             'min_precision_at_10' => ['required', 'numeric', 'min:0', 'max:1'],
+            'min_avg_pnl' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $oldMinAuc = TradingSettingService::getMinAuc();
         $oldMinPrecisionAt10 = TradingSettingService::getMinPrecisionAt10();
+        $oldMinAvgPnl = TradingSettingService::getMinAvgPnl();
         $newMinAuc = (float) $validated['min_auc'];
         $newMinPrecisionAt10 = (float) $validated['min_precision_at_10'];
+        $newMinAvgPnl = (float) $validated['min_avg_pnl'];
 
         TradingSettingService::setMinAuc($newMinAuc);
         TradingSettingService::setMinPrecisionAt10($newMinPrecisionAt10);
+        TradingSettingService::setMinAvgPnl($newMinAvgPnl);
 
-        if ((string) $oldMinAuc !== (string) $newMinAuc || (string) $oldMinPrecisionAt10 !== (string) $newMinPrecisionAt10) {
+        if ((string) $oldMinAuc !== (string) $newMinAuc || (string) $oldMinPrecisionAt10 !== (string) $newMinPrecisionAt10 || (string) $oldMinAvgPnl !== (string) $newMinAvgPnl) {
             Log::info('[TradingSettings] ML quality gates updated by '.auth()->user()?->email, [
                 'min_auc' => ['from' => $oldMinAuc, 'to' => $newMinAuc],
                 'min_precision_at_10' => ['from' => $oldMinPrecisionAt10, 'to' => $newMinPrecisionAt10],
+                'min_avg_pnl' => ['from' => $oldMinAvgPnl, 'to' => $newMinAvgPnl],
             ]);
         }
 

@@ -13,7 +13,7 @@ import { dashboard } from '@/routes';
 import { edit as editTradingSettings } from '@/actions/App/Http/Controllers/TradingSettingsController';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, Bell, BarChart, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
+import { Activity, Bell, BarChart, BarChart3, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -379,6 +379,12 @@ export function AppSidebar() {
                     title: 'Pipeline Counts',
                     href: '/analysis/pipeline-counts',
                     icon: BarChart,
+                    disabled: isGuest,
+                },
+                {
+                    title: 'ML Calibration',
+                    href: '/analysis/ml-calibration',
+                    icon: BarChart3,
                     disabled: isGuest,
                 },
                 {

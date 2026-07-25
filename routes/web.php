@@ -244,6 +244,7 @@ Route::middleware($middleware)->group(function () {
             Route::get('upward-pressure', [\App\Http\Controllers\Analysis\UpwardPressureController::class, 'index'])->name('upward-pressure.index');
             Route::get('good-long-buy', [\App\Http\Controllers\Analysis\GoodLongBuyController::class, 'index'])->name('good-long-buy.index');
             Route::get('ml-threshold-profit-loss', [\App\Http\Controllers\Analysis\MlThresholdProfitLossController::class, 'index'])->name('ml-threshold-profit-loss.index');
+            Route::get('ml-calibration', [\App\Http\Controllers\Analysis\MlCalibrationController::class, 'index'])->name('ml-calibration.index');
 
             // Buy Zone Top Performers route - Filtered buy zone candidates from top performers
             Route::get('buy-zone-top-performers', [\App\Http\Controllers\Analysis\BuyZoneTopPerformersController::class, 'index'])->name('buy-zone-top-performers.index');

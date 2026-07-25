@@ -87,6 +87,7 @@ type Props = {
     pipelineMlUpdatedAt: Record<string, string | null>;
     pipelineMinAuc: number;
     pipelineMinPrecisionAtK: number;
+    pipelineMinAvgPnl: number;
     maxAgeSettings: MaxAgeSettings;
     mlThresholds: Record<string, number>;
     timeSlots: Record<string, boolean>;
@@ -110,6 +111,17 @@ type Props = {
         atr_min_pct: number;
         atr_max_pct: number;
         retry_step_pct: number;
+        protection_tier_1_trigger_pct: number;
+        protection_tier_1_stop_pct: number;
+        protection_tier_2_trigger_pct: number;
+        protection_tier_2_stop_pct: number;
+        protection_tier_3_trigger_pct: number;
+        protection_tier_3_stop_pct: number;
+        protection_trail_trigger_pct: number;
+        protection_trail_atr_multiplier: number;
+        protection_trail_min_pct: number;
+        protection_trail_max_pct: number;
+        protection_trail_floor_pct: number;
     };
     limitOrderSettings: {
         use_limit_orders: boolean;
@@ -231,7 +243,7 @@ function formatDatetime(iso: string): string {
     });
 }
 
-export default function TradingSettings({ settings, pipelines, pipelineDisplayNames, pipelineAucValues, precisionAtK, pipelineMlUpdatedAt, pipelineMinAuc, pipelineMinPrecisionAtK, maxAgeSettings, mlThresholds, timeSlots, realtimeSlots, circuitBreakerEvents, isPaperTrading, positionSizingStatus, stopLossSettings, limitOrderSettings, tradingHours, staleRescoreSettings, benchmarkVwapGate, benchmarkVwapBars, realtimeSettings }: Props) {
+export default function TradingSettings({ settings, pipelines, pipelineDisplayNames, pipelineAucValues, precisionAtK, pipelineMlUpdatedAt, pipelineMinAuc, pipelineMinPrecisionAtK, pipelineMinAvgPnl, maxAgeSettings, mlThresholds, timeSlots, realtimeSlots, circuitBreakerEvents, isPaperTrading, positionSizingStatus, stopLossSettings, limitOrderSettings, tradingHours, staleRescoreSettings, benchmarkVwapGate, benchmarkVwapBars, realtimeSettings }: Props) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _referenceMap = { stopLossSettings, limitOrderSettings, tradingHours, staleRescoreSettings, benchmarkVwapGate };
     const generalForm = useForm({
@@ -269,6 +281,7 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
     const pipelineMlGatesForm = useForm({
         min_auc: pipelineMinAuc,
         min_precision_at_10: pipelineMinPrecisionAtK,
+        min_avg_pnl: pipelineMinAvgPnl,
     });
 
     const timeSlotsForm = useForm({ slots: timeSlots });
@@ -735,7 +748,7 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
                                         description="Global thresholds that apply to all pipelines. Pipelines whose AUC falls below the minimum or Precision@10 falls below the minimum are flagged."
                                     />
 
-                                    <div className="mt-4 grid grid-cols-2 gap-6">
+                                    <div className="mt-4 grid grid-cols-3 gap-6">
                                         <div className="grid gap-2">
                                             <Label htmlFor="min_auc">Minimum AUC</Label>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -772,6 +785,25 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
                                             />
                                             {pipelineMlGatesForm.errors.min_precision_at_10 && (
                                                 <p className="text-sm text-red-500">{pipelineMlGatesForm.errors.min_precision_at_10}</p>
+                                            )}
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="min_avg_pnl">Minimum Avg P&amp;L %</Label>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                Pipelines must have at least one probability bucket with average P&amp;L above this percentage.
+                                            </p>
+                                            <Input
+                                                id="min_avg_pnl"
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.1"
+                                                className="w-32"
+                                                value={pipelineMlGatesForm.data.min_avg_pnl}
+                                                onChange={(e) => pipelineMlGatesForm.setData('min_avg_pnl', Number.parseFloat(e.target.value))}
+                                            />
+                                            {pipelineMlGatesForm.errors.min_avg_pnl && (
+                                                <p className="text-sm text-red-500">{pipelineMlGatesForm.errors.min_avg_pnl}</p>
                                             )}
                                         </div>
                                     </div>
@@ -1814,7 +1846,7 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
                                         <div>
                                             <Label className="font-medium">Profit Protection Trail</Label>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                Tiered trailing: +0.75% → -0.25%, +1.25% → +0.50%, +2.00% → +1.00%, above → trail max(1%,2×ATR)
+                                                Locks in gains through progressive tiers as the trade moves in your favor.
                                             </p>
                                         </div>
                                         <ToggleSwitch
@@ -1823,6 +1855,101 @@ export default function TradingSettings({ settings, pipelines, pipelineDisplayNa
                                             onChange={(val) => stopLossForm.setData('profit_protection_enabled', val)}
                                         />
                                     </div>
+
+                                    {stopLossForm.data.profit_protection_enabled && (
+                                        <>
+                                            <Separator />
+                                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tiered Profit Locks (This is not actually running yet.)</h4>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier1_trigger">Tier 1 Trigger (%)</Label>
+                                                    <p className="text-xs text-gray-500">Profit % that activates tier 1 lock</p>
+                                                    <Input id="tier1_trigger" type="number" min="0" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_1_trigger_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_1_trigger_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier1_stop">Tier 1 Stop (%)</Label>
+                                                    <p className="text-xs text-gray-500">Stop relative to entry (can be negative)</p>
+                                                    <Input id="tier1_stop" type="number" min="-2" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_1_stop_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_1_stop_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier2_trigger">Tier 2 Trigger (%)</Label>
+                                                    <Input id="tier2_trigger" type="number" min="0" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_2_trigger_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_2_trigger_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier2_stop">Tier 2 Stop (%)</Label>
+                                                    <Input id="tier2_stop" type="number" min="-2" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_2_stop_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_2_stop_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier3_trigger">Tier 3 Trigger (%)</Label>
+                                                    <Input id="tier3_trigger" type="number" min="0" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_3_trigger_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_3_trigger_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="tier3_stop">Tier 3 Stop (%)</Label>
+                                                    <Input id="tier3_stop" type="number" min="-2" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_tier_3_stop_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_tier_3_stop_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                            </div>
+
+                                            <Separator />
+                                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">ATR Trailing Stop (Beyond Tier 3) (This is not actually running yet.)</h4>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="trail_trigger">Trail Activation (%)</Label>
+                                                    <p className="text-xs text-gray-500">Profit % to activate ATR trailing</p>
+                                                    <Input id="trail_trigger" type="number" min="0" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_trail_trigger_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_trail_trigger_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="trail_atr">Trail ATR Multiplier</Label>
+                                                    <Input id="trail_atr" type="number" min="0.5" max="10" step="0.1" className="w-28"
+                                                        value={stopLossForm.data.protection_trail_atr_multiplier}
+                                                        onChange={(e) => stopLossForm.setData('protection_trail_atr_multiplier', parseFloat(e.target.value))} />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="trail_min">Trail Min (%)</Label>
+                                                    <Input id="trail_min" type="number" min="0.1" max="5" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_trail_min_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_trail_min_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="trail_max">Trail Max (%)</Label>
+                                                    <Input id="trail_max" type="number" min="0.1" max="10" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_trail_max_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_trail_max_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <Label htmlFor="trail_floor">Trail Floor (%)</Label>
+                                                    <p className="text-xs text-gray-500">Min locked gain after trail starts</p>
+                                                    <Input id="trail_floor" type="number" min="0" max="5" step="0.01" className="w-28"
+                                                        value={stopLossForm.data.protection_trail_floor_pct}
+                                                        onChange={(e) => stopLossForm.setData('protection_trail_floor_pct', parseFloat(e.target.value))} />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
 
                                     <Separator />
 

@@ -32,7 +32,7 @@ ALL_PIPELINES="A,B,C,E,F,G,H,I,D,J,K,L,M,N,O,P,Q,R"
 # If a 3rd argument is provided, use it as the pipeline list override
 PIPELINES="${3:-$ALL_PIPELINES}"
 
-SCORER="python ${PYTHON_ML_DIR}/v2/score_trade_alerts.py"
+SCORER="$VENV_PYTHON ${PYTHON_ML_DIR}/v2/score_trade_alerts.py"
 
 # --------------------------------------------------
 # Helpers

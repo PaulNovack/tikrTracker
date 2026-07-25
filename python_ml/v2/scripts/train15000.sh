@@ -1,4 +1,4 @@
-python python_ml/v2/train_stock_winner_model_v2.py train \
+.venv/bin/python3 python_ml/v2/train_stock_winner_model_v2.py train \
     --start="2026-04-01" \
     --end="2026-07-11" \
     --limit=30000 \

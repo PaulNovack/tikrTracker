@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 V2_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_ML_DIR="$(cd "$V2_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$PYTHON_ML_DIR/.." && pwd)"
+VENV_PYTHON="$REPO_ROOT/.venv/bin/python3"
 
 load_env_file() {
   local env_file="$REPO_ROOT/.env"
@@ -19,6 +20,16 @@ load_env_file() {
     source "$env_file"
     set +a
   fi
+}
+
+get_mysql_cmd() {
+  source "$REPO_ROOT/.env" 2>/dev/null || true
+  local DB_USER="${DB_USERNAME:-laravel}"
+  local DB_PASS="${DB_PASSWORD:-laravel}"
+  local DB_HOST="${DB_HOST:-127.0.0.1}"
+  local DB_PORT="${DB_PORT:-3306}"
+  local DB_NAME="${DB_DATABASE:-laravelInvest}"
+  echo "mysql -N -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASS $DB_NAME"
 }
 
 get_pipeline_model_path() {
@@ -37,15 +48,15 @@ get_pipeline_model_path() {
 }
 
 get_trainer_cmd() {
-  echo "python ${PYTHON_ML_DIR}/v2/train_stock_winner_model_v2.py train"
+  echo "$VENV_PYTHON ${PYTHON_ML_DIR}/v2/train_stock_winner_model_v2.py train"
 }
 
 get_scorer_cmd() {
-  echo "python ${PYTHON_ML_DIR}/v2/score_single_alert_v2.py"
+  echo "$VENV_PYTHON ${PYTHON_ML_DIR}/v2/score_single_alert_v2.py"
 }
 
 get_daemon_cmd() {
-  echo "python ${PYTHON_ML_DIR}/v2/scoring_daemon.py"
+  echo "$VENV_PYTHON ${PYTHON_ML_DIR}/v2/scoring_daemon.py"
 }
 
 score_alert() {
@@ -53,7 +64,7 @@ score_alert() {
   local MODEL_IN="${2:-$(get_pipeline_model_path "GLOBAL" "python_ml/v2/models/winner_model_xgb.joblib")}"
   local TABLE="${3:-trade_alerts}"
 
-  python "${PYTHON_ML_DIR}/v2/score_single_alert_v2.py" \
+  $VENV_PYTHON "${PYTHON_ML_DIR}/v2/score_single_alert_v2.py" \
     --alert-id "$ALERT_ID" \
     --model-in "$MODEL_IN" \
     --table "$TABLE"
@@ -117,11 +128,8 @@ persist_auc_p10_from_log() {
   local LOW
   LOW="$(echo "$PIPELINE" | tr '[:upper:]' '[:lower:]')"
 
-  # Source .env for DB credentials
-  source "$REPO_ROOT/.env" 2>/dev/null || true
-  local DB_USER="${DB_USERNAME:-laravel}"
-  local DB_PASS="${DB_PASSWORD:-laravel}"
-  local DB_NAME="${DB_DATABASE:-laravelInvest}"
+  local MYSQL_CMD
+  MYSQL_CMD=$(get_mysql_cmd)
 
   local AUC
   AUC=$(grep -oP 'Test AUC:\s*\K[\d.]+' "$LOG_FILE" | head -1)
@@ -145,7 +153,7 @@ persist_auc_p10_from_log() {
 
   if [[ -n "$AUC" ]]; then
     echo "      → Writing trading.pipeline_auc.${LOW}=${AUC} to DB..."
-    if mysql -N -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+    if $MYSQL_CMD \
       -e "INSERT INTO settings (name, value, updated_at) VALUES ('trading.pipeline_auc.${LOW}', '${AUC}', NOW()) ON DUPLICATE KEY UPDATE value='${AUC}', updated_at=NOW();"; then
       echo "   AUC=${AUC} ✔"
     else
@@ -156,7 +164,7 @@ persist_auc_p10_from_log() {
 
   if [[ -n "$P10" ]]; then
     echo "      → Writing trading.pipeline_p10.${LOW}=${P10} to DB..."
-    if mysql -N -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+    if $MYSQL_CMD \
       -e "INSERT INTO settings (name, value, updated_at) VALUES ('trading.pipeline_p10.${LOW}', '${P10}', NOW()) ON DUPLICATE KEY UPDATE value='${P10}', updated_at=NOW();"; then
       echo "   P@10=${P10} (${P10_SRC}) ✔"
     else
@@ -167,7 +175,7 @@ persist_auc_p10_from_log() {
 
   # Persist dedicated ML updated timestamp
   echo "      → Writing trading.pipeline_ml_updated.${LOW}=now to DB..."
-  if mysql -N -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+  if $MYSQL_CMD \
     -e "INSERT INTO settings (name, value, updated_at) VALUES ('trading.pipeline_ml_updated.${LOW}', 'now', NOW()) ON DUPLICATE KEY UPDATE value='now', updated_at=NOW();"; then
     echo "   ML Updated ✔"
   else

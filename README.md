@@ -148,6 +148,8 @@ Built-in observability tools track pipeline execution, queue health, Redis keys,
 - [Analyze Trade Alerts](http://127.0.0.1:8080/training/analyze-trade-alerts) — Analyze trade alert quality and outcomes
 - [Retrain Models](http://127.0.0.1:8080/training/retrain-models) — Retrain ML scoring models with latest data
 - [Rescore Alert](http://127.0.0.1:8080/training/rescore-alert) — Re-run ML scoring on historical alerts
+- [Realtime Training](http://127.0.0.1:8080/training/realtime-training) — Real-time training dashboard for pipeline backtesting against live data
+- [Pipeline Backtest](http://127.0.0.1:8080/alpaca-pipeline-backtest) — Pipeline-specific backtest controls and configuration
 
 ### Watched
 - [View Watches](http://127.0.0.1:8080/watches) — Watch list with mini price charts, gains/losses, volume, and 52-week stats
@@ -200,6 +202,8 @@ Built-in observability tools track pipeline execution, queue health, Redis keys,
 - [Notable Assets](http://127.0.0.1:8080/notable-assets) — Identifies stagnant, downtrending, or significantly gaining stocks with flag-based classification
 .
 - [Pipeline Counts](http://127.0.0.1:8080/analysis/pipeline-counts) — Alert counts per pipeline run with dates, trading days covered, and symbol coverage
+.
+- [ML Calibration](http://127.0.0.1:8080/analysis/ml-calibration) — Probability bucket calibration showing actual vs predicted win rates per pipeline, with ML threshold recommendations
 .
 - [Risers Not Topped](http://127.0.0.1:8080/risers-not-topped) — Rising stocks without topping patterns across multiple time intervals
 .

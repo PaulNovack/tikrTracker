@@ -242,7 +242,7 @@ class FetchStockNews extends Command
             StockNewsArticle::create([
                 'stock_news_id' => $stockNews->id,
                 'symbol' => $symbol,
-                'title' => $finding['title'] ?? null,
+                'title' => isset($finding['title']) ? mb_substr($finding['title'], 0, 500) : null,
                 'source' => $finding['source'] ?? null,
                 'url' => $finding['url'] ?? null,
                 'pub_date' => $finding['pub_date'] ?? null,
