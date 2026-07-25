@@ -292,6 +292,19 @@ class TradingSettingService
         self::set('trading.ml_gates.min_precision_at_10', (string) $value);
     }
 
+    public static function getMinAvgPnl(): float
+    {
+        return (float) self::get(
+            'trading.ml_gates.min_avg_pnl',
+            1.7
+        );
+    }
+
+    public static function setMinAvgPnl(float $value): void
+    {
+        self::set('trading.ml_gates.min_avg_pnl', (string) $value);
+    }
+
     public static function getPipelineMaxAgeMinutes(string $pipeline, bool $backtest = false): int
     {
         $pipeline = strtolower($pipeline);
@@ -945,6 +958,65 @@ class TradingSettingService
     public static function getStopLossAtrMaxPct(): float
     {
         return (float) self::get('trading.stop_loss.atr_max_pct', 2.0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Profit Protection – Tiered Stops
+    // -------------------------------------------------------------------------
+
+    public static function getProtectionTier1TriggerPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_1_trigger_pct', 0.75);
+    }
+
+    public static function getProtectionTier1StopPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_1_stop_pct', -0.35);
+    }
+
+    public static function getProtectionTier2TriggerPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_2_trigger_pct', 1.25);
+    }
+
+    public static function getProtectionTier2StopPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_2_stop_pct', 0.25);
+    }
+
+    public static function getProtectionTier3TriggerPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_3_trigger_pct', 2.00);
+    }
+
+    public static function getProtectionTier3StopPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_tier_3_stop_pct', 0.75);
+    }
+
+    public static function getProtectionTrailTriggerPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_trail_trigger_pct', 2.00);
+    }
+
+    public static function getProtectionTrailAtrMultiplier(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_trail_atr_multiplier', 2.00);
+    }
+
+    public static function getProtectionTrailMinPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_trail_min_pct', 1.00);
+    }
+
+    public static function getProtectionTrailMaxPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_trail_max_pct', 2.00);
+    }
+
+    public static function getProtectionTrailFloorPct(): float
+    {
+        return (float) self::get('trading.stop_loss.protection_trail_floor_pct', 0.75);
     }
 
     /**

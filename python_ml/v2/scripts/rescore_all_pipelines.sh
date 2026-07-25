@@ -20,7 +20,7 @@ source "$SCRIPT_DIR/env.sh"
 
 load_env_file
 
-DEFAULT_PIPELINES="A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S"
+DEFAULT_PIPELINES="A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,MANUAL"
 PIPELINES="$DEFAULT_PIPELINES"
 LIMIT=200000
 DRY_RUN=0
@@ -187,7 +187,7 @@ run_model_group() {
         else
             echo "[$CURRENT/$TOTAL] Scoring $DATE for pipelines $pipeline_csv"
             set +e  # don't let scorer failure kill the subshell
-            ${PYTHON_PATH:-python3} "$PYTHON_ML_DIR/v2/score_trade_alerts.py" \
+            $VENV_PYTHON "$PYTHON_ML_DIR/v2/score_trade_alerts.py" \
                 --model-in "$model_path" \
                 --trading-date "$DATE" \
                 --limit "$LIMIT" \

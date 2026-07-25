@@ -72,10 +72,8 @@ launch_job "Hybrid Big-Move Breakout" "C-$(date +%Y-%m-%d_%H).log" \
 # B — Elite Multi-Day Momentum
 # Queries DB for the earliest analyzed B alert to auto-determine start date.
 launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
-    DB_USER=\"\${DB_USERNAME:-laravel}\"
-    DB_PASS=\"\${DB_PASSWORD:-laravel}\"
-    DB_NAME=\"\${DB_DATABASE:-laravelInvest}\"
-    DEFAULT_START_DATE=\$(mysql -N -u \"\$DB_USER\" -p\"\$DB_PASS\" \"\$DB_NAME\" -e \"
+    MYSQL_CMD=\$(get_mysql_cmd)
+    DEFAULT_START_DATE=\$(\$MYSQL_CMD -e \"
         SELECT DATE(MIN(entry_ts_est))
         FROM trade_alerts
         WHERE pipeline_run='B'
@@ -87,7 +85,7 @@ launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
         --pipeline B --win-threshold 2.0 --actual-fill-weight 20.0 \
         --eval-on-actual-only --start \"\$DEFAULT_START_DATE\" --end \"$TODAY\" \
         --test-size 0.2 --train-full \
-        --model-out \"$(get_pipeline_model_path "B" "python_ml/v2/models/winner_model_pipeline_b.joblib")\"
+        --model-out \"$(get_pipeline_model_path \"B\" \"python_ml/v2/models/winner_model_pipeline_b.joblib\")\"
 "
 
 # E — Trend Continuation
@@ -253,11 +251,7 @@ echo "=========================================================="
 echo "  Extracting AUC & P@10 from training logs..."
 echo "=========================================================="
 
-# Source .env for DB credentials
-source "$REPO_ROOT/.env" 2>/dev/null || true
-DB_USER="${DB_USERNAME:-laravel}"
-DB_PASS="${DB_PASSWORD:-laravel}"
-DB_NAME="${DB_DATABASE:-laravelInvest}"
+MYSQL_CMD=$(get_mysql_cmd)
 
 LOG_DIR="${SCRIPT_DIR}/../training_logs"
 PIPELINE_LETTERS="A B C D E F G H I J K L M N O P Q R"
@@ -266,7 +260,7 @@ persist_setting() {
     local name="$1"
     local value="$2"
     echo "      → Writing ${name}=${value} to DB..."
-    mysql -N -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+    $MYSQL_CMD \
         -e "INSERT INTO settings (name, value, updated_at) VALUES ('${name}', '${value}', NOW()) ON DUPLICATE KEY UPDATE value='${value}', updated_at=NOW();"
 }
 
@@ -310,4 +304,7 @@ for LET in $PIPELINE_LETTERS; do
     persist_setting "trading.pipeline_ml_updated.${LOW}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 done
 
+echo "=========================================================="
+echo "  All training complete. Running calibration ingestion..."
+cd "$REPO_ROOT" && php artisan ml:ingest-calibration
 echo "=========================================================="

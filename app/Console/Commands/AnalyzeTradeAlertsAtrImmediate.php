@@ -180,8 +180,6 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     {
         $symbol = (string) $alert->symbol;
         $entryPrice = (float) $alert->entry;
-        // Use the stop from the alert (respects 1% max and ATR logic from entry finder)
-        $initialStopPrice = (float) ($alert->stop ?? ($entryPrice * 0.99));
         $entryTime = (string) $alert->entry_ts_est;
 
         // Determine trailing stop percentage
@@ -201,6 +199,9 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
                 : $minPct;
             $trailingStopPct = max($minPct, min($maxPct, $calculatedPct));
         }
+
+        // Recalculate initial stop from current ATR config, not the stored value
+        $initialStopPrice = $entryPrice * (1 - ($trailingStopPct / 100.0));
 
         $atrPct = (float) $alert->atr_pct;
 
