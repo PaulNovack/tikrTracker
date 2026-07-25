@@ -567,7 +567,7 @@ def main():
     args = parser.parse_args()
 
     # Resolve socket path relative to project root
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[2]
     socket_path = args.socket if os.path.isabs(args.socket) else str(project_root / args.socket)
 
     os.makedirs(Path(socket_path).parent, exist_ok=True)
