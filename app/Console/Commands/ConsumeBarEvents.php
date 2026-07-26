@@ -3,15 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Services\Trading\BarEventConsumer;
-use App\Services\Trading\FiveMinuteSignalScannerV25_2Redis;
-use App\Services\Trading\OneMinuteEntryFinderV25_2Redis;
 use App\Services\Trading\TradeAlertWriterV1;
 use Illuminate\Console\Command;
 
 class ConsumeBarEvents extends Command
 {
     protected $signature = 'bar-events:consume
-        {--group=scanner-v25 : Redis stream consumer group name}
+        {--pipeline=h : Pipeline letter (a-q), default h}
+        {--group=scanner-h : Redis stream consumer group name}
         {--consumer=worker-1 : Consumer name (unique per process)}
         {--batch=100 : Max events per read}
     ';
@@ -23,16 +22,31 @@ class ConsumeBarEvents extends Command
         $group = $this->option('group');
         $consumerName = $this->option('consumer');
         $batchSize = max(1, (int) $this->option('batch'));
+        $pipelineLetter = strtolower((string) $this->option('pipeline'));
 
-        $scanner = new FiveMinuteSignalScannerV25_2Redis(
-            app(\App\Services\Market\BestPerformers5mService::class),
-            app(\App\Services\GainersLosersAnalysisService::class),
-        );
-        $finder = new OneMinuteEntryFinderV25_2Redis;
+        $version = config("app.trade_alert_{$pipelineLetter}_version");
 
+        if (! $version) {
+            $this->error("No version config for pipeline '{$pipelineLetter}'");
+
+            return self::FAILURE;
+        }
+
+        $versionClean = 'V'.str_replace(['v', '.'], ['', '_'], $version);
+        $scannerClass = "App\\Services\\Trading\\FiveMinuteSignalScanner{$versionClean}Redis";
+        $finderClass = "App\\Services\\Trading\\OneMinuteEntryFinder{$versionClean}Redis";
+
+        if (! class_exists($scannerClass)) {
+            $this->error("Redis scanner not found: {$scannerClass} (pipeline {$pipelineLetter}, version {$version})");
+
+            return self::FAILURE;
+        }
+
+        $scanner = app($scannerClass);
+        $finder = app($finderClass);
         $barConsumer = new BarEventConsumer($scanner, $finder, $writer);
 
-        $this->info("Starting BarEventConsumer (group={$group}, consumer={$consumerName}, batch={$batchSize})...");
+        $this->info("BarEventConsumer pipeline={$pipelineLetter} v={$version} group={$group}");
 
         $barConsumer->run($group, $consumerName, $batchSize);
 

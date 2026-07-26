@@ -24,58 +24,107 @@ Batch SQL: php artisan trade:pipeline-*  (unchanged, SQL-only)
 `UsesRedisForEntryFinding` only overrides `fetchOneMinuteBars()` to read from Redis.
 The parent's `doFindBestLong()` runs unchanged — same entry types ML models expect.
 
-## Pipeline Status
+## Pipeline Status (as of 2026-07-26)
 
-| Pipeline | ENV | Gate parity | Status |
-|---|---|---|---|
-| A (v90.1) | true | Standard | Prod-ready |
-| B (v120.0) | true | Standard | Prod-ready |
-| C (v101.0) | true | Standard + VWAP/EMA | Prod-ready |
-| D (v60.3) | true | Standard | Prod-ready |
-| E (v400.0) | true | Standard + VWAP/EMA | Prod-ready |
-| F (v900.1) | true | Standard + helpers | Ready (helpers added) |
-| G (v35.0) | true | Standard | Prod-ready |
-| H (v25.2) | true | Standard | Prod-ready |
-| I (v17.0) | true | Standard | Prod-ready |
-| J (v2000.0) | true | Custom universe + bars | Prod-ready |
-| K (v1100.0) | true | Full custom (gates match SQL) | Prod-ready |
-| L (v1600.0) | true | Custom universe + bars | Prod-ready |
-| M (v103.0) | true | Standard | Prod-ready |
-| N (v1200.0) | true | Two-bar momentum | Prod-ready |
-| P (v140.0) | true | Standard | Prod-ready |
-| Q (v27.0) | true | Standard | Prod-ready |
+| Pipeline | .env Version | Redis Scanner | Redis Finder | use_redis | Status |
+|---|---|---|---|---|---|
+| A | v90.1 | ✅ V90_1Redis | ✅ V90_1Redis | true | Prod-ready |
+| B | v120.0 | ✅ V120_0Redis | ✅ V120_0Redis | true | Prod-ready |
+| C | v101.0 | ✅ V101_0Redis | ✅ V101_0Redis | true | Prod-ready |
+| D | v60.3 | ✅ V60_3Redis | ✅ V60_3Redis | true | Prod-ready |
+| E | v400.0 | ✅ V400_0Redis | ✅ V400_0Redis | true | Prod-ready |
+| F | v900.1 | ✅ V900_1Redis | ✅ V900_1Redis | **false** | Disabled — gate helpers incomplete |
+| G | v35.0 | ✅ V35_0Redis | ✅ V35_0Redis | true | Prod-ready |
+| H | v25.2 | ✅ V25_2Redis | ✅ V25_2Redis | true | Prod-ready (tested) |
+| I | v17.0 | ✅ V17_0Redis | ✅ V17_0Redis | true | Prod-ready |
+| J | v2000.0 | ✅ V2000_0Redis | ✅ V2000_0Redis | true | Prod-ready |
+| K | v1100.0 | ✅ V1100_0Redis | ✅ V1100_0Redis | true | Prod-ready |
+| L | v1600.0 | ✅ V1600_0Redis | ✅ V1600_0Redis | true | Prod-ready |
+| M | v103.0 | ✅ V103_0Redis | ✅ V103_0Redis | true | Prod-ready |
+| N | v1200.0 | ✅ V1200_0Redis | ✅ V1200_0Redis | true | Prod-ready |
+| P | v140.0 | ✅ V140_0Redis | ✅ V140_0Redis | true | Prod-ready |
+| Q | v27.0 | ✅ V27_0Redis | ✅ V27_0Redis | true | Prod-ready |
 
-R and S are different stacks (realtime watch/VWAP reversal) — not applicable.
+**Not Redis-backed:**
+| Pipeline | Version | Reason |
+|---|---|---|
+| O | v1500.0 | No Redis scanner/finder classes created |
+| R | rt-v2.0 | Realtime watch — different stack |
+| S | rt-v1.0 | VWAP reversal — different stack |
+| F | v900.1 | `TRADING_PIPELINE_F_USE_REDIS=false` — gate helpers need completion |
 
-## Custom-Gate Gap Analysis
+**Overall: 16/19 pipelines have Redis classes, 15 enabled.**
 
-| Pipeline | Missing Gates |
-|---|---|
-| L (v1600.0) | active window, top_days universe, losers_limit, pre-breakout detection |
+## Known Issues
 
-## Fix Strategy (per-class gate override)
+1. **BarEventConsumer hardcoded to v25.2**: The `handle5mBar()` and `handle1mBar()`
+   methods use hardcoded Redis keys (`v25.2:...`). This means only pipeline H
+   works correctly in the event-driven path. Needs to derive the version from the
+   injected scanner via `$this->scanner->getVersion()`.
 
-1. Override `doScan()` — call `redisRepo()->getLatestBars()` to get bars, apply pipeline-specific gates in PHP
-2. Add required data to `MarketBar` DTO and Redis bar payload (ema9, ema21, aboveVwap, rsi14, bbPosition already done)
-3. `buildIntradayUniverse()` handles market movers expansion — already called by Redis `doScan()`
-4. Entry finder is ML-safe for all pipelines — no changes needed
+2. **ConsumeBarEvents is dynamic** but the `--pipeline` flag must be passed
+   explicitly. Defaults to `h`.
+
+3. **Supervisor has only pipeline H**: `laravel-invest-worker.conf` and
+   `docker/supervisord.conf` only contain `bar-events-h`. Need entries for A-Q
+   (except F, O, R, S).
+
+4. **Pipeline O (v1500.0)**: No Redis scanner/finder classes. No `.env` entry.
+   Need `FiveMinuteSignalScannerV1500_0Redis.php` and
+   `OneMinuteEntryFinderV1500_0Redis.php`.
 
 ## What's Left
 
-Only 2 pipelines remain on SQL fallback:
-
-| Pipeline | Missing Gates | Action |
-|---|---|---|
-
-
-14 of 16 pipelines are production-ready for Redis event-driven scanning.
+| Item | Action |
+|---|---|
+| Pipeline O Redis classes | Create V1500_0Redis scanner + finder |
+| BarEventConsumer version | Derive version from scanner, not hardcoded |
+| Supervisor entries | Add bar-events-a through bar-events-q |
+| Pipeline F gate helpers | Complete helper methods to enable Redis |
+| config/trading.php use_redis | Add to all pipeline sections |
 
 ## Startup
 
 ```bash
-php artisan redis:hydrate-bars                              # Warm-up (once)
-python3 alpaca_python_api/stream_bars.py                     # Real-time bar stream
-php artisan bar-events:consume --group=scanner-h             # Event consumer
+# 1. Warm-up (one-time, then run as cron before market open)
+php artisan redis:hydrate-bars
+
+# 2. Real-time bar stream (runs continuously via supervisor)
+python3 alpaca_python_api/stream_bars.py
+
+# 3. Event consumer — per pipeline (run via supervisor for A-Q)
+php artisan bar-events:consume --pipeline=h --group=scanner-h --consumer=h-01 --batch=100
+```
+
+## Deployment
+
+### Supervisor Configuration
+
+Ubuntu supervisor config path: `/etc/supervisor/conf.d/*.conf`
+
+**Deploy supervisor config:**
+```bash
+sudo cp laravel-invest-worker.conf /etc/supervisor/conf.d/
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start all
+```
+
+**Currently deployed:** Only pipeline H in `laravel-invest-worker.conf`.
+
+**To deploy all pipelines:**
+
+**Docker:**
+`docker/supervisord.conf` includes `bar-events-h`, `bar-stream` (stream_bars.py),
+and `hydrate-bars` (manual one-shot).
+
+### Verify Deployment
+
+```bash
+sudo supervisorctl status | grep bar-events
+redis-cli ZCARD rt:bars:5m:$(date +%Y%m%d):stock:AAPL
+redis-cli XLEN rt:events:bars
+sudo supervisorctl tail -f laravel-invest-bar-events-h
 ```
 
 ## Gate Comparison
