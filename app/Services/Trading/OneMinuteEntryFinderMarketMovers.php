@@ -82,7 +82,6 @@ class OneMinuteEntryFinderMarketMovers
                 volume
             FROM one_minute_prices
             WHERE symbol = ?
-                AND asset_type = ?
                 AND ts_est >= ?
                 AND ts_est <= ?
             ORDER BY ts_est ASC

@@ -59,7 +59,6 @@ class FiveMinuteSignalScannerV40_0
         // Get active universe (traded in last 2 hours with decent volume)
         $activeSymbols = DB::table($this->fiveMinuteTable)
             ->select('symbol')
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $currentDate)
             ->where('ts_est', '>=', DB::raw("DATE_SUB('{$asOfTsEst}', INTERVAL 120 MINUTE)"))
             ->where('ts_est', '<=', $asOfTsEst)

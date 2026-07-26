@@ -111,7 +111,6 @@ class FiveMinuteSignalScannerV30_0
     {
         $rows = DB::table('eligible_symbols')
             ->select('symbol')
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDateEst)
             ->limit(5000)
             ->get();

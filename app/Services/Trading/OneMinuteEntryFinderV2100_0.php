@@ -71,7 +71,6 @@ class OneMinuteEntryFinderV2100_0
                 trading_time_est
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est = ?
             LIMIT 1
@@ -211,7 +210,6 @@ class OneMinuteEntryFinderV2100_0
             ."        e.price * {$target5Mult} AS target5_price\n"
             ."    FROM one_minute_prices e\n"
             ."    WHERE e.symbol = ?\n"
-            ."      AND e.asset_type = ?\n"
             ."      AND e.trading_date_est = ?\n"
             ."      AND e.ts_est >= ?\n"
             ."      AND e.ts_est > ?\n"
@@ -560,7 +558,6 @@ class OneMinuteEntryFinderV2100_0
                 SUM(COALESCE(volume, 0)) AS day_volume
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND trading_time_est BETWEEN \'09:30:00\' AND \'16:00:00\'
               AND high IS NOT NULL
@@ -597,7 +594,6 @@ class OneMinuteEntryFinderV2100_0
             SELECT ts_est, high, low
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND trading_time_est BETWEEN \'09:30:00\' AND \'16:00:00\'
               AND high IS NOT NULL
@@ -684,7 +680,6 @@ class OneMinuteEntryFinderV2100_0
             SELECT MAX(high) as hod
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
         ', [$symbol, $assetType, $tradingDate]);
 
@@ -704,7 +699,6 @@ class OneMinuteEntryFinderV2100_0
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
@@ -766,7 +760,6 @@ class OneMinuteEntryFinderV2100_0
             SELECT ts_est, price
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC

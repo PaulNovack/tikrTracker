@@ -88,7 +88,6 @@ class FiveMinuteSignalScannerV17_0 extends AbstractSignalScanner
         if ($symbols === null) {
             $symbols = DB::table('intraday_universe')
                 ->select('symbol')
-                ->where('asset_type', $assetType)
                 ->orderBy('symbol')
                 ->pluck('symbol')
                 ->all();

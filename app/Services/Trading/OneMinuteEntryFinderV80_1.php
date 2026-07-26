@@ -87,13 +87,12 @@ class OneMinuteEntryFinderV80_1
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         if (! $bars || count($bars) < 25) {
             return [
@@ -119,13 +118,12 @@ class OneMinuteEntryFinderV80_1
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // Build simple lookup: last 5m trend at/before each 1m ts
         $fiveMinTrendSeries = [];

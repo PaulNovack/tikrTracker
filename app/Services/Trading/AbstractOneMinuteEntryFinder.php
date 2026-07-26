@@ -81,7 +81,7 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
     ): ?array {
         self::$dbg['called']++;
 
-        $entry = $this->doFindBestLong($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->doFindBestLong($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -99,7 +99,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         $entry['stop'] = $entry['stop'] ?? $entry['stop_loss'] ?? null;
         $entry['type'] = $entry['type'] ?? $entry['entry_type'] ?? null;
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
@@ -147,11 +146,12 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         return $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE trading_date_est = ?
+            WHERE symbol = ?
+              AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
     }
 
     /**
@@ -174,7 +174,7 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
     }
 
     /**

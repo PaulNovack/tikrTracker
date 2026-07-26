@@ -69,7 +69,6 @@ class OneMinuteEntryFinderV130_0
               atr_pct
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
@@ -90,13 +89,12 @@ class OneMinuteEntryFinderV130_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, ema9_above_ema21
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         $fiveMinTrend = [];
         foreach ($fiveMinBars as $bar) {

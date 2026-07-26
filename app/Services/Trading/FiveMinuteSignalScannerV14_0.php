@@ -92,7 +92,6 @@ class FiveMinuteSignalScannerV14_0
             // Get previous trading day
             $currentDate = substr($asOfTsEst, 0, 10); // Extract date from timestamp
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');

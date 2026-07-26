@@ -240,7 +240,6 @@ class FiveMinuteSignalScannerV210_0
     private function getActiveSymbols(string $assetType): array
     {
         return DB::table('asset_info')
-            ->where('asset_type', $assetType)
             ->whereNull('deleted_at')
             ->pluck('symbol')
             ->toArray();

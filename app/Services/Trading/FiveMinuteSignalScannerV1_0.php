@@ -95,7 +95,6 @@ class FiveMinuteSignalScannerV1_0
         // Get opening prices for all symbols today (first 5m bar price)
         $openPrices = DB::table($this->fiveMinuteTable)
             ->select('symbol', DB::raw('MIN(price) as open'))
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '>=', $tradingDate.' 09:30:00')
             ->where('ts_est', '<=', $tradingDate.' 09:35:00')
@@ -106,7 +105,6 @@ class FiveMinuteSignalScannerV1_0
         // Get average volumes for each symbol (from daily_prices or calculate from 5m data)
         $avgVolumes = DB::table('daily_prices')
             ->select('symbol', DB::raw('AVG(volume) as avg_volume'))
-            ->where('asset_type', $assetType)
             ->where('date', '>=', DB::raw("DATE_SUB('$tradingDate', INTERVAL 20 DAY)"))
             ->where('date', '<', $tradingDate)
             ->groupBy('symbol')
@@ -116,7 +114,6 @@ class FiveMinuteSignalScannerV1_0
         // Update change_from_open and relative_volume for bars up to asOfTsEst
         $bars = DB::table($this->fiveMinuteTable)
             ->select('id', 'symbol', 'price', 'volume', 'ts_est')
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '<=', $asOfTsEst)
             ->whereNull('change_from_open') // Only calculate if not already done
@@ -192,7 +189,6 @@ class FiveMinuteSignalScannerV1_0
         // Get latest bar for each symbol at asOfTsEst
         $subquery = DB::table($this->fiveMinuteTable)
             ->select('symbol', DB::raw('MAX(ts_est) as latest_ts'))
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '<=', $asOfTsEst)
             ->groupBy('symbol');

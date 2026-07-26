@@ -60,7 +60,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
             if ($universeSymbols === null) {
                 $universeSymbols = DB::table('intraday_universe')
                     ->select('symbol')
-                    ->where('asset_type', $assetType)
                     ->orderBy('symbol')
                     ->pluck('symbol')
                     ->all();

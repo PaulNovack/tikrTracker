@@ -16,7 +16,6 @@ interface OneMinuteEntryFinderContract
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array;

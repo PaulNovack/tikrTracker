@@ -63,7 +63,6 @@ class FiveMinuteSignalScannerV20_0
         $currentDate = substr($asOfTsEst, 0, 10);
 
         $symbols = DB::table($this->oneMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $currentDate)
             ->where('ts_est', '<=', $asOfTsEst)
             ->distinct()

@@ -33,7 +33,7 @@ class OneMinuteEntryFinderV1500_0
         $signalBar = DB::selectOne(
             'SELECT price, high, low, open, volume, atr, atr_pct
              FROM five_minute_prices
-             WHERE symbol = ? AND asset_type = ? AND ts_est = ?',
+             WHERE symbol = ? AND ts_est = ?',
             [$symbol, $assetType, $signalTsEst]
         );
 
@@ -53,7 +53,6 @@ class OneMinuteEntryFinderV1500_0
             "SELECT MAX(high) as or_high, MIN(low) as or_low
              FROM five_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = ?
                AND trading_time_est BETWEEN '09:30:00' AND '10:00:00'",
             [$symbol, $assetType, $tradeDate]
@@ -76,7 +75,6 @@ class OneMinuteEntryFinderV1500_0
             'SELECT ts_est, price, open, high, low, volume
              FROM one_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = ?
                AND ts_est > ?
                AND ts_est <= ?
@@ -291,7 +289,6 @@ class OneMinuteEntryFinderV1500_0
             'SELECT AVG(volume) as avg_vol
              FROM one_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est < ?
              ORDER BY ts_est DESC

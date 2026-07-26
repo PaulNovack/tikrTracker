@@ -154,13 +154,12 @@ class OneMinuteEntryFinderV3000_0
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -184,13 +183,12 @@ class OneMinuteEntryFinderV3000_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9, ema21
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         // Build normalized 1m series + VWAP + EMA + HOD + 5m EMA values
         $norm = [];
@@ -526,13 +524,12 @@ class OneMinuteEntryFinderV3000_0
         $bars = DB::select("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ", [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (count(self::$oneMinuteBarsCache) >= self::$maxLocalCacheKeys) {
             array_shift(self::$oneMinuteBarsCache);
@@ -549,14 +546,13 @@ class OneMinuteEntryFinderV3000_0
         $bars = DB::select("
             SELECT ts_est, `open`, high, low, price
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 12
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ", [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (count($bars) < 2) {
             return [];

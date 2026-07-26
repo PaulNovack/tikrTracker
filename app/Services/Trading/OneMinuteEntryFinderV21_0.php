@@ -96,7 +96,6 @@ class OneMinuteEntryFinderV21_0
         // Get last 100 1-minute bars for calculation (need history for SMMA and shifts)
         $bars = DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $asOfTsEst)
             ->orderBy('ts_est', 'desc')
             ->limit(100)

@@ -333,7 +333,6 @@ class OneMinuteEntryFinderV210_0
                 ) AS avg_vol_20
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?

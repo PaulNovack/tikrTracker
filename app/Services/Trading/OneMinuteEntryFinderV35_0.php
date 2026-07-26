@@ -167,13 +167,12 @@ class OneMinuteEntryFinderV35_0 extends AbstractOneMinuteEntryFinder
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -201,13 +200,12 @@ class OneMinuteEntryFinderV35_0 extends AbstractOneMinuteEntryFinder
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         // Calculate choppiness (log only, no filtering for v25.0)
         $choppiness = [];

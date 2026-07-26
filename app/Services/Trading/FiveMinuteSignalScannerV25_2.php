@@ -119,7 +119,6 @@ class FiveMinuteSignalScannerV25_2 extends AbstractSignalScanner
     }
 
     protected function doScan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes,
         float $minMovePct,
@@ -150,7 +149,6 @@ class FiveMinuteSignalScannerV25_2 extends AbstractSignalScanner
         if ($symbols === null) {
             $symbols = DB::table('intraday_universe')
                 ->select('symbol')
-                ->where('asset_type', $assetType)
                 ->orderBy('symbol')
                 ->pluck('symbol')
                 ->all();

@@ -25,7 +25,6 @@ class FadeDetectionService
 
         $prices = DB::table('one_minute_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->whereBetween('ts_est', [$startTime, $entryTime])
             ->orderBy('ts_est', 'asc')
             ->get(['ts_est', 'price', 'high', 'low', 'open', 'volume']);
@@ -49,7 +48,6 @@ class FadeDetectionService
         $fiveMinStart = date('Y-m-d H:i:s', strtotime($entryTime.' -60 minutes'));
         $fiveMinBars = DB::table('five_minute_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->whereBetween('ts_est', [$fiveMinStart, $entryTime])
             ->orderBy('ts_est', 'asc')
             ->get(['ts_est', 'price', 'high', 'low', 'open', 'volume']);

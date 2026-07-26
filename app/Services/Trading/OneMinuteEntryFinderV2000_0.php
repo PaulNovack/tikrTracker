@@ -39,7 +39,6 @@ class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
             SELECT ts_est, price, open, high, low, volume, atr, atr_pct
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND ts_est = ?
             LIMIT 1
         ', [$symbol, $assetType, $signalTsEst]);
@@ -61,7 +60,6 @@ class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
             SELECT ts_est, price, open, high, low, volume
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = DATE(?)
               AND ts_est <= ?
             ORDER BY ts_est DESC

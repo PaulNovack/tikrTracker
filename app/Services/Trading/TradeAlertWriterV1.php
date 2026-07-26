@@ -405,7 +405,6 @@ class TradeAlertWriterV1
         $bars = DB::table($this->fiveMinuteTable)
             ->select(['price', 'high', 'low'])
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $entryTs)
             ->orderBy('ts_est', 'desc')
             ->limit(12)

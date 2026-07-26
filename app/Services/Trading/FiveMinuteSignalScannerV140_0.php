@@ -188,7 +188,6 @@ class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
         try {
             $currentDate = substr($asOfTsEst, 0, 10);
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');
@@ -486,7 +485,6 @@ WHERE a.close_nback IS NOT NULL
 
         $days = DB::table('daily_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('date', '<=', $currentDate)
             ->orderBy('date', 'desc')
             ->limit(5)

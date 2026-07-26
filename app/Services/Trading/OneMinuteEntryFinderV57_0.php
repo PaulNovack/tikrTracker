@@ -283,13 +283,12 @@ class OneMinuteEntryFinderV57_0
         $rows = $this->dbSelect("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ", [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
 
         $minimumBars = max($this->minBars, $this->minimumOpeningRangeBars + 3);
         if (count($rows) < $minimumBars) {

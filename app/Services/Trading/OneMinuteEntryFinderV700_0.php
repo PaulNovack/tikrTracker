@@ -106,13 +106,12 @@ class OneMinuteEntryFinderV700_0
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // V700 targets inverse/leveraged ETFs which often have sparse 1-minute data
         // Ultra-low threshold (3 bars) for ML training mode
@@ -140,13 +139,12 @@ class OneMinuteEntryFinderV700_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // Choppiness filter
         $choppiness = [];

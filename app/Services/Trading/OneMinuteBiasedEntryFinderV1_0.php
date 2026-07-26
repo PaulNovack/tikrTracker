@@ -271,12 +271,11 @@ class OneMinuteBiasedEntryFinderV1_0
               `price` AS `close`,
               `volume`
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $vwapStart, $vwapEnd]);
+        ', [$symbol, $vwapStart, $vwapEnd]);
 
         if (! $bars || count($bars) < 25) {
             return [
@@ -293,12 +292,11 @@ class OneMinuteBiasedEntryFinderV1_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $vwapStart, $vwapEnd]);
+        ', [$symbol, $vwapStart, $vwapEnd]);
 
         // Calculate choppiness (log only, no filtering for v17.0)
         $choppiness = [];

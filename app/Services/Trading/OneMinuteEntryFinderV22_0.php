@@ -177,7 +177,6 @@ class OneMinuteEntryFinderV22_0
 
         $bars = DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $asOfTsEst)
             ->orderBy('ts_est', 'desc')
             ->limit(160)

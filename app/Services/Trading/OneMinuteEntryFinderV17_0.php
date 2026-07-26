@@ -340,13 +340,12 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
                   `price` AS `close`,
                   `volume`
                 FROM one_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+            ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
         });
 
         if (! $bars || count($bars) < 25) {
@@ -375,13 +374,12 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+            ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
         });
 
         // Calculate choppiness (log only, no filtering for v17.0)

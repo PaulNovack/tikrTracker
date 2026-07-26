@@ -395,7 +395,6 @@ class OneMinuteEntryFinderV30_0
                 -- , NULLIF(low, 0)  AS low
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est BETWEEN (CAST(? AS DATETIME) - INTERVAL ? MINUTE) AND CAST(? AS DATETIME)
             ORDER BY ts_est ASC

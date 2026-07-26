@@ -136,13 +136,12 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $from, $to]);
+            ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 15) {

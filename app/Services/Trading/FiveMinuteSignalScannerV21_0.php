@@ -54,7 +54,6 @@ class FiveMinuteSignalScannerV21_0
         // Get symbols with recent 5-minute data that pass basic filters
         $symbols = DB::table($this->fiveMinuteTable)
             ->select('symbol', 'price', 'volume')
-            ->where('asset_type', $assetType)
             ->where('ts_est', $asOfTsEst)
             ->where('price', '>=', $minPrice)
             ->where('volume', '>=', $minVolume5m)

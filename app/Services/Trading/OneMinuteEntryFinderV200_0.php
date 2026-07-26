@@ -500,7 +500,6 @@ class OneMinuteEntryFinderV200_0
               NULL AS rsi_14
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
@@ -516,7 +515,6 @@ class OneMinuteEntryFinderV200_0
               CASE WHEN ema9 IS NOT NULL AND ema21 IS NOT NULL AND ema9 > ema21 THEN 1 ELSE 0 END AS trend_up
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?

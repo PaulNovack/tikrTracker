@@ -78,7 +78,6 @@ class FiveMinuteSignalScannerV26_1
 
         // Get last 5 trading days
         $tradingDays = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<=', $currentDate)
             ->select('trading_date_est')
             ->distinct()

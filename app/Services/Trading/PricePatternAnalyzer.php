@@ -30,7 +30,6 @@ class PricePatternAnalyzer
 
             $bar = DB::table('five_minute_prices')
                 ->where('symbol', $symbol)
-                ->where('asset_type', $assetType)
                 ->where('ts_est', '<=', $ts)
                 ->orderBy('ts_est', 'desc')
                 ->first();

@@ -102,13 +102,12 @@ class OneMinuteEntryFinderV31_0
               `price` AS `close`,
               `volume`
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         if (! $bars || count($bars) < 20) {
             return [

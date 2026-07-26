@@ -36,7 +36,6 @@ class EntryRefinerService
 
         // Find the most recent 1-minute bar at or before cutoff
         $latestBar = OneMinutePrice::where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $cutoffTs)
             ->orderByDesc('ts_est')
             ->first(['ts_est', 'open', 'high', 'low', 'price']);

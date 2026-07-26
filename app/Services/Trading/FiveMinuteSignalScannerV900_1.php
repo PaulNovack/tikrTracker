@@ -156,7 +156,6 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 
         // Resolve previous 2 trading days
         $prevTradingDates = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<', $tradeDate)
             ->distinct()
             ->orderBy('trading_date_est', 'desc')

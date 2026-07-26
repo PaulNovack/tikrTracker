@@ -287,13 +287,12 @@ class OneMinuteEntryFinderV20_0
               `price` AS `close`,
               `volume`
             FROM one_minute_prices
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+        ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
 
         if (! $bars || count($bars) < 25) {
             return [
@@ -1598,13 +1597,13 @@ class OneMinuteEntryFinderV20_0
         $oneMinSql = '
             SELECT price AS last_price
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 1
         ';
 
-        $oneMinResult = DB::selectOne($oneMinSql, [$assetType, $symbol, $asOfTsEst]);
+        $oneMinResult = DB::selectOne($oneMinSql, [$symbol, $asOfTsEst]);
 
         if (! $oneMinResult) {
             return []; // No 1m data, reject all
@@ -1619,12 +1618,12 @@ class OneMinuteEntryFinderV20_0
                 SUBSTRING_INDEX(GROUP_CONCAT(open ORDER BY ts_est DESC), ',', 1) AS last5_open,
                 SUBSTRING_INDEX(GROUP_CONCAT(price ORDER BY ts_est DESC), ',', 1) AS last5_close
             FROM five_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
               AND ts_est >= DATE_SUB(?, INTERVAL 25 MINUTE)
         ";
 
-        $fiveMinResult = DB::selectOne($fiveMinSql, [$assetType, $symbol, $asOfTsEst, $asOfTsEst]);
+        $fiveMinResult = DB::selectOne($fiveMinSql, [$symbol, $asOfTsEst, $asOfTsEst]);
 
         if (! $fiveMinResult) {
             return []; // No 5m data, reject all
@@ -1682,11 +1681,11 @@ class OneMinuteEntryFinderV20_0
         $bars = $this->dbSelect('
             SELECT price, open, volume
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 13
-        ', [$assetType, $symbol, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst]);
 
         if (count($bars) < 13) {
             return false; // Not enough data
@@ -1760,11 +1759,11 @@ class OneMinuteEntryFinderV20_0
         $bars = $this->dbSelect('
             SELECT price, ts_est
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 200
-        ', [$assetType, $symbol, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst]);
 
         if (count($bars) < 50) {
             return []; // Not enough data for Alligator

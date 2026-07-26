@@ -401,7 +401,6 @@ GROUP BY symbol
 
             try {
                 $prevTradingDay = DB::table($this->fiveMinuteTable)
-                    ->where('asset_type', $assetType)
                     ->where('trading_date_est', '<', $tradeDate)
                     ->orderBy('trading_date_est', 'desc')
                     ->value('trading_date_est');

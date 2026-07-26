@@ -53,7 +53,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 rsi_14
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND ts_est = ?
             LIMIT 1
         ', [$symbol, $assetType, $signalTsEst]);
@@ -102,7 +101,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 rsi_14
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = DATE(?)
               AND ts_est <= ?
             ORDER BY ts_est DESC

@@ -175,7 +175,6 @@ class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
         $benchmarkBars = DB::table('five_minute_prices')
             ->select('ts_est', 'price', 'vwap', 'above_vwap')
             ->where('symbol', $benchmarkSymbol)
-            ->where('asset_type', 'stock')
             ->where('ts_est', '<=', $asOfTsEst)
             ->orderBy('ts_est', 'desc')
             ->limit(4)

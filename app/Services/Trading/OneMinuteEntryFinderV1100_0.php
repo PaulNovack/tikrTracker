@@ -95,7 +95,6 @@ WITH signal_5m AS (
         f.rsi_14 AS fmp_rsi_14
     FROM five_minute_prices f
     WHERE f.symbol = ?
-      AND f.asset_type = ?
       AND f.ts_est <= ?
     ORDER BY f.ts_est DESC
     LIMIT 1
@@ -208,7 +207,6 @@ base AS (
         ) AS first_bar_low
     FROM one_minute_prices o
     WHERE o.symbol = ?
-      AND o.asset_type = ?
       AND o.ts_est BETWEEN DATE_SUB(?, INTERVAL {$beforeMinutes} MINUTE)
                       AND ?
 ),

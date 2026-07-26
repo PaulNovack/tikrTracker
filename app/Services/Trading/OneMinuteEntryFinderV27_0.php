@@ -142,13 +142,12 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
             return $this->dbSelect('
                 SELECT ts_est, `open`, high, low, price AS close, volume
                 FROM one_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+            ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
         });
 
         if (! $bars || count($bars) < $minBars) {
@@ -177,13 +176,12 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+            ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
         });
 
         $choppiness = [];

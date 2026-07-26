@@ -152,7 +152,6 @@ class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
 
         // Add intraday_universe (wide universe from H/I)
         $intradayUniverse = DB::table('intraday_universe')
-            ->where('asset_type', $assetType)
             ->orderBy('symbol')
             ->pluck('symbol')
             ->map(static fn ($s) => (string) $s)
@@ -163,7 +162,6 @@ class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
         try {
             $currentDate = substr($asOfTsEst, 0, 10);
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');

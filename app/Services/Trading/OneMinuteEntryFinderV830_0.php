@@ -93,7 +93,6 @@ WITH one_minute_candidates AS (
 
     FROM one_minute_prices o
     WHERE o.symbol = ?
-      AND o.asset_type = ?
       AND o.trading_date_est = ?
       AND o.ts_est > ?
       AND o.ts_est <= ?
@@ -216,7 +215,6 @@ LIMIT 1
                 SELECT open, ts_est
                 FROM one_minute_prices
                 WHERE symbol = ?
-                  AND asset_type = ?
                   AND trading_date_est = ?
                   AND ts_est > ?
                 ORDER BY ts_est ASC

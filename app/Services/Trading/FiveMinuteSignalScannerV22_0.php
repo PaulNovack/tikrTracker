@@ -43,7 +43,6 @@ class FiveMinuteSignalScannerV22_0
 
         $rows = DB::table($this->fiveMinuteTable)
             ->select('symbol', 'price', 'volume')
-            ->where('asset_type', $assetType)
             ->where('ts_est', $asOfTsEst)
             ->where('price', '>=', $minPrice)
             ->where('volume', '>=', $minVolume5m)

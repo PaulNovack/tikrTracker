@@ -440,7 +440,6 @@ class FiveMinuteSignalScannerV56_0
 
         if ($symbols === null) {
             $symbols = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
                 ->orderBy('symbol')
                 ->pluck('symbol')
                 ->map(static fn ($symbol): string => (string) $symbol)

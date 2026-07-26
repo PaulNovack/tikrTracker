@@ -110,7 +110,6 @@ class OneMinuteEntryFinderV1_0
     {
         return DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '>=', $startTs)
             ->where('ts_est', '<=', $endTs)
@@ -127,7 +126,6 @@ class OneMinuteEntryFinderV1_0
     {
         return DB::table('daily_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('date', '>=', DB::raw("DATE_SUB('$tradingDate', INTERVAL 14 DAY)"))
             ->where('date', '<', $tradingDate)
             ->avg(DB::raw('high - low'));

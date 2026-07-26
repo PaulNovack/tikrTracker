@@ -125,11 +125,11 @@ class OneMinuteEntryFinderV16_0
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, `high`, `low`, `price` AS `close`, COALESCE(`volume`,0) AS volume
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ? AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradingDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradingDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < 35) {
             return [

@@ -96,7 +96,6 @@ class OneMinuteEntryFinderV40_0
         // Get 1-minute bars
         $bars = DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradeDate)
             ->where('ts_est', '>=', DB::raw("DATE_SUB('{$signalTsEst}', INTERVAL {$beforeMinutes} MINUTE)"))
             ->where('ts_est', '<=', $asOfTsEst)

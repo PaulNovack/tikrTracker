@@ -93,13 +93,12 @@ class OneMinuteEntryFinderV60_3 extends AbstractOneMinuteEntryFinder
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 25) {
@@ -129,13 +128,12 @@ class OneMinuteEntryFinderV60_3 extends AbstractOneMinuteEntryFinder
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap,
                        ema9_ema21_spread, vwap_dist_pct
                 FROM five_minute_prices
-                WHERE asset_type = ?
                   AND symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         // Precompute 5m trend bool for each 1m timestamp: O(n+m) single pass instead of O(n×m).

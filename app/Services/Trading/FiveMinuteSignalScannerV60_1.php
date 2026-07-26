@@ -105,7 +105,6 @@ class FiveMinuteSignalScannerV60_1
             $currentDate = substr($asOfTsEst, 0, 10);
 
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');

@@ -400,7 +400,6 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
             $symbols = array_column($topPerformers, 'symbol');
 
             $intradayUniverse = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
                 ->orderBy('symbol')
                 ->pluck('symbol')
                 ->map(static fn ($symbol): string => (string) $symbol)

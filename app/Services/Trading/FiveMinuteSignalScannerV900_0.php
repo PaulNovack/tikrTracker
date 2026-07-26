@@ -111,7 +111,6 @@ class FiveMinuteSignalScannerV900_0
 
         // Get previous 2 trading days to calculate day-over-day move correctly
         $prevTradingDates = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<', $tradeDate)
             ->distinct()
             ->orderBy('trading_date_est', 'desc')
