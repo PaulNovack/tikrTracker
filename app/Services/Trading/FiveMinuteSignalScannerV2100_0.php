@@ -133,8 +133,7 @@ class FiveMinuteSignalScannerV2100_0
                     f.trading_date_est,
                     MAX(f.ts_est) AS signal_ts_est
                 FROM five_minute_prices f
-
-                  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
                   AND f.ts_est <= ?
                   AND f.ts_est >= DATE_SUB(?, INTERVAL {$safeLookbackMinutes} MINUTE)
                   AND f.trading_time_est BETWEEN '09:30:00' AND '11:00:00'

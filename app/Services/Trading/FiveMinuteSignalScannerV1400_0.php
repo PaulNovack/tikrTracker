@@ -118,8 +118,7 @@ WITH price_window AS (
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as reverse_bar_num,
         COUNT(*) OVER (PARTITION BY f.symbol) as total_bars
     FROM five_minute_prices f
-
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.ts_est >= ?
         AND f.ts_est <= ?
         AND f.trading_time_est BETWEEN ? AND ?

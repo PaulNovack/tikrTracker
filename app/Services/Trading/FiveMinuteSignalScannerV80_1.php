@@ -314,8 +314,7 @@ class FiveMinuteSignalScannerV80_1
               JOIN (
                 SELECT omp_u.symbol
                 FROM one_minute_prices omp_u
-
-                  AND omp_u.ts_est >= DATE_SUB(?, INTERVAL {$universeLookbackMin} MINUTE)
+    WHERE omp_u.ts_est >= DATE_SUB(?, INTERVAL {$universeLookbackMin} MINUTE)
                   AND omp_u.ts_est <= ?
                   AND omp_u.symbol IN ($ph)
                 GROUP BY omp_u.symbol

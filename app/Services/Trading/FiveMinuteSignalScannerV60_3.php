@@ -266,8 +266,7 @@ WITH base AS (
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20
   FROM one_minute_prices omp
-
-    AND omp.symbol IN ($ph)
+    WHERE omp.symbol IN ($ph)
     AND omp.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND omp.ts_est <  ?
     AND omp.trading_date_est = DATE(?)

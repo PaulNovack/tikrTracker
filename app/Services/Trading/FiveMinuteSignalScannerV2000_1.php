@@ -147,8 +147,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                     f.trading_date_est,
                     ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
                 FROM five_minute_prices f
-
-                  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
                   AND f.ts_est <= ?
                   AND f.symbol IN ($placeholders)
             ) ranked
@@ -174,8 +173,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                 AVG(f.volume) AS avg_5m_volume,
                 AVG(f.price * f.volume) / 5 AS avg_dollar_volume_per_minute
             FROM five_minute_prices f
-
-              AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
               AND f.ts_est <= ?
               AND f.symbol IN ($placeholders)
             GROUP BY f.symbol

@@ -150,8 +150,7 @@ SELECT
     ) AS price_5d_ago
     
 FROM five_minute_prices f
-
-  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
   AND f.ts_est <= ?
   AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   AND f.trading_time_est BETWEEN ? AND ?

@@ -152,8 +152,7 @@ WITH opening_range AS (
         AVG(f.volume) as or_avg_volume,
         COUNT(*) as or_bar_count
     FROM five_minute_prices f
-
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN '09:30:00' AND '10:00:00'
         AND f.open > 0
@@ -185,8 +184,7 @@ current_bar AS (
         f.atr,
         f.atr_pct
     FROM five_minute_prices f
-
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN ? AND ?

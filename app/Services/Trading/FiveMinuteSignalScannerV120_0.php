@@ -117,7 +117,6 @@ class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
         // 1) Get Elite Multi-Day Winners (2+ days up with increasing volume)
         // -----------------------------
         $eliteMovers = $this->getEliteMultiDayMovers(
-            'stock',
             $tradeDate,
             $minConsecutiveDays,
             $requireVolIncrease
@@ -175,8 +174,7 @@ WITH today_data AS (
     f.vwap,
     f.atr_pct
   FROM five_minute_prices f
-
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
 ),

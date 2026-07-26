@@ -131,8 +131,7 @@ WITH recent_bars AS (
         f.rsi_14,
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as rn
     FROM five_minute_prices f
-
-      AND f.ts_est <= ?
+    WHERE f.ts_est <= ?
       AND f.ts_est >= ?
       AND f.trading_date_est >= ?  -- Changed from = to >= for multi-day patterns
       AND f.trading_date_est <= ?  -- Current day constraint

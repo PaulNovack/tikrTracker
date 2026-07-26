@@ -144,8 +144,7 @@ WITH latest_bars AS (
         f.atr_pct,
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as bar_rank
     FROM five_minute_prices f
-
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN ? AND ?

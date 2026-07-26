@@ -319,8 +319,7 @@ WITH recent_5m AS (
     ) AS avg_vol_10,
     ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
-
-    AND f.symbol IN ($ph)
+    WHERE f.symbol IN ($ph)
     AND f.ts_est <= ?
     AND f.ts_est >= CAST(? AS DATETIME) - INTERVAL 2 HOUR
 )

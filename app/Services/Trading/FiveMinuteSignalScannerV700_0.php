@@ -219,8 +219,7 @@ WITH sym_bars AS (
     f.ema9_above_ema21,
     CASE WHEN f.price > f.vwap THEN 1 ELSE 0 END AS above_vwap
   FROM five_minute_prices f
-
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -534,8 +533,7 @@ SELECT DISTINCT
     f.symbol,
     MAX(f.price) AS current_price
 FROM five_minute_prices f
-
-    AND f.trading_date_est = DATE(?)
+    WHERE f.trading_date_est = DATE(?)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND f.price >= ?
