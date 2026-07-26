@@ -46,6 +46,9 @@ return [
     // Enable/disable relative strength filtering globally (can be overridden per version)
     'enable_relative_strength_filter' => (bool) env('TRADING_ENABLE_RS_FILTER', false),
 
+    // Enable debug logging for entry finders (logs periodic counter stats)
+    'entry_finder_debug' => (bool) env('TRADING_ENTRY_FINDER_DEBUG', false),
+
     // Position sizing configuration
     'position_size_mode' => env('AUTO_ALPACA_POSITION_SIZE_MODE', 'fixed'), // 'fixed' or 'dynamic'
 

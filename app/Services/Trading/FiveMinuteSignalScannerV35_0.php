@@ -93,6 +93,9 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
             'entry_allow_lunch' => $this->entryAllowLunch,
             'entry_min_bars' => $this->entryMinBars,
             'entry_max_age_minutes' => $this->entryMaxAgeMinutes,
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
+            'move_bars_5m' => 6,
         ];
     }
 
@@ -136,6 +139,7 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
         $minMove30m = $this->minMove30m;
 
         $activeWindowMinutes = $this->activeWindowMinutes;
+        $cfg = $this->scanConfig();
         $atrPeriod = (int) ($cfg['atr_period_5m'] ?? 14);
         $rvolLookback = (int) ($cfg['rvol_lookback_5m'] ?? 20);
         $moveBars = (int) ($cfg['move_bars_5m'] ?? 6); // 6*5m = 30m

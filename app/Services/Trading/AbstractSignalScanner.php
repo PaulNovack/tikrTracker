@@ -2,6 +2,8 @@
 
 namespace App\Services\Trading;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 
 /**
@@ -140,6 +142,65 @@ abstract class AbstractSignalScanner
         $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $limit);
 
         return array_values(array_unique(array_merge($symbols, $movers)));
+    }
+
+    /**
+     * Build the intraday symbol universe from the `intraday_universe` table,
+     * optionally enriched with market movers and 4-bar 1-min up-streak Redis symbols.
+     *
+     * Result is cached with the configured TTL (default 8h) to avoid expensive
+     * DB queries on every scan.
+     *
+     * @param  string  $cacheKey  Unique cache key for this scanner (e.g. 'scan_v25_2:universe_symbols')
+     * @param  string|null  $moversConfigKey  Config key for market mover limit (e.g. 'trading.market_movers.pipeline_h'), or null to use $this->marketMoversLimit
+     * @param  string  $asOfTsEst  As-of timestamp for date extraction
+     * @param  bool  $skipCache  If true, bypass cache read/write (backtest mode)
+     * @return string[]
+     */
+    protected function buildIntradayUniverse(string $cacheKey, ?string $moversConfigKey = null, string $asOfTsEst = '', bool $skipCache = false): array
+    {
+        $symbols = $skipCache ? null : Cache::get($cacheKey);
+
+        if ($symbols !== null) {
+            return $symbols;
+        }
+
+        $symbols = DB::table('intraday_universe')
+            ->orderBy('symbol')
+            ->pluck('symbol')
+            ->map(static fn ($symbol): string => (string) $symbol)
+            ->all();
+
+        // Add market movers if a config key is provided and limit > 0
+        if ($moversConfigKey !== null) {
+            $moversLimit = (int) config($moversConfigKey, 0);
+            if ($moversLimit > 0) {
+                $tradeDate = $asOfTsEst !== '' ? substr($asOfTsEst, 0, 10) : null;
+                $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $moversLimit);
+                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
+            }
+        } elseif ($this->marketMoversLimit > 0) {
+            $tradeDate = $asOfTsEst !== '' ? substr($asOfTsEst, 0, 10) : null;
+            $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $this->marketMoversLimit);
+            $symbols = array_values(array_unique(array_merge($symbols, $movers)));
+        }
+
+        // Add 4-bar 1-min up streak symbols from Redis (if enabled)
+        if ($this->includeStreakSymbols) {
+            $redisSymbols = Redis::get('last_4_1min_up:symbols');
+            if ($redisSymbols) {
+                $streakSymbols = json_decode($redisSymbols, true);
+                if (is_array($streakSymbols) && $streakSymbols !== []) {
+                    $symbols = array_values(array_unique(array_merge($symbols, $streakSymbols)));
+                }
+            }
+        }
+
+        if (! $skipCache) {
+            Cache::put($cacheKey, $symbols, $this->universeCacheTtl);
+        }
+
+        return $symbols;
     }
 
     /**

@@ -76,6 +76,9 @@ class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
             'priority_symbols' => $this->prioritySymbols,
             'priority_boost' => $this->priorityBoost,
             'pre_breakout_rvol_mult' => $this->preBreakoutRvolMult,
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
+            'move_bars_5m' => 6,
         ];
     }
 
@@ -119,6 +122,7 @@ class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
         $minMove30m = $this->minMove30m;
 
         $activeWindowMinutes = $this->activeWindowMinutes;
+        $cfg = $this->scanConfig();
         $atrPeriod = (int) ($cfg['atr_period_5m'] ?? 14);
         $rvolLookback = (int) ($cfg['rvol_lookback_5m'] ?? 20);
         $moveBars = (int) ($cfg['move_bars_5m'] ?? 6); // 6*5m = 30m
