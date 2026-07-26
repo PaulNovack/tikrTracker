@@ -42,11 +42,10 @@ class RedisBarRepository implements BarRepositoryInterface
         string $asOfTsEst,
         int $limit
     ): array {
-        $dateStr = substr($fromTsEst, 0, 10);  // YYYY-MM-DD from EST
-        $key = sprintf('%sbars:%s:%s:%s:%s', self::RT_PREFIX, $timeframe, $dateStr, $assetType, strtoupper($symbol));
-
         $minEpoch = (int) strtotime($fromTsEst.' EST');
         $maxEpoch = (int) strtotime($asOfTsEst.' EST');
+        $dateStr = date('Ymd', $minEpoch);  // YYYYMMDD — matches hydrate & getLatestBars
+        $key = sprintf('%sbars:%s:%s:%s:%s', self::RT_PREFIX, $timeframe, $dateStr, $assetType, strtoupper($symbol));
 
         if ($minEpoch <= 0 || $maxEpoch <= 0) {
             return [];

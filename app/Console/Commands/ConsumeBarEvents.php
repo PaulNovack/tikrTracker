@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\Trading\BarEventConsumer;
 use App\Services\Trading\FiveMinuteSignalScannerV25_2Redis;
 use App\Services\Trading\OneMinuteEntryFinderV25_2Redis;
+use App\Services\Trading\TradeAlertWriterV1;
 use Illuminate\Console\Command;
 
 class ConsumeBarEvents extends Command
@@ -17,7 +18,7 @@ class ConsumeBarEvents extends Command
 
     protected $description = 'Consume bar events from rt:events:bars stream and run per-symbol scanning.';
 
-    public function handle(): int
+    public function handle(TradeAlertWriterV1 $writer): int
     {
         $group = $this->option('group');
         $consumerName = $this->option('consumer');
@@ -29,11 +30,11 @@ class ConsumeBarEvents extends Command
         );
         $finder = new OneMinuteEntryFinderV25_2Redis;
 
-        $consumer = new BarEventConsumer($scanner, $finder);
+        $barConsumer = new BarEventConsumer($scanner, $finder, $writer);
 
         $this->info("Starting BarEventConsumer (group={$group}, consumer={$consumerName}, batch={$batchSize})...");
 
-        $consumer->run($group, $consumerName, $batchSize);
+        $barConsumer->run($group, $consumerName, $batchSize);
 
         return self::SUCCESS;
     }

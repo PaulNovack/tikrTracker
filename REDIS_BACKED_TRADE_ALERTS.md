@@ -173,10 +173,6 @@ When `true`, the `*Redis` class is instantiated with the `UsesRedisForScanning` 
 4. Check `.env` has `TRADING_V25_SCANNER_USE_REDIS=true`
 5. Run pipeline with debug: add `SCANNER_V25_DEBUG=1` to `.env`
 
-### "Unable to locate file in Vite manifest" error
-
-This is unrelated to Redis scanning — run `npm run build` or `npm run dev`.
-
 ### Empty results after restart
 
 Run `php artisan redis:hydrate-bars` to re-populate Redis after a restart or Redis flush. Redis bar keys have a 2-day TTL.

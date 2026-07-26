@@ -116,6 +116,19 @@ abstract class AbstractSignalScanner
     ): array;
 
     /**
+     * Event-driven per-symbol scan — reads a single symbol's bars from Redis
+     * and evaluates it against scanner gates. Returns a signal array or null.
+     *
+     * Default implementation returns null; Redis scanners override via trait.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function scanSymbol(string $symbol, string $asOfTsEst): ?array
+    {
+        return null;
+    }
+
+    /**
      * Add market movers to the symbol universe if the limit is configured.
      *
      * Each scanner can override $this->marketMoversLimit or pass a config key
