@@ -75,8 +75,7 @@ class FiveMinuteSignalScannerV200_0
                 SUM(volume) AS vol_sum,
                 MAX(price) AS max_price_in_window
             FROM five_minute_prices
-
-              AND ts_est >= ?
+    WHERE ts_est >= ?
               AND ts_est <= ?
             GROUP BY symbol
             HAVING vol_sum >= ?

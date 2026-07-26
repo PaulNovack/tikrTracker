@@ -115,8 +115,7 @@ WITH f AS (
         ) AS avg_volume_20
 
     FROM five_minute_prices
-
-      AND trading_date_est = ?
+    WHERE trading_date_est = ?
       AND ts_est <= ?
       AND trading_time_est BETWEEN ? AND ?
       AND price BETWEEN ? AND ?

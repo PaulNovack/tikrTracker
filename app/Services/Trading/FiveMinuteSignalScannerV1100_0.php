@@ -197,8 +197,7 @@ candidates AS (
     INNER JOIN (
         SELECT symbol, MAX(ts_est) AS max_ts
         FROM five_minute_prices
-
-          AND trading_date_est = ?
+    WHERE trading_date_est = ?
           AND ts_est <= ?
         GROUP BY symbol
     ) latest ON f.symbol = latest.symbol AND f.ts_est = latest.max_ts

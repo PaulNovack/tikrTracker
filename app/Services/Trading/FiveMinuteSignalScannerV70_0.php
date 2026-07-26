@@ -242,8 +242,7 @@ WITH bars AS (
     volume,
     (high - low) / NULLIF(price, 0) AS bar_range_pct
   FROM one_minute_prices
-
-    AND trading_date_est = ?
+    WHERE trading_date_est = ?
     AND ts_est <= ?
     AND volume > ?
 ),

@@ -588,8 +588,7 @@ class FiveMinuteSignalScannerV2100_0
                 high,
                 low
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               WHERE symbol IN ({$symbolPlaceholders})
               AND trading_time_est BETWEEN '09:30:00' AND '16:00:00'
               AND high IS NOT NULL

@@ -107,8 +107,7 @@ class FiveMinuteSignalScannerV26_1
                      ORDER BY fp2.ts_est DESC LIMIT 1) as day_close
                 FROM (SELECT DISTINCT symbol, trading_date_est 
                       FROM five_minute_prices 
-
-                        AND trading_date_est IN (?, ?, ?, ?, ?)) fp
+    WHERE trading_date_est IN (?, ?, ?, ?, ?)) fp
             ),
             positive_days AS (
                 SELECT 

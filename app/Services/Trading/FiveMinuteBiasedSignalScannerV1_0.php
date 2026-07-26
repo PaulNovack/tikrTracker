@@ -62,8 +62,7 @@ WITH daily_stats AS (
     AVG(volume) AS avg_volume,
     SUM(volume) AS total_volume
   FROM five_minute_prices
-
-    AND trading_date_est = ?
+    WHERE trading_date_est = ?
     AND TIME(ts_est) BETWEEN '09:30:00' AND '16:00:00'
   GROUP BY symbol, trading_date_est
 ),
@@ -143,7 +142,7 @@ ORDER BY low_to_high_pct DESC, total_volume DESC
 LIMIT ?
 ";
 
-        $params = [ $tradingDate, $minMovePct, $limit * 3]; // Fetch 3x more to account for filtering
+        $params = [$tradingDate, $minMovePct, $limit * 3]; // Fetch 3x more to account for filtering
         $rows = $this->dbSelect($sql, $params);
 
         $out = [];
@@ -153,7 +152,7 @@ LIMIT ?
             }
 
             // Check if a 1% trailing stop would survive from entry to day high
-            if (! $this->wouldSurviveTrailingStop($r->symbol, $r->, $r->trading_date_est, $r->signal_ts_est, 0.01)) {
+            if (! $this->wouldSurviveTrailingStop($r->symbol, $r->asset_type, $r->trading_date_est, $r->signal_ts_est, 0.01)) {
                 continue; // Skip stocks that would get stopped out
             }
 

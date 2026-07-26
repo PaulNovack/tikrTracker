@@ -176,8 +176,7 @@ avg_volume AS (
         symbol,
         AVG(volume) as avg_vol_20
     FROM five_minute_prices
-
-        AND trading_date_est = ?
+    WHERE trading_date_est = ?
         AND ts_est < ?
         WHERE symbol IN ($symbolPlaceholders)
     GROUP BY symbol

@@ -229,8 +229,7 @@ mkt_bars AS (
     ts_est,
     price AS m_close
   FROM five_minute_prices
-
-    AND symbol = ?
+    WHERE symbol = ?
     AND trading_date_est = DATE(?)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)

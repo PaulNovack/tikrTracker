@@ -186,8 +186,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         $yesterdayCloses = $this->dbSelect('
             SELECT symbol, price AS prev_close
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
         ', [$prevTradingDate, $minPrice, $maxPrice]);
@@ -207,8 +206,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         $twoDaysAgoCloses = $this->dbSelect('
             SELECT symbol, price AS close_2d
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
         ', [$prevPrevTradingDate, $minPrice, $maxPrice]);
@@ -271,8 +269,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
                 MAX(CASE WHEN trading_time_est = '09:30:00' THEN open ELSE NULL END) AS today_open_price,
                 MAX(CASE WHEN trading_time_est <= '09:45:00' THEN price ELSE NULL END) AS highest_first_15min
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
               WHERE symbol IN ({$placeholders})
@@ -339,8 +336,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         $avgVolumeRows = $this->dbSelect("
             SELECT symbol, AVG(volume) AS avg_volume
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               WHERE symbol IN ({$placeholders2})
             GROUP BY symbol
         ", array_merge([$prevTradingDate], $signalSymbols));
@@ -371,8 +367,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
                     ELSE 0
                 END AS bb_position
             FROM five_minute_prices
-
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est BETWEEN ? AND ?
               AND ema9_above_ema21 = 1

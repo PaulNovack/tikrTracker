@@ -80,8 +80,7 @@ class FiveMinuteSignalScannerV31_0
                     MAX(price) as day_high,
                     (MAX(price) - MIN(price)) / MIN(price) * 100 as intraday_range_pct
                 FROM five_minute_prices
-
-                  AND trading_date_est IN (?, ?, ?, ?, ?, ?, ?)
+    WHERE trading_date_est IN (?, ?, ?, ?, ?, ?, ?)
                   AND TIME(ts_est) BETWEEN '09:30:00' AND '16:00:00'
                 GROUP BY symbol, trading_date_est
                 HAVING intraday_range_pct >= 10.0

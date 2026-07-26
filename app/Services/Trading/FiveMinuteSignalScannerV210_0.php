@@ -269,8 +269,7 @@ class FiveMinuteSignalScannerV210_0
                     $rows = $this->dbSelect('
                     SELECT *
                     FROM five_minute_prices
-
-                      AND ts <= ?
+    WHERE ts <= ?
                       AND ts >= ?
                     ORDER BY symbol ASC, ts DESC
                 ', [$asOfTsEst, $startTime]);
