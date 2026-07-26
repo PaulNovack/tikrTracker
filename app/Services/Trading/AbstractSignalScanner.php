@@ -22,6 +22,13 @@ abstract class AbstractSignalScanner
 {
     use HasPriceTables;
 
+    // ── Universe configuration (overridable per scanner) ──
+    public int $marketMoversLimit = 0;
+
+    public bool $includeStreakSymbols = true;
+
+    public int $universeCacheTtl = 28800;
+
     /**
      * Get the scanner version string (e.g. 'v25.2').
      */
@@ -81,9 +88,10 @@ abstract class AbstractSignalScanner
         float $minMovePct = 1.2,
         float $volMult = 3.5,
         int $limit = 60,
-        bool $skipCache = false
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
-        $rows = $this->doScan($assetType, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache);
+        $rows = $this->doScan($assetType, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache, $symbol);
 
         foreach ($rows as $i => $row) {
             $this->validateSignalRow($row, $i);
@@ -107,7 +115,8 @@ abstract class AbstractSignalScanner
         float $minMovePct,
         float $volMult,
         int $limit,
-        bool $skipCache
+        bool $skipCache,
+        ?string $symbol = null
     ): array;
 
     /**
