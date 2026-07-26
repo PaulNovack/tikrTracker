@@ -57,14 +57,12 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      * Core entry logic — subclasses implement this to find the best entry point.
      *
      * @param  string  $symbol  The stock symbol
-     * @param  string  $assetType  'stock' or 'crypto'
      * @param  string  $signalTsEst  The signal timestamp in EST
      * @param  string  $asOfTsEst  The "as of" timestamp in EST
      * @return array|null Entry data array or null if no entry found
      */
     abstract protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array;
@@ -78,7 +76,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     final public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array {
@@ -142,7 +139,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     protected function fetchOneMinuteBars(
         string $symbol,
-        string $assetType,
         string $marketOpen,
         string $asOfTsEst,
     ): array {
@@ -151,9 +147,7 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         return $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
@@ -167,7 +161,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     protected function fetchFiveMinuteBarsForAnalysis(
         string $symbol,
-        string $assetType,
         string $marketOpen,
         string $asOfTsEst,
     ): array {
@@ -176,8 +169,7 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         return $this->dbSelect('
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?

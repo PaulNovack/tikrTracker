@@ -125,7 +125,8 @@ class FiveMinuteSignalScannerV25_2 extends AbstractSignalScanner
         float $minMovePct,
         float $volMult,
         int $limit,
-        bool $skipCache
+        bool $skipCache,
+        ?string $symbol = null
     ): array {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;

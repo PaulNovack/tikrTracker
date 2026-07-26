@@ -40,13 +40,13 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v17.0\';
+        return 'v17.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     /**
