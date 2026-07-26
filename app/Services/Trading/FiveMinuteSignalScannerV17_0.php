@@ -83,34 +83,7 @@ class FiveMinuteSignalScannerV17_0 extends AbstractSignalScanner
     protected function doScan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 1.2, float $volMult = 3.5, int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
     {
         // Step 1: Universe from intraday_universe (pre-built, fast, cached 8h)
-        $universeCacheKey = 'scan_v17_0:universe_symbols';
-        $symbols = Cache::get($universeCacheKey);
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->select('symbol')
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->all();
-
-            // Add market movers to universe if enabled
-            $moversLimit = (int) config('trading.market_movers.pipeline_i', 0);
-            if ($moversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache(null, $moversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            // Add 4-bar 1-min up streak symbols from Redis
-            $redisSymbols = \Illuminate\Support\Facades\Redis::get('last_4_1min_up:symbols');
-            if ($redisSymbols) {
-                $streakSymbols = json_decode($redisSymbols, true);
-                if (is_array($streakSymbols) && $streakSymbols !== []) {
-                    $symbols = array_values(array_unique(array_merge($symbols, $streakSymbols)));
-                }
-            }
-
-            // Cache for 8 hours — universe only needs to be refreshed once per trading day
-            Cache::put($universeCacheKey, $symbols, 28800);
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v17_0:universe_symbols', 'trading.market_movers.pipeline_i', $asOfTsEst);
 
         // If no symbols found, return empty
         if (empty($symbols)) {

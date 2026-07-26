@@ -147,25 +147,7 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
         $lookbackMinutes = max($lookbackMinutes, $minimumLookbackMinutes);
 
         // ---------- 1) Universe: intraday_universe (pre-built, fast, cached 8h) ----------
-        $universeCacheKey = 'scan_v35_0:universe_symbols';
-        $symbols = Cache::get($universeCacheKey);
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->select('symbol')
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->all();
-
-            // Add market movers to universe if enabled
-            $moversLimit = (int) config('trading.market_movers.pipeline_h', 0);
-            if ($moversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache(null, $moversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            // Cache for 8 hours — universe only needs to be refreshed once per trading day
-            Cache::put($universeCacheKey, $symbols, 28800);
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v35_0:universe_symbols', 'trading.market_movers.pipeline_h', $asOfTsEst);
 
         if (empty($symbols)) {
             return [];

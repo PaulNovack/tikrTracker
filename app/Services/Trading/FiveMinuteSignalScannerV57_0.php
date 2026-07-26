@@ -421,35 +421,7 @@ class FiveMinuteSignalScannerV57_0
     /** @return array<int, string> */
     private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = 'scan_v57_0:universe_symbols';
-        $symbols = $skipCache ? null : Cache::get($cacheKey);
-
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->map(static fn ($symbol): string => (string) $symbol)
-                ->all();
-
-            if ($this->marketMoversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)
-                    ->getTodaysTopMoversFromCache(null, $this->marketMoversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            // Add 4-bar 1-min up streak symbols from Redis
-            $redisSymbols = \Illuminate\Support\Facades\Redis::get('last_4_1min_up:symbols');
-            if ($redisSymbols) {
-                $streakSymbols = json_decode($redisSymbols, true);
-                if (is_array($streakSymbols) && $streakSymbols !== []) {
-                    $symbols = array_values(array_unique(array_merge($symbols, $streakSymbols)));
-                }
-            }
-
-            if (! $skipCache) {
-                Cache::put($cacheKey, $symbols, $this->universeCacheSeconds);
-            }
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v57_0:universe_symbols', null, $asOfTsEst, $skipCache);
 
         return array_values(array_filter(
             array_map(static fn ($symbol): string => trim((string) $symbol), $symbols),

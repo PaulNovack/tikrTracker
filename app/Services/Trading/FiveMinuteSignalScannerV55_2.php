@@ -406,26 +406,7 @@ class FiveMinuteSignalScannerV55_2
     /** @return array<int, string> */
     private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = 'scan_v55_2:universe_symbols';
-        $symbols = $skipCache ? null : Cache::get($cacheKey);
-
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->map(static fn ($symbol): string => (string) $symbol)
-                ->all();
-
-            if ($this->marketMoversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)
-                    ->getTodaysTopMoversFromCache(null, $this->marketMoversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            if (! $skipCache) {
-                Cache::put($cacheKey, $symbols, $this->universeCacheSeconds);
-            }
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v55_2:universe_symbols', null, $asOfTsEst, $skipCache);
 
         return array_values(array_filter(
             array_map(static fn ($symbol): string => trim((string) $symbol), $symbols),
