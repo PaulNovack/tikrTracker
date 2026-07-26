@@ -28,7 +28,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -414,7 +413,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
 
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest

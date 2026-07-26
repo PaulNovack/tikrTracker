@@ -289,7 +289,7 @@ LIMIT ?
      * @param  string  $asOfTsEst  Current time in EST
      * @return array Filtered symbols showing reversal structure
      */
-    private function filterByReversalStructure(array $symbols, string $assetType, string $asOfTsEst): array
+    private function filterByReversalStructure(array $symbols, string $asOfTsEst): array
     {
         if (empty($symbols)) {
             return [];

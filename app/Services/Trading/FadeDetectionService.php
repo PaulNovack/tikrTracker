@@ -16,7 +16,6 @@ class FadeDetectionService
      */
     public function calculateFadeFeatures(
         string $symbol,
-        string $assetType,
         string $entryTime,
         int $lookbackMinutes = 30
     ): array {

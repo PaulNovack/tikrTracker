@@ -98,7 +98,7 @@ class FiveMinuteSignalScannerV300_0
                     ->on('fmp.asset_type', '=', 'a.asset_type');
             })
             ->select('fmp.symbol')
-            ->where('fmp.asset_type', $assetType)
+            ->where('fmp.asset_type')
             ->where('fmp.ts_est', '<=', $asOfTsEst)
             ->whereRaw('fmp.ts_est >= DATE_SUB(?, INTERVAL 2 HOUR)', [$asOfTsEst])
             ->whereNull('a.deleted_at')

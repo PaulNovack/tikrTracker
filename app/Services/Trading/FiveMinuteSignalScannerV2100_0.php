@@ -572,7 +572,7 @@ class FiveMinuteSignalScannerV2100_0
      * @param  array<int,string>  $symbols
      * @return array<string,array<string,mixed>> keyed by symbol
      */
-    private function queryRunContexts(array $symbols, string $assetType, string $tradeDate): array
+    private function queryRunContexts(array $symbols, string $tradeDate): array
     {
         $symbols = array_values(array_unique(array_filter($symbols)));
         if (empty($symbols)) {

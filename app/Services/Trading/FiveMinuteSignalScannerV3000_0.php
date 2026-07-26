@@ -100,7 +100,7 @@ class FiveMinuteSignalScannerV3000_0
     public function __construct(
         private readonly BestPerformers5mService $bestPerformersService,
         private readonly GainersLosersAnalysisService $gainersLosersService
-    ) {}
+    ) 
 
     public function getVersion(): string
     {
@@ -431,7 +431,6 @@ GROUP BY symbol
 
     private function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
             return 0.0;
         }
 

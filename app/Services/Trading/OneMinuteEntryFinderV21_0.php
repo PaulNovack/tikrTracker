@@ -44,7 +44,7 @@ class OneMinuteEntryFinderV21_0
      * @param  string  $asOfTsEst  EST timestamp
      * @return array Entry opportunities with Alligator WAKE_UP confirmation
      */
-    public function findEntries(array $signals, string $assetType, string $asOfTsEst): array
+    public function findEntries(array $signals, string $asOfTsEst): array
     {
         if (empty($signals)) {
             return [];

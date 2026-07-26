@@ -229,7 +229,6 @@ class OneMinuteEntryFinderV56_0
     /** @return array<string, mixed> */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -271,7 +270,6 @@ class OneMinuteEntryFinderV56_0
     /** @return array<string, mixed> */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest

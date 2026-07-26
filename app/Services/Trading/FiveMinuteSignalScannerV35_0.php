@@ -99,7 +99,7 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
     public function __construct(
         private readonly BestPerformers5mService $bestPerformersService,
         private readonly GainersLosersAnalysisService $gainersLosersService
-    ) {}
+    ) 
 
     public function getVersion(): string
     {
@@ -465,7 +465,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
     protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
             return 0.0;
         }
 

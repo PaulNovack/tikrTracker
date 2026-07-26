@@ -245,7 +245,6 @@ class OneMinuteEntryFinderV18_0
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -1581,7 +1580,6 @@ class OneMinuteEntryFinderV18_0
     private function applyFiveMinuteBreakoutConfirmation(
         array $candidates,
         string $symbol,
-        string $assetType,
         string $asOfTsEst
     ): array {
         if (empty($candidates)) {

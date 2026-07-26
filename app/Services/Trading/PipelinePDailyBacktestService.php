@@ -101,8 +101,7 @@ class PipelinePDailyBacktestService
             WHERE (symbol, trading_date_est, ts_est) IN (
                 SELECT symbol, MAX(trading_date_est), MAX(ts_est)
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND trading_date_est < ?
+                WHERE trading_date_est < ?
                 GROUP BY symbol
             )
         ', [$tradingDate]);
@@ -131,13 +130,11 @@ class PipelinePDailyBacktestService
                 ((f.open - pc.prev_close) / NULLIF(pc.prev_close, 0)) * 100
             FROM five_minute_prices f
             JOIN tmp_p_prior_close pc ON pc.symbol = f.symbol
-            WHERE f.asset_type = ?
               AND f.trading_date_est = ?
               AND f.ts_est = (
                 SELECT MIN(f2.ts_est)
                 FROM five_minute_prices f2
                 WHERE f2.symbol = f.symbol
-                  AND f2.asset_type = ?
                   AND f2.trading_date_est = ?
               )
               AND f.open IS NOT NULL AND f.open > 0
@@ -168,8 +165,7 @@ class PipelinePDailyBacktestService
                 SUM(CASE WHEN price >= vwap THEN 1 ELSE 0 END) AS bars_above,
                 COUNT(*) AS total_bars
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND trading_time_est <= '11:00:00'
               WHERE symbol IN (SELECT symbol FROM tmp_p_gap_check)
             GROUP BY symbol
@@ -222,8 +218,7 @@ class PipelinePDailyBacktestService
                 SELECT symbol, price,
                     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND trading_date_est = ?
+                WHERE trading_date_est = ?
                   WHERE symbol IN (SELECT symbol FROM tmp_p_vwap_stable)
             ) ranked
             WHERE rn = 7
@@ -257,7 +252,6 @@ class PipelinePDailyBacktestService
             JOIN tmp_p_vwap_stable vs ON vs.symbol = f.symbol
             JOIN tmp_p_gap_check gc ON gc.symbol = f.symbol
             LEFT JOIN tmp_p_close_30m_ago m ON m.symbol = f.symbol
-            WHERE f.asset_type = ?
               AND f.trading_date_est = ?
               AND f.trading_time_est BETWEEN '09:30:00' AND '11:00:00'
               AND f.price IS NOT NULL AND f.price > 0
@@ -360,7 +354,6 @@ class PipelinePDailyBacktestService
             FROM tmp_p_signals s
             JOIN one_minute_prices e
               ON e.symbol = s.symbol
-             AND e.asset_type = ?
              AND e.trading_date_est = ?
              AND e.ts_est > s.signal_ts_est
              AND e.ts_est <= DATE_ADD(s.signal_ts_est, INTERVAL 15 MINUTE)
@@ -371,7 +364,6 @@ class PipelinePDailyBacktestService
                   SELECT e2.ts_est
                   FROM one_minute_prices e2
                   WHERE e2.symbol = s.symbol
-                    AND e2.asset_type = ?
                     AND e2.trading_date_est = ?
                     AND e2.ts_est > s.signal_ts_est
                     AND e2.ts_est <= DATE_ADD(s.signal_ts_est, INTERVAL 15 MINUTE)
@@ -426,7 +418,6 @@ class PipelinePDailyBacktestService
             FROM tmp_p_entries pe
             JOIN one_minute_prices fp
               ON fp.symbol = pe.symbol
-             AND fp.asset_type = ?
              AND fp.trading_date_est = ?
              AND fp.ts_est > pe.entry_ts_est
              AND fp.ts_est <= DATE_ADD(pe.entry_ts_est, INTERVAL 300 MINUTE)
@@ -690,7 +681,7 @@ class PipelinePDailyBacktestService
      * @param  array<int,string>  $symbols
      * @return array<string,array<string,mixed>>
      */
-    private function queryRunContexts(array $symbols, string $assetType, string $tradeDate): array
+    private function queryRunContexts(array $symbols, string $tradeDate): array
     {
         $symbols = array_values(array_unique(array_filter($symbols)));
         if (empty($symbols)) {
@@ -702,8 +693,7 @@ class PipelinePDailyBacktestService
         $bars = $this->dbSelect("
             SELECT symbol, ts_est, high, low
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               WHERE symbol IN ({$symbolPlaceholders})
               AND trading_time_est BETWEEN '09:30:00' AND '16:00:00'
               AND high IS NOT NULL AND high > 0
@@ -754,7 +744,6 @@ class PipelinePDailyBacktestService
             SELECT MAX(high) as hod
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
         ', [$symbol, $tradingDate]);
 

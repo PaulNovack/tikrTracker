@@ -40,7 +40,7 @@ class OneMinuteEntryFinderV22_0
      * Used by v21 path only (batch).
      * Kept for compatibility if you ever route v22 into the v21 batch path.
      */
-    public function findEntries(array $signals, string $assetType, string $asOfTsEst): array
+    public function findEntries(array $signals, string $asOfTsEst): array
     {
         if (empty($signals)) {
             return [];
@@ -116,7 +116,7 @@ class OneMinuteEntryFinderV22_0
     /**
      * Safe stub (not used in your current Pipeline B).
      */
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return [
             'ok' => 0,

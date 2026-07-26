@@ -134,7 +134,7 @@ class FiveMinuteSignalScannerV20_0
     /**
      * v18.0: Scan 5-minute bars for momentum (same as v17.0)
      */
-    private function scanFiveMinute(array $symbols, string $assetType, string $asOfTsEst, int $lookbackMinutes, float $minMovePct, float $volMult, int $limit): array
+    private function scanFiveMinute(array $symbols, string $asOfTsEst, int $lookbackMinutes, float $minMovePct, float $volMult, int $limit): array
     {
         $placeholders = implode(',', array_fill(0, count($symbols), '?'));
         $nback = max(2, (int) floor($lookbackMinutes / 5));
@@ -207,7 +207,7 @@ LIMIT ?
      * 3. Breakout: 1m price above recent 5m high
      * 4. Strong body: Last 5m candle has bullish body > 0.3%
      */
-    private function confirmBreakoutsWithOneMinute(array $fiveMinSignals, string $assetType, string $asOfTsEst): array
+    private function confirmBreakoutsWithOneMinute(array $fiveMinSignals, string $asOfTsEst): array
     {
         if (empty($fiveMinSignals)) {
             return [];
@@ -336,7 +336,7 @@ GROUP BY symbol
      * @param  string  $asOfTsEst  Current timestamp (EST)
      * @return array Filtered signals with Alligator confirmation
      */
-    private function filterByAlligatorWakeUp(array $signals, string $assetType, string $asOfTsEst): array
+    private function filterByAlligatorWakeUp(array $signals, string $asOfTsEst): array
     {
         if (empty($signals)) {
             return [];

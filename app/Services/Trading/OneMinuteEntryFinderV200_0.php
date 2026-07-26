@@ -33,7 +33,6 @@ class OneMinuteEntryFinderV200_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         $beforeMinutesOrOpts = 20,
@@ -335,7 +334,7 @@ class OneMinuteEntryFinderV200_0
                 $entryTypeBonus = max(0, min(8, 8.0 - ($pullbackDepth * 10)));
             }
 
-            $timePenalty = $this->timePenalty($ts, $assetType);
+            $timePenalty = $this->timePenalty($ts);
 
             $score = 60.0;
             $score += min(18, max(0, ($volRatio - 1.0) * 8)); // Volume surge
@@ -581,9 +580,6 @@ class OneMinuteEntryFinderV200_0
     private function timePenalty(string $ts, string $assetType): float
     {
         // For stocks: penalize lunchtime chop without hard-blocking.
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
 
         $t = strtotime($ts);
         if (! $t) {

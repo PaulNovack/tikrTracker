@@ -76,7 +76,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         ];
     }
 
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }

@@ -139,7 +139,6 @@ class FiveMinuteSignalScannerV210_0
     private function analyzeSymbol(
         array $bars,
         string $symbol,
-        string $assetType,
         string $asOfTsEst,
         float $minDeclinePct,
         float $minVolumeMult,
@@ -248,7 +247,7 @@ class FiveMinuteSignalScannerV210_0
      * @param  array<int, string>  $symbols
      * @return array<string, list<object>>
      */
-    private function batchGet5mBars(array $symbols, string $assetType, string $asOfTsEst, int $lookbackMinutes): array
+    private function batchGet5mBars(array $symbols, string $asOfTsEst, int $lookbackMinutes): array
     {
         if (empty($symbols)) {
             return [];

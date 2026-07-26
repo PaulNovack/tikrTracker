@@ -21,7 +21,6 @@ class OneMinuteEntryFinderMarketMovers
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 5,

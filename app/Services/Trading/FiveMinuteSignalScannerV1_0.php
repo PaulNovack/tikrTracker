@@ -212,7 +212,7 @@ class FiveMinuteSignalScannerV1_0
                 DB::raw('AVG(d.high - d.low) as avg_range'),
                 DB::raw('AVG((d.high - d.low) / d.price * 100) as avg_range_pct')
             )
-            ->where('f.asset_type', $assetType)
+            ->where('f.asset_type')
             ->where('f.trading_date_est', $tradingDate)
             ->where('f.change_from_open', '>=', $minChangeFromOpen) // 3%+ change from open
             ->where('f.relative_volume', '>=', $minRelativeVolume) // 1.5x+ relative volume

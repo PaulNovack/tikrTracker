@@ -20,7 +20,6 @@ class OneMinuteEntryFinderV1200_0
 
     protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 5,

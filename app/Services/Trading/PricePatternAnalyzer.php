@@ -18,7 +18,6 @@ class PricePatternAnalyzer
      */
     public function getHistoricalSnapshots(
         string $symbol,
-        string $assetType,
         string $signalTs,
         float $entryPrice,
         array $intervalsMinutes = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]

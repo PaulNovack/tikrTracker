@@ -378,13 +378,13 @@ class TradeAlertWriterV1
                 'dp.price as today_price',
                 'dp5.price as price_5d_ago',
             ])
-            ->leftJoin('daily_prices as dp5', function ($join) use ($symbol, $assetType) {
+            ->leftJoin('daily_prices as dp5', function ($join) use ($symbol) {
                 $join->on('dp5.symbol', '=', DB::raw("'".$symbol."'"))
-                    ->on('dp5.asset_type', '=', DB::raw("'".$assetType."'"))
+                    ->on('dp5.asset_type', '=', DB::raw("'"."'"))
                     ->on('dp5.date', '=', DB::raw('DATE_SUB(dp.date, INTERVAL 5 DAY)'));
             })
             ->where('dp.symbol', $symbol)
-            ->where('dp.asset_type', $assetType)
+            ->where('dp.asset_type')
             ->where('dp.date', $tradingDate)
             ->first();
 
