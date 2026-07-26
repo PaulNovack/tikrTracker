@@ -95,7 +95,7 @@ class TradePipelineRunO extends Command
         $tracer = $this->startTrace('O', $asOfTsEst);
 
         // Scan for opening range breakouts
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {
@@ -229,7 +229,7 @@ class TradePipelineRunO extends Command
             }
 
             // Scan for signals
-            $signals = $scanner->scan($assetType, $asOfTsEst);
+            $signals = $scanner->scan($asOfTsEst);
 
             if ($signals) {
                 $totalSignals += count($signals);
@@ -273,7 +273,7 @@ class TradePipelineRunO extends Command
 
         $this->line("Pipeline O ({$version}): Rolling window backtest asOf={$asOfTsEst}");
 
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {

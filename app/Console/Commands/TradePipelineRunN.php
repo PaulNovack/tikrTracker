@@ -93,9 +93,7 @@ class TradePipelineRunN extends Command
         $asOfTsEst = $this->resolveAsOfTsEst((string) $this->option('asOf'));
         $tracer = $this->startTrace('N', $asOfTsEst);
 
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst
+        $signals = $scanner->scan($asOfTsEst
         );
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
@@ -279,9 +277,7 @@ class TradePipelineRunN extends Command
             for ($t = $tStart; $t <= $tEnd; $t += ($step * 60)) {
                 $asOfTsEst = date('Y-m-d H:i:s', $t);
 
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst
+                $signals = $scanner->scan($asOfTsEst
                 );
 
                 $totalSignals += count($signals);

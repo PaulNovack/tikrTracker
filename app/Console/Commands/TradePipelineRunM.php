@@ -92,7 +92,7 @@ class TradePipelineRunM extends Command
         $tracer = $this->startTrace('M', $asOfTsEst);
 
         // Scan for clean 2-hour trends
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {
@@ -280,7 +280,7 @@ class TradePipelineRunM extends Command
                     }
                 }
 
-                $signals = $scanner->scan($assetType, $currentTs);
+                $signals = $scanner->scan($currentTs);
 
                 if ($signals) {
                     foreach ($signals as $sig) {

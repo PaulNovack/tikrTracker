@@ -117,7 +117,6 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
      * Scan for Momentum Continuation candidates (LONG)
      */
     protected function doScan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.0,

@@ -75,7 +75,6 @@ class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
      * - $volMult: 2.5+ (loosened from 3.5 to capture more setups)
      */
     protected function doScan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.9,

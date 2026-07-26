@@ -98,9 +98,7 @@ class TradePipelineRunA extends Command
         $asOfTsEst = $this->resolveAsOfTsEst((string) $this->option('asOf'));
         $tracer = $this->startTrace('A', $asOfTsEst);
 
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst,
+        $signals = $scanner->scan($asOfTsEst,
             (int) $this->option('lookback'),
             (float) $this->option('minMove'),
             (float) $this->option('volMult'),
@@ -308,9 +306,7 @@ class TradePipelineRunA extends Command
             for ($t = $tStart; $t <= $tEnd; $t += ($step * 60)) {
                 $asOfTsEst = date('Y-m-d H:i:s', $t);
 
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst,
+                $signals = $scanner->scan($asOfTsEst,
                     (int) $this->option('lookback'),
                     (float) $this->option('minMove'),
                     (float) $this->option('volMult'),

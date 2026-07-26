@@ -96,9 +96,7 @@ class TradePipelineRunH extends Command
         $asOfTsEst = $this->resolveAsOfTsEst((string) $this->option('asOf'));
         $tracer = $this->startTrace('H', $asOfTsEst);
 
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst,
+        $signals = $scanner->scan($asOfTsEst,
             (int) $this->option('lookback'),
             (float) $this->option('minMove'),
             (float) $this->option('volMult'),
@@ -344,9 +342,7 @@ class TradePipelineRunH extends Command
                     }
                 }
 
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst,
+                $signals = $scanner->scan($asOfTsEst,
                     (int) $this->option('lookback'),
                     (float) $this->option('minMove'),
                     (float) $this->option('volMult'),

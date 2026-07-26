@@ -99,9 +99,7 @@ class TradePipelineRunD extends Command
 
         // No time offset needed for live scanning - pipelines run every minute
         // so they will naturally catch signals within 1 minute of data availability
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst,
+        $signals = $scanner->scan($asOfTsEst,
             (int) $this->option('lookback'),
             (float) $this->option('minMove'),
             (float) $this->option('volMult'),
@@ -332,9 +330,7 @@ class TradePipelineRunD extends Command
                 $asOfTsEst = date('Y-m-d H:i:s', $t);
 
                 // No time offset needed - historical data is already fully synced
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst,
+                $signals = $scanner->scan($asOfTsEst,
                     (int) $this->option('lookback'),
                     (float) $this->option('minMove'),
                     (float) $this->option('volMult'),

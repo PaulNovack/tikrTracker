@@ -69,7 +69,6 @@ class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
     }
 
     protected function doScan(
-        string $assetType,
         string $asOfTsEst
     ): array {
         // Load all config from trading.v1200

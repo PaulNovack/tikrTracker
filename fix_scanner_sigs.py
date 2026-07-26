@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Remove string $assetType from doScan signatures in Scanner files."""
 import re
+import os
 import glob
 
 base = '/var/www/html/laravel-invest/app/Services/Trading'
