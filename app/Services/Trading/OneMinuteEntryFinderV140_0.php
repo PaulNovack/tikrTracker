@@ -66,7 +66,7 @@ class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
      * REQUIRED by Pipeline:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    protected function doFindBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 

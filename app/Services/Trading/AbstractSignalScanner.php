@@ -2,8 +2,6 @@
 
 namespace App\Services\Trading;
 
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 
 /**
@@ -82,7 +80,6 @@ abstract class AbstractSignalScanner
      * }>
      */
     final public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.2,

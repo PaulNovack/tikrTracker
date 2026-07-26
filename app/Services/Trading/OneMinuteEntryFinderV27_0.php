@@ -48,7 +48,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         return ['version' => $this->getVersion()];
     }
 
-    protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    protected function doFindBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 

@@ -51,7 +51,6 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 
     protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int|array $beforeMinutesOrOptions = 10,

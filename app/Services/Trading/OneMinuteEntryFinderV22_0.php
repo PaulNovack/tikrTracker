@@ -74,7 +74,7 @@ class OneMinuteEntryFinderV22_0
      * REQUIRED by TradePipelineRunB non-v21 path:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
