@@ -110,7 +110,9 @@ class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
         float $volMult = 1.5,
-        int $limit = 60              // how many to return to the pipeline for refinement
+        int $limit = 60,              // how many to return to the pipeline for refinement
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;

@@ -272,7 +272,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
             WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
-              WHERE symbol IN ({$placeholders})
+              AND symbol IN ({$placeholders})
             GROUP BY symbol
             HAVING today_open_price IS NOT NULL AND highest_first_15min IS NOT NULL
         ", array_merge([$tradeDate, $asOfTsEst], $qualifyingSymbols));

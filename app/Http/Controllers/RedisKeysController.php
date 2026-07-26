@@ -338,6 +338,34 @@ class RedisKeysController extends Controller
     }
 
     /**
+     * Get ALL stream entries (newest first).
+     */
+    private function getStreamFull(string $key): array
+    {
+        try {
+            $redis = Redis::connection('noprefix');
+            $raw = $redis->executeRaw(['XREVRANGE', $key, '+', '-']);
+            $entries = [];
+
+            if (is_array($raw)) {
+                foreach ($raw as $item) {
+                    $entryId = $item[0];
+                    $fields = $item[1] ?? [];
+                    $data = [];
+                    for ($i = 0; $i + 1 < count($fields); $i += 2) {
+                        $data[$fields[$i]] = $fields[$i + 1];
+                    }
+                    $entries[] = ['id' => $entryId, 'data' => $data];
+                }
+            }
+
+            return $entries;
+        } catch (\Throwable $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Get a sample of stream entries (newest first).
      */
     private function getStreamSample(string $key): array
