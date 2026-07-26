@@ -217,7 +217,7 @@ class FiveMinuteSignalScannerV27_0 extends AbstractSignalScanner
         // ---------- 2) SQL: volume + momentum gates ----------
         $sql = "
 WITH universe AS (
-  SELECT ?, symbol
+  SELECT symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol

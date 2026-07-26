@@ -521,9 +521,7 @@ INNER JOIN (
   WHERE date = (
     SELECT MAX(date) FROM daily_prices 
     WHERE date < ?)
-  )
-
-  WHERE symbol IN ($placeholders)
+  AND symbol IN ($placeholders)
 ) prev ON f.symbol = prev.symbol
 
   AND f.symbol IN ($placeholders)

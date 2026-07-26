@@ -5,7 +5,6 @@ namespace App\Services\Trading;
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -167,7 +166,7 @@ class FiveMinuteSignalScannerV25_2 extends AbstractSignalScanner
         // - If your table doesn't have high/low columns, replace TR with abs(close - prev_close) proxy.
         $sql = "
 WITH universe AS (
-  SELECT ?, symbol
+  SELECT symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol
