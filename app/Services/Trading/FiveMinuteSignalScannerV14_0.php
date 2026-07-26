@@ -72,7 +72,7 @@ class FiveMinuteSignalScannerV14_0
     {
         // Step 1: Get top performers from last 5 days to filter universe (v14.0: 400 performers, $1.50-$100 price range)
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst, // Use same timestamp for consistency
             'days' => 5,
             'minBars' => 200,

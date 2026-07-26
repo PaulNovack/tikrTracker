@@ -66,7 +66,6 @@ class OneMinuteEntryFinderV3000_0
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [

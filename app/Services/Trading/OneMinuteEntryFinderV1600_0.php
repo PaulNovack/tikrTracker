@@ -84,7 +84,6 @@ class OneMinuteEntryFinderV1600_0 extends AbstractOneMinuteEntryFinder
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [

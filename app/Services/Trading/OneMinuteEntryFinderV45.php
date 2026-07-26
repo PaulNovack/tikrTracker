@@ -395,7 +395,6 @@ class OneMinuteEntryFinderV45
         $this->maybeLogDebug();
 
         $best['symbol'] = $symbol;
-        $best['asset_type'] = $assetType;
         $best['signal_ts_est'] = $signalTsEst;
 
         return [

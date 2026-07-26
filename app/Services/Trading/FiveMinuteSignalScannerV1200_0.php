@@ -68,7 +68,13 @@ class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
     }
 
     protected function doScan(
-        string $asOfTsEst
+        string $asOfTsEst,
+        int $lookbackMinutes = 60,
+        float $minMovePct = 1.2,
+        float $volMult = 3.5,
+        int $limit = 60,
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         // Load all config from trading.v1200
         $topMovers = $this->topMovers;

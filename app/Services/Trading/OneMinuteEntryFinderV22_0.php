@@ -101,7 +101,6 @@ class OneMinuteEntryFinderV22_0
 
         // Some pipelines like extra context in entry_meta; safe to keep.
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [

@@ -156,10 +156,6 @@ abstract class AbstractSignalScanner
      */
     protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
-
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
         $sql = '
@@ -168,7 +164,6 @@ SELECT
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-
   AND ts_est <= ?
 ORDER BY ts_est ASC
 ';

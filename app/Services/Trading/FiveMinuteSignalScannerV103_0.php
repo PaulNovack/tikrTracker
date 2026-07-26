@@ -158,7 +158,7 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
             return [];
         }
 
-        $symbols = $this->loadUniverse($assetType);
+        $symbols = $this->loadUniverse('stock');
         if ($symbols === []) {
             return [];
         }
@@ -385,7 +385,7 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
 
         if ($symbols === null) {
             $topPerformers = $this->bestPerformersService->getBestPerformers([
-                'assetType' => $assetType,
+                'assetType' => 'stock',
                 'testDateTime' => now('America/New_York')->format('Y-m-d H:i:s'),
                 'days' => 5,
                 'minBars' => 200,

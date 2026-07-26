@@ -60,7 +60,7 @@ class FiveMinuteSignalScannerV130_0
     ): array {
         // Get movers with basic volume/movement criteria
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => 5,
             'minBars' => 200,

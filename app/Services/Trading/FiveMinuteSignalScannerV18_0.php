@@ -101,7 +101,7 @@ class FiveMinuteSignalScannerV18_0
 
         // -------- Universe: top performers --------
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => $universeDays,
             'minBars' => 200,
