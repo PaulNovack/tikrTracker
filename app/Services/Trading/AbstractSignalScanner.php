@@ -90,6 +90,13 @@ abstract class AbstractSignalScanner
     ): array {
         $rows = $this->doScan($asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache, $symbol);
 
+        // If this pipeline has Redis scanning enabled, skip the batch SQL scan.
+        // The event-driven path (bar-events:consume) handles alerts instead.
+        // Backtest mode ($skipCache=true) still uses SQL for reproducibility.
+        if (! $skipCache && method_exists($this, 'shouldUseRedis') && $this->shouldUseRedis()) {
+            return [];
+        }
+
         foreach ($rows as $i => $row) {
             $this->validateSignalRow($row, $i);
         }
