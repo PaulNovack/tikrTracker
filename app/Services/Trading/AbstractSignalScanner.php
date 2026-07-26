@@ -50,7 +50,6 @@ abstract class AbstractSignalScanner
      * This is a TEMPLATE METHOD — subclasses implement doScan(), and this method
      * validates that every returned row has the required keys before returning.
      *
-     * @param  string  $assetType  'stock' or 'crypto'
      * @param  string  $asOfTsEst  Timestamp to scan as-of (e.g. '2026-07-17 10:30:00')
      * @param  int  $lookbackMinutes  How far back to look for data
      * @param  float  $minMovePct  Minimum percentage move threshold
@@ -59,7 +58,6 @@ abstract class AbstractSignalScanner
      * @param  bool  $skipCache  If true, bypass Redis caching (for backtest mode)
      * @return array<int, array{
      *     symbol: string,
-     *     asset_type: string,
      *     signal_type: string,
      *     signal_ts_est: string,
      *     score: float,
@@ -88,7 +86,7 @@ abstract class AbstractSignalScanner
         bool $skipCache = false,
         ?string $symbol = null
     ): array {
-        $rows = $this->doScan($assetType, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache, $symbol);
+        $rows = $this->doScan($asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache, $symbol);
 
         foreach ($rows as $i => $row) {
             $this->validateSignalRow($row, $i);
@@ -106,7 +104,6 @@ abstract class AbstractSignalScanner
      * @return array<int, array<string, mixed>>
      */
     abstract protected function doScan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes,
         float $minMovePct,
