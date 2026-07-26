@@ -185,6 +185,11 @@ class RedisBarRepository implements BarRepositoryInterface
                 volume: (float) ($b['volume'] ?? 0),
                 vwap: isset($b['vwap']) ? (float) $b['vwap'] : null,
                 isFinal: (bool) ($b['is_final'] ?? true),
+                ema9: isset($b['ema9']) ? (float) $b['ema9'] : null,
+                ema21: isset($b['ema21']) ? (float) $b['ema21'] : null,
+                aboveVwap: isset($b['above_vwap']) ? (int) $b['above_vwap'] : null,
+                rsi14: isset($b['rsi_14']) ? (float) $b['rsi_14'] : null,
+                bbPosition: isset($b['bb_position']) ? (float) $b['bb_position'] : null,
             );
         }
 

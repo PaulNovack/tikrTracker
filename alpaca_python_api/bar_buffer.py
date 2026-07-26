@@ -804,6 +804,7 @@ class BarBufferService:
                 "vwap": round(vwap, 4),
                 "is_final": True,
                 "source": "alpaca_stream",
+                "above_vwap": 1 if close_price > vwap else 0,
             }
             payload_json = json.dumps(payload)
 

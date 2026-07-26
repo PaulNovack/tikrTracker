@@ -202,6 +202,139 @@ trait UsesRedisForScanning
     }
 
     /**
+     * Compute EMA9 and EMA21 from MarketBar objects.
+     *
+     * @param  list<\App\DTOs\MarketBar>  $bars  Chronological order (oldest first)
+     * @return array{ema9: float, ema21: float}
+     */
+    protected function computeEma9Ema21(array $bars): array
+    {
+        $ema9 = null;
+        $ema21 = null;
+        $k9 = 2.0 / 10;
+        $k21 = 2.0 / 22;
+
+        foreach ($bars as $bar) {
+            $c = $bar->close;
+            $ema9 = $ema9 === null ? $c : ($c * $k9 + $ema9 * (1 - $k9));
+            $ema21 = $ema21 === null ? $c : ($c * $k21 + $ema21 * (1 - $k21));
+        }
+
+        return ['ema9' => $ema9 ?? 0.0, 'ema21' => $ema21 ?? 0.0];
+    }
+
+
+    /**
+     * Compute RSI(14) from a list of MarketBar objects.
+     *
+     * @param  list<\App\DTOs\MarketBar>  $bars  Chronological order (oldest first)
+     * @return float RSI value (0-100)
+     */
+    protected function computeRsi14(array $bars): float
+    {
+        $period = 14;
+        if (count($bars) < $period + 1) {
+            return 50.0;
+        }
+
+        $gains = 0.0;
+        $losses = 0.0;
+
+        for ($i = 1, $n = min($period + 1, count($bars)); $i < $n; $i++) {
+            $diff = $bars[$i]->close - $bars[$i - 1]->close;
+            if ($diff > 0) {
+                $gains += $diff;
+            } else {
+                $losses -= $diff;
+            }
+        }
+
+        $avgGain = $gains / $period;
+        $avgLoss = $losses / $period;
+
+        for ($i = $period + 1, $n = count($bars); $i < $n; $i++) {
+            $diff = $bars[$i]->close - $bars[$i - 1]->close;
+            $gain = $diff > 0 ? $diff : 0.0;
+            $loss = $diff < 0 ? -$diff : 0.0;
+            $avgGain = (($avgGain * ($period - 1)) + $gain) / $period;
+            $avgLoss = (($avgLoss * ($period - 1)) + $loss) / $period;
+        }
+
+        if ($avgLoss <= 0.0) {
+            return 100.0;
+        }
+
+        $rs = $avgGain / $avgLoss;
+
+        return 100.0 - (100.0 / (1.0 + $rs));
+    }
+
+    /**
+     * Compute Bollinger Band position from close prices.
+     *
+     * @param  list<\App\DTOs\MarketBar>  $bars  Chronological order (oldest first)
+     * @return float BB position (0-100, values > 100 or < 0 possible at extremes)
+     */
+    protected function computeBBPosition(array $bars): float
+    {
+        $period = 20;
+        if (count($bars) < $period) {
+            return 50.0;
+        }
+
+        $slice = array_slice($bars, -$period);
+        $closes = array_map(static fn ($b) => $b->close, $slice);
+        $sma = array_sum($closes) / $period;
+
+        $variance = 0.0;
+        foreach ($closes as $c) {
+            $variance += ($c - $sma) * ($c - $sma);
+        }
+        $stdDev = sqrt($variance / $period);
+        $upperBand = $sma + (2.0 * $stdDev);
+        $lowerBand = $sma - (2.0 * $stdDev);
+        $lastClose = $bars[count($bars) - 1]->close;
+
+        if ($upperBand <= $lowerBand) {
+            return 50.0;
+        }
+
+        return (($lastClose - $lowerBand) / ($upperBand - $lowerBand)) * 100.0;
+    }
+
+    /**
+     * Get yesterday's closing price for a symbol, cached in Redis.
+     * Falls back to MySQL on cache miss and updates the Redis key.
+     *
+     * @return float|null Close price or null if not found
+     */
+    protected function getYesterdayClose(string $symbol, string $tradeDate): ?float
+    {
+        $prevDate = date('Y-m-d', strtotime($tradeDate.' -1 day'));
+        $cacheKey = "rt:daily:close:{$prevDate}:stock:".strtoupper($symbol);
+
+        $cached = \Illuminate\Support\Facades\Redis::get($cacheKey);
+        if ($cached \!== null) {
+            return (float) $cached;
+        }
+
+        // Fall back to MySQL
+        $row = \Illuminate\Support\Facades\DB::table($this->fiveMinuteTable)
+            ->select('price')
+            ->where('symbol', $symbol)
+            ->where('trading_date_est', $prevDate)
+            ->where('trading_time_est', '15:55:00')
+            ->first();
+
+        $close = $row ? (float) $row->price : null;
+        if ($close \!== null) {
+            \Illuminate\Support\Facades\Redis::setex($cacheKey, 86400, (string) $close);
+        }
+
+        return $close;
+    }
+
+    /**
      * Scan a single symbol triggered by a bar event (event-driven path).
      *
      * Reads the latest 5m bars for one symbol from Redis, computes metrics,

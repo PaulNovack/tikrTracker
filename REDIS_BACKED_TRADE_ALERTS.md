@@ -30,9 +30,9 @@ The parent's `doFindBestLong()` runs unchanged — same entry types ML models ex
 |---|---|---|---|
 | A (v90.1) | true | Standard | ✅ Prod-ready |
 | B (v120.0) | true | Standard | ✅ Prod-ready |
-| C (v101.0) | false | Custom | SQL fallback |
+| C (v101.0) | true | Standard + VWAP/EMA | ✅ Prod-ready |
 | D (v60.3) | true | Standard | ✅ Prod-ready |
-| E (v400.0) | false | Custom | SQL fallback |
+| E (v400.0) | true | Standard + VWAP/EMA | ✅ Prod-ready |
 | F (v900.1) | false | Custom | SQL fallback |
 | G (v35.0) | true | Standard | ✅ Prod-ready |
 | H (v25.2) | true | Standard | ✅ Prod-ready |
@@ -59,8 +59,6 @@ activity, move_floor, RS). The `*Redis` classes exist but `shouldUseRedis()` ret
 
 | Pipeline | Version | Missing Gates |
 |---|---|---|
-| C | v101.0 | above_vwap=1, EMA9>EMA21, composite score, priority boost, pre-breakout RVOL |
-| E | v400.0 | multi-day structure: above_vwap, EMA9>EMA21, trend confirmation, impulse detection, choppiness |
 | F | v900.1 | yesterday move, vol_mult, momentum continuation score |
 | J | v2000.0 | market-movers universe, freshness window, movers filtering |
 | K | v1100.0 | SPY below VWAP, RS ratio vs benchmark, EMA spread, range contraction, distance from high (ATR multiples), green close requirement |
