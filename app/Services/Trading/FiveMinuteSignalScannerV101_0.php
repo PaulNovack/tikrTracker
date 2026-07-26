@@ -174,13 +174,8 @@ class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
             // ignore
         }
 
-        // Add market movers
-        $moversLimit = (int) config('trading.market_movers.pipeline_c', config('trading.market_movers.pipeline_h', 0));
-        if ($moversLimit > 0) {
-            $tradeDate = substr($asOfTsEst, 0, 10);
-            $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $moversLimit);
-            $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-        }
+        // Add market movers via shared helper (uses config key)
+        $symbols = $this->addMarketMovers($symbols, $asOfTsEst, 'trading.market_movers.pipeline_c');
 
         // Add 4-bar 1-min up streak symbols from Redis
         $redisSymbols = \Illuminate\Support\Facades\Redis::get('last_4_1min_up:symbols');

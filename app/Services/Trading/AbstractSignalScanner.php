@@ -114,6 +114,35 @@ abstract class AbstractSignalScanner
     ): array;
 
     /**
+     * Add market movers to the symbol universe if the limit is configured.
+     *
+     * Each scanner can override $this->marketMoversLimit or pass a config key
+     * that resolves to the limit via config().
+     *
+     * @param  string[]  $symbols  Existing universe symbols
+     * @param  string  $asOfTsEst  As-of timestamp for date extraction
+     * @param  string|null  $configKey  Config key for the mover limit (e.g. 'trading.market_movers.pipeline_c')
+     * @return string[]
+     */
+    protected function addMarketMovers(array $symbols, string $asOfTsEst, ?string $configKey = null): array
+    {
+        $limit = $this->marketMoversLimit;
+
+        if ($limit <= 0 && $configKey !== null) {
+            $limit = (int) config($configKey, 0);
+        }
+
+        if ($limit <= 0) {
+            return $symbols;
+        }
+
+        $tradeDate = substr($asOfTsEst, 0, 10);
+        $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $limit);
+
+        return array_values(array_unique(array_merge($symbols, $movers)));
+    }
+
+    /**
      * Validate that a single signal row contains all required keys.
      *
      * @param  array<string, mixed>  $row
