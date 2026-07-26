@@ -14,11 +14,17 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Redis Keys', href: '/redis-keys' },
 ];
 
+type SampleKey = {
+    key: string;
+    type: string | null;
+    value: unknown;
+};
+
 type KeyGroup = {
     prefix: string;
     total: number;
     types: Record<string, number>;
-    sample_keys: string[];
+    sample_keys: SampleKey[];
 };
 
 type Summary = {
@@ -239,21 +245,28 @@ export default function RedisKeys({ summary, lastUpdated }: Props) {
                             </div>
 
                             <div className="space-y-1">
-                                {group.sample_keys.map((key) => (
-                                    <div key={key} className="flex items-center justify-between group">
+                                {group.sample_keys.map((sample) => (
+                                    <div key={sample.key} className="flex items-center justify-between group">
                                         <button
                                             type="button"
                                             className="font-mono text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-left break-all"
-                                            onClick={() => fetchKeyValue(key)}
+                                            onClick={() => fetchKeyValue(sample.key)}
                                         >
-                                            {key}
+                                            {sample.key}
+                                            {sample.value !== null && (
+                                                <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal text-[11px]">
+                                                    {typeof sample.value === 'string'
+                                                        ? `= ${sample.value.length > 100 ? sample.value.substring(0, 100) + '…' : sample.value}`
+                                                        : `= ${JSON.stringify(sample.value).substring(0, 100)}${JSON.stringify(sample.value).length > 100 ? '…' : ''}`}
+                                                </span>
+                                            )}
                                         </button>
                                         <button
                                             type="button"
                                             className="ml-2 p-1 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleDelete(key);
+                                                handleDelete(sample.key);
                                             }}
                                             title="Delete key"
                                         >

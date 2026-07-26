@@ -53,10 +53,10 @@ class RedisKeysController extends Controller
             $value = match ($type) {
                 'string' => $redis->get($key),
                 'hash' => $redis->hgetall($key),
-                'list' => $this->getListSample($key),
-                'set' => $this->getSetSample($key),
-                'zset' => $this->getZsetSample($key),
-                'stream' => $this->getStreamSample($key),
+                'list' => $redis->lrange($key, 0, -1),
+                'set' => $redis->smembers($key),
+                'zset' => $redis->zrange($key, 0, -1, 'WITHSCORES'),
+                'stream' => $this->getStreamFull($key),
                 'none' => null,
                 default => null,
             };
@@ -159,9 +159,39 @@ class RedisKeysController extends Controller
                 $grouped[$prefix]['total']++;
                 $grouped[$prefix]['types'][$type] = ($grouped[$prefix]['types'][$type] ?? 0) + 1;
 
-                // Keep up to 5 sample keys per prefix
+                // Keep up to 5 sample keys per prefix with their values
                 if (count($grouped[$prefix]['sample_keys']) < 5) {
-                    $grouped[$prefix]['sample_keys'][] = $key;
+                    $sampleValue = null;
+                    $sampleType = null;
+                    try {
+                        $sampleType = $type;
+                        $rawValue = match ($sampleType) {
+                            'string' => Redis::connection('noprefix')->get($key),
+                            'hash' => Redis::connection('noprefix')->hgetall($key),
+                            'list' => $this->getListSample($key),
+                            'set' => $this->getSetSample($key),
+                            'zset' => $this->getZsetSample($key),
+                            default => null,
+                        };
+
+                        // Ensure value is JSON-serializable and not too large for Inertia
+                        if (is_string($rawValue)) {
+                            $sampleValue = mb_check_encoding($rawValue, 'UTF-8')
+                                ? mb_substr($rawValue, 0, 200)
+                                : '[non-UTF8 data]';
+                        } elseif (is_array($rawValue)) {
+                            $sampleValue = array_slice($rawValue, 0, 10, true);
+                        } else {
+                            $sampleValue = null;
+                        }
+                    } catch (\Throwable) {
+                    }
+
+                    $grouped[$prefix]['sample_keys'][] = [
+                        'key' => $key,
+                        'type' => $sampleType,
+                        'value' => $sampleValue,
+                    ];
                 }
             }
 
