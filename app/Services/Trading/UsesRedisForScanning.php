@@ -223,7 +223,6 @@ trait UsesRedisForScanning
         return ['ema9' => $ema9 ?? 0.0, 'ema21' => $ema21 ?? 0.0];
     }
 
-
     /**
      * Compute RSI(14) from a list of MarketBar objects.
      *
@@ -314,7 +313,7 @@ trait UsesRedisForScanning
         $cacheKey = "rt:daily:close:{$prevDate}:stock:".strtoupper($symbol);
 
         $cached = \Illuminate\Support\Facades\Redis::get($cacheKey);
-        if ($cached \!== null) {
+        if ($cached !== null) {
             return (float) $cached;
         }
 
@@ -327,7 +326,7 @@ trait UsesRedisForScanning
             ->first();
 
         $close = $row ? (float) $row->price : null;
-        if ($close \!== null) {
+        if ($close !== null) {
             \Illuminate\Support\Facades\Redis::setex($cacheKey, 86400, (string) $close);
         }
 
