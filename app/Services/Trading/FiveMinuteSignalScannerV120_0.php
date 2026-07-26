@@ -520,7 +520,7 @@ INNER JOIN (
   FROM daily_prices
   WHERE date = (
     SELECT MAX(date) FROM daily_prices 
-    WHERE date < ? AND asset_type = ?
+    WHERE date < ?)
   )
 
   WHERE symbol IN ($placeholders)
@@ -535,7 +535,6 @@ HAVING gap_pct >= ?
         $params = array_merge(
             [$tradeDate, $tradeDate, $tradeDate],
             $symbols,
-            [],
             $symbols,
             [$tradeDate, $minGapPct]
         );

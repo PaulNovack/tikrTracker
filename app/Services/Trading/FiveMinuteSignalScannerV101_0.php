@@ -464,10 +464,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
     protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
-
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
         $sql = "
 SELECT
