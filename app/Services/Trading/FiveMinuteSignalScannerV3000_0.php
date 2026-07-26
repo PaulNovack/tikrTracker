@@ -383,7 +383,7 @@ GROUP BY symbol
 
         $symbols = Cache::remember($cacheKey, 60, function () use ($asOfTsEst, $tradeDate) {
             $topPerformers = $this->bestPerformersService->getBestPerformers([
-                'assetType' => $assetType,
+                'assetType' => 'stock',
                 'testDateTime' => $asOfTsEst,
                 'days' => $this->topDays,
                 'minBars' => 200,

@@ -141,7 +141,7 @@ class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
 
         // ---------- 1) Universe: top performers + prior-day losers ----------
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => $topDays,
             'minBars' => 200,
