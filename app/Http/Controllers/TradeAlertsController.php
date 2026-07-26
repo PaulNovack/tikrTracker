@@ -175,6 +175,13 @@ class TradeAlertsController extends Controller
         $alerts = $query->orderBy($tableName.'.id', 'desc')
             ->paginate(50);
 
+        \Log::info('TradeAlerts fetchAllAlerts', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'count' => $alerts->count(),
+            'total' => $alerts->total(),
+        ]);
+
         // Format the data for the frontend
         $alerts->getCollection()->transform(function ($alert) {
             $meta = $this->safeDecodeMeta($alert->meta);

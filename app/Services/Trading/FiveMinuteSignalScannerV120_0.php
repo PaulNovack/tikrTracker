@@ -154,7 +154,7 @@ class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
         // -----------------------------
         // 2) Check for gap-up continuation patterns
         // -----------------------------
-        $gapData = $this->getGapUpData($assetType, $symbols, $tradeDate, $minGapPct);
+        $gapData = $this->getGapUpData($symbols, $tradeDate, $minGapPct);
 
         // -----------------------------
         // 3) Get 5m momentum breakout candidates

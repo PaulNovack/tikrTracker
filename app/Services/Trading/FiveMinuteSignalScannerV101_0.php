@@ -199,7 +199,7 @@ class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
         // ── SQL: same CTE structure as V1600.0, extended with vwap/ema columns ──
         $sql = "
 WITH universe AS (
-  SELECT ?, symbol
+  SELECT symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol
