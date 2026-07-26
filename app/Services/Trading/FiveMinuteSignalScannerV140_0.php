@@ -42,7 +42,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v140.0';
 
     private string $name = 'Institutional Follow-Through';
@@ -148,8 +147,8 @@ class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 1.5,
         float $volMult = 1.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;
         $gainersLimit = $this->gainersLimit;

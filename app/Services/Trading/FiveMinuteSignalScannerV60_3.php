@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\DB;
  */
 class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
 {
-
     private string $version = 'v60.3';
 
     private string $name = 'Hybrid Breakout';
@@ -81,8 +80,8 @@ class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
         int $lookbackMinutes = 15,
         float $minMovePct = 0.9,
         float $volMult = 2.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $minScore = $this->entryScoreMin;
         $maxScore = $this->entryScoreMax;
         $topN = $this->entryScoreLimit;

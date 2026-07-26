@@ -24,7 +24,6 @@ use App\Services\Market\BestPerformers5mService;
  */
 class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v120.0';
 
     private string $name = 'Elite Multi-Day Momentum';
@@ -90,8 +89,8 @@ class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
         int $lookbackMinutes = 15,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         // Score range: 70-95 provides good funnel for ML filtering
         // 85-100 for "elite only" mode, 70-95 for workable candidate flow
         $minScore = $this->entryScoreMin;

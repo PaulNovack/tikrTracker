@@ -22,7 +22,6 @@ use Illuminate\Support\Facades\DB;
  */
 class FiveMinuteSignalScannerV90_1 extends AbstractSignalScanner
 {
-
     private string $version = 'v90.1';
 
     private string $name = 'Momentum Continuation';
@@ -87,8 +86,8 @@ class FiveMinuteSignalScannerV90_1 extends AbstractSignalScanner
         int $lookbackMinutes = 15,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $minScore = $this->entryScoreMin;
         $maxScore = $this->entryScoreMax;
         $topN = $this->entryScoreLimit;

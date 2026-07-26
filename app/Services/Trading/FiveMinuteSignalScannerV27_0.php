@@ -42,7 +42,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FiveMinuteSignalScannerV27_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v27.0';
 
     private string $name = 'Volume-First';
@@ -151,8 +150,8 @@ class FiveMinuteSignalScannerV27_0 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 0.6,
         float $volMult = 1.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;
         $losersLimit = $this->losersLimit;

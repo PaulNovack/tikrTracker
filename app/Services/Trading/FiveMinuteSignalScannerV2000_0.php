@@ -14,7 +14,6 @@ namespace App\Services\Trading;
  */
 class FiveMinuteSignalScannerV2000_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v2000.0';
 
     private string $name = 'Market Movers Universe';
@@ -41,8 +40,8 @@ class FiveMinuteSignalScannerV2000_0 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
         float $volMult = 1.5,
-        int $limit = 10000
-    ): array {
+        int $limit = 10000, bool $skipCache = false, ?string $symbol = null): array
+    {
         $tradeDate = substr($asOfTsEst, 0, 10);
 
         $universeRows = $this->dbSelect('

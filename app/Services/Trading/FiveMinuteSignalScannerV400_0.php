@@ -35,7 +35,6 @@ namespace App\Services\Trading;
  */
 class FiveMinuteSignalScannerV400_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v400.0';
 
     private string $name = 'Multi-Day Pattern Continuation';
@@ -79,8 +78,8 @@ class FiveMinuteSignalScannerV400_0 extends AbstractSignalScanner
         int $lookbackMinutes = 90,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
-        int $limit = 50
-    ): array {
+        int $limit = 50, bool $skipCache = false, ?string $symbol = null): array
+    {
         // Configuration - institutional quality
         $minAtrPct = $this->minAtrPct;
         $minVolRatio = $this->minVolRatio;

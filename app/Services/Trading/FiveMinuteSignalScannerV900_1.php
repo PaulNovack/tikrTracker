@@ -39,7 +39,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 {
-
     private string $version = 'v900.1';
 
     private string $name = 'Risk-Off Winners';
@@ -123,8 +122,8 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 0.0,
         float $volMult = 1.0,
-        int $limit = 20
-    ): array {
+        int $limit = 20, bool $skipCache = false, ?string $symbol = null): array
+    {
         $minScore = $this->entryScoreMin;
         $maxScore = $this->entryScoreMax;
         $topN = $this->entryScoreLimit;

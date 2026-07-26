@@ -138,7 +138,7 @@ class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
      * @param  string  $asOfTsEst  Scan timestamp (EST)
      * @param  int  $limit  Max rows to return
      */
-    protected function doScan(string $asOfTsEst, int $limit = 20): array
+    protected function doScan(string $asOfTsEst, int $limit = 20, bool \$skipCache = false, ?string \$symbol = null): array
     {
         $benchmarkSymbol = config('app.trading_market_benchmark_symbol', 'SPY');
 

@@ -27,7 +27,6 @@ use Illuminate\Support\Facades\DB;
  */
 class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v101.0';
 
     private string $name = 'Multi-Day Surge';
@@ -108,8 +107,8 @@ class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
         int $lookbackMinutes = 60,
         float $minMovePct = 0.35,
         float $volMult = 1.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;
         $losersLimit = $this->losersLimit;

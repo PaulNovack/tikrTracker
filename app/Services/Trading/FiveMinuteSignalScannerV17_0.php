@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\DB;
  */
 class FiveMinuteSignalScannerV17_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v17.0';
 
     private string $name = 'Base Pattern';
@@ -81,7 +80,7 @@ class FiveMinuteSignalScannerV17_0 extends AbstractSignalScanner
      *   ['symbol'=>'TQQQ','asset_type'=>'stock','signal_type'=>'MOMO_5M','signal_ts_est'=>'YYYY-mm-dd HH:MM:SS', 'score'=>...],
      * ]
      */
-    protected function doScan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 1.2, float $volMult = 3.5, int $limit = 60): array
+    protected function doScan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 1.2, float $volMult = 3.5, int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
     {
         // Step 1: Universe from intraday_universe (pre-built, fast, cached 8h)
         $universeCacheKey = "scan_v17_0:universe_symbols:{$assetType}";
