@@ -269,7 +269,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
                 MAX(CASE WHEN trading_time_est = '09:30:00' THEN open ELSE NULL END) AS today_open_price,
                 MAX(CASE WHEN trading_time_est <= '09:45:00' THEN price ELSE NULL END) AS highest_first_15min
             FROM five_minute_prices
-    WHERE trading_date_est = ?
+            WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
               WHERE symbol IN ({$placeholders})
