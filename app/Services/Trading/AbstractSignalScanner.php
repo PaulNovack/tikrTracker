@@ -2,6 +2,10 @@
 
 namespace App\Services\Trading;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
+
 /**
  * Abstract base class for all signal scanners.
  *

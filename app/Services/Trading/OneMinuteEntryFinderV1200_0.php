@@ -18,7 +18,7 @@ class OneMinuteEntryFinderV1200_0
 {
     use HasPriceTables;
 
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

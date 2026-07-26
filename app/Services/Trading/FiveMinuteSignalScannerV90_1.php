@@ -20,9 +20,8 @@ use Illuminate\Support\Facades\DB;
  * - V90_MIN_YESTERDAY_MOVE: minimum yesterday's move % (default 5.0)
  * - V90_MIN_VOL_MULT: minimum volume multiplier vs 5-day avg (default 1.5)
  */
-class FiveMinuteSignalScannerV90_1
+class FiveMinuteSignalScannerV90_1 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v90.1';
 
@@ -82,7 +81,7 @@ class FiveMinuteSignalScannerV90_1
      * - $minMovePct: 0.5+
      * - $volMult: 2.0–4.0
      */
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,

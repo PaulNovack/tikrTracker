@@ -15,9 +15,8 @@ namespace App\Services\Trading;
  *
  * This captures strong intraday momentum continuing with fresh buying pressure.
  */
-class FiveMinuteSignalScannerV1200_0
+class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v1200.0';
 
@@ -69,7 +68,7 @@ class FiveMinuteSignalScannerV1200_0
         return $this->name;
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst
     ): array {

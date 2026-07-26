@@ -23,18 +23,26 @@ use Illuminate\Support\Facades\Cache;
  * 4. OR_BREAKOUT - Opening range break with multi-day context
  * 5. EMA9_BOUNCE - Trend continuation off key moving average
  */
-class OneMinuteEntryFinderV120_0
+class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v120.0';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v120.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return \'v120.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,
@@ -814,7 +822,7 @@ class OneMinuteEntryFinderV120_0
         return max(0.0, min(100.0, $score));
     }
 
-    private function calculate5MinChoppiness(array $bars): array
+    protected function calculate5MinChoppiness(array $bars): array
     {
         if (count($bars) < 2) {
             return [

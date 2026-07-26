@@ -9,18 +9,26 @@ namespace App\Services\Trading;
  * introduced. It turns each scanner signal into a simple, pipeline-safe long
  * entry without adding any additional filter logic yet.
  */
-class OneMinuteEntryFinderV2000_0
+class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v2000.0';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v2000.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return \'v2000.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

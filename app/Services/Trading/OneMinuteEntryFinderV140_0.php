@@ -33,11 +33,8 @@ use Illuminate\Support\Facades\Log;
  * - Higher ATR runway (1.8x vs 1.5x) - need expansion potential
  * - More bars required (20 vs 15) - better structure analysis
  */
-class OneMinuteEntryFinderV140_0
+class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v140.0';
 
     private static array $dbg = [
         'called' => 0,
@@ -52,14 +49,25 @@ class OneMinuteEntryFinderV140_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v140.0';
+    }
+
+    public function getName(): string
+    {
+        return \'v140.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
     }
 
     /**
      * REQUIRED by Pipeline:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
@@ -93,13 +101,13 @@ class OneMinuteEntryFinderV140_0
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
 
-    private function isDebugEnabled(): bool
+    protected function isDebugEnabled(): bool
     {
         return ((string) env('ENTRYFINDER_V140_DEBUG', '0') === '1')
             || (bool) config('trading.v140.debug', false);
     }
 
-    private function maybeLogDebug(): void
+    protected function maybeLogDebug(): void
     {
         if (! $this->isDebugEnabled()) {
             return;
@@ -778,7 +786,7 @@ class OneMinuteEntryFinderV140_0
         return false;
     }
 
-    private function isAllowedTime(string $tsEst): bool
+    protected function isAllowedTime(string $time, bool $allowLunch = false): bool
     {
         // Stricter: 09:35–11:30 and 14:00–15:55 (avoid lunch 11:30-2pm)
         $hh = (int) substr($tsEst, 11, 2);

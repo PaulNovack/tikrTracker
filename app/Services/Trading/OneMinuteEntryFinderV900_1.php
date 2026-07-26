@@ -16,18 +16,26 @@ use Illuminate\Support\Facades\DB;
  * Takes first qualifying entry within 10 minutes of setup (momentum trades fast).
  * Designed for explosive momentum stocks that already moved 20-40%+.
  */
-class OneMinuteEntryFinderV900_1
+class OneMinuteEntryFinderV900_1 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v900.1';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v900.1';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return \'v900.1\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

@@ -21,9 +21,8 @@ use Illuminate\Support\Facades\Log;
  * - Gate: 5m ATR% (volatility) + notional (liquidity) + RVOL (activity) + 30m move
  * - Score: combines move, rvol, atr% (favor names that can run)
  */
-class FiveMinuteSignalScannerV1600_0
+class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v1600.0';
 
@@ -104,7 +103,7 @@ class FiveMinuteSignalScannerV1600_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
@@ -463,7 +462,7 @@ WHERE a.close_nback IS NOT NULL
         return array_slice($out, 0, max(1, $limit));
     }
 
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

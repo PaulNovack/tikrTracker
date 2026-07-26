@@ -37,9 +37,8 @@ use Illuminate\Support\Facades\Log;
  * - v900.time_window_start      (default '09:30:00')
  * - v900.time_window_end        (default '10:30:00')
  */
-class FiveMinuteSignalScannerV900_1
+class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v900.1';
 
@@ -118,7 +117,7 @@ class FiveMinuteSignalScannerV900_1
     /**
      * Scan for Momentum Continuation candidates (LONG)
      */
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,

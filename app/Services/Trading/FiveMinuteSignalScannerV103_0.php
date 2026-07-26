@@ -15,9 +15,8 @@ use Illuminate\Support\Facades\DB;
  * - require a clean 5m breakout above the opening range high
  * - require trend, volume, and extension quality before emitting a signal
  */
-class FiveMinuteSignalScannerV103_0
+class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v103.0';
 
@@ -143,7 +142,7 @@ class FiveMinuteSignalScannerV103_0
      *
      * @return array<int, array<string, mixed>>
      */
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,

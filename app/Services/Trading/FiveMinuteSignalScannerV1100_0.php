@@ -39,9 +39,8 @@ use Illuminate\Support\Facades\DB;
  * - require_green_close
  * - min_range_contraction_bars
  */
-class FiveMinuteSignalScannerV1100_0
+class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v1100.0';
 
@@ -139,7 +138,7 @@ class FiveMinuteSignalScannerV1100_0
      * @param  string  $asOfTsEst  Scan timestamp (EST)
      * @param  int  $limit  Max rows to return
      */
-    public function scan(string $asOfTsEst, int $limit = 20): array
+    protected function doScan(string $asOfTsEst, int $limit = 20): array
     {
         $benchmarkSymbol = config('app.trading_market_benchmark_symbol', 'SPY');
 

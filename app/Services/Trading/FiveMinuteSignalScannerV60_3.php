@@ -17,9 +17,8 @@ use Illuminate\Support\Facades\DB;
  * - ENTRY_SCORE_MIN / ENTRY_SCORE_MAX: score window
  * - ENTRY_SCORE_LIMIT: max picks returned (defaults to 10)
  */
-class FiveMinuteSignalScannerV60_3
+class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v60.3';
 
@@ -76,7 +75,7 @@ class FiveMinuteSignalScannerV60_3
      * - $minMovePct: 0.9+ (loosened from 1.2 to capture more setups)
      * - $volMult: 2.5+ (loosened from 3.5 to capture more setups)
      */
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,

@@ -18,18 +18,26 @@ use Illuminate\Support\Facades\Cache;
  * - EntryScore (0-100): momentum quality metric
  * - Entry price, risk/reward, targets
  */
-class OneMinuteEntryFinderV90_1
+class OneMinuteEntryFinderV90_1 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v90.1';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v90.1';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return \'v90.1\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,
@@ -741,7 +749,7 @@ class OneMinuteEntryFinderV90_1
      * @param  array  $fiveMinBars  Array of 5-minute bars (most recent 6-12 bars)
      * @return array ['directional_changes', 'green_bar_pct', 'net_progress']
      */
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

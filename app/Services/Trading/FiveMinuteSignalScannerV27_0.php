@@ -40,9 +40,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Output: 60-100 high-volume early-momentum candidates
  */
-class FiveMinuteSignalScannerV27_0
+class FiveMinuteSignalScannerV27_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v27.0';
 
@@ -146,7 +145,7 @@ class FiveMinuteSignalScannerV27_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
@@ -525,7 +524,7 @@ WHERE a.close_nback IS NOT NULL
     /**
      * Get SPY 30m movement for relative strength comparison
      */
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

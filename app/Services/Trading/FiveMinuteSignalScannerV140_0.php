@@ -40,9 +40,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Output: 40-60 high-quality institutional continuation candidates
  */
-class FiveMinuteSignalScannerV140_0
+class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v140.0';
 
@@ -143,7 +142,7 @@ class FiveMinuteSignalScannerV140_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,

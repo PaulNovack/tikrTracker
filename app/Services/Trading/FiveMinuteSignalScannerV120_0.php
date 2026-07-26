@@ -22,9 +22,8 @@ use App\Services\Market\BestPerformers5mService;
  * - V120_MIN_GAP_PCT: minimum gap-up % (default 2.0)
  * - V120_REQUIRE_VOL_INCREASE: require volume increasing (default true)
  */
-class FiveMinuteSignalScannerV120_0
+class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v120.0';
 
@@ -85,7 +84,7 @@ class FiveMinuteSignalScannerV120_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,

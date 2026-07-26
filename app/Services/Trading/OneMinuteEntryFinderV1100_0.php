@@ -20,15 +20,23 @@ namespace App\Services\Trading;
  * - overextended entries too far from VWAP
  * - weak tape-followers
  */
-class OneMinuteEntryFinderV1100_0
+class OneMinuteEntryFinderV1100_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v1100.0';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v1100.0';
+    }
+
+    public function getName(): string
+    {
+        return \'v1100.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
     }
 
     /**
@@ -36,7 +44,7 @@ class OneMinuteEntryFinderV1100_0
      *
      * @param  string  $fillModel  next_open|close
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

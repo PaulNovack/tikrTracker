@@ -11,11 +11,8 @@ use Illuminate\Support\Facades\Cache;
  * Purpose: Experiment with adjustments to find more entries without sacrificing quality
  * Changes TBD
  */
-class OneMinuteEntryFinderV17_0
+class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v17.0';
 
     private float $maxRiskPct;
 
@@ -38,7 +35,18 @@ class OneMinuteEntryFinderV17_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v17.0';
+    }
+
+    public function getName(): string
+    {
+        return \'v17.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
     }
 
     /**
@@ -289,7 +297,7 @@ class OneMinuteEntryFinderV17_0
      *  ['ok'=>bool,'best_entry'=>..., 'candidates'=>...]
      *  best_entry includes: atr, atr_pct, suggested_trailing_stop, suggested_trailing_stop_pct
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,
@@ -1754,7 +1762,7 @@ class OneMinuteEntryFinderV17_0
      * @param  array  $fiveMinBars  Array of 5-minute bars (most recent 6-12 bars)
      * @return array ['directional_changes', 'green_bar_pct', 'net_progress']
      */
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

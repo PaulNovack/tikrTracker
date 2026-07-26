@@ -11,11 +11,8 @@ use Illuminate\Support\Facades\Log;
  * accept more realistic pullbacks, and add a breakout-continuation
  * fallback when the day never produces a true retest.
  */
-class OneMinuteEntryFinderV103_0
+class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v103.0';
 
     public bool $debug = false;
 
@@ -113,7 +110,18 @@ class OneMinuteEntryFinderV103_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v103.0';
+    }
+
+    public function getName(): string
+    {
+        return \'v103.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
     }
 
     /**
@@ -153,7 +161,7 @@ class OneMinuteEntryFinderV103_0
     /**
      * @return array<string, mixed>
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

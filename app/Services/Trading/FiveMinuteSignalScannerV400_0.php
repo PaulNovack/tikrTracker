@@ -33,9 +33,8 @@ namespace App\Services\Trading;
  * - min_impulse_bars: Minimum green 5m bars in impulse (default 2)
  * - lookback_bars: How many 5m bars to analyze (default 18 = 90min)
  */
-class FiveMinuteSignalScannerV400_0
+class FiveMinuteSignalScannerV400_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v400.0';
 
@@ -74,7 +73,7 @@ class FiveMinuteSignalScannerV400_0
         return $this->name;
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 90,

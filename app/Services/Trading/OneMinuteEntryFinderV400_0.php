@@ -31,18 +31,26 @@ use Illuminate\Support\Facades\Log;
  * - Lower highs stacking and VWAP reclaim keeps failing
  * - Big red candles on high volume (5m rolling over)
  */
-class OneMinuteEntryFinderV400_0
+class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v400.0';
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v400.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return \'v400.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $assetType,
         string $signalTsEst,

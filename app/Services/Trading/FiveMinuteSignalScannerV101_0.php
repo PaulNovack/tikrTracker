@@ -25,9 +25,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Universe: intraday_universe + BestPerformers5m (5d) + prior losers + movers + Redis streak symbols
  */
-class FiveMinuteSignalScannerV101_0
+class FiveMinuteSignalScannerV101_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v101.0';
 
@@ -103,7 +102,7 @@ class FiveMinuteSignalScannerV101_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
@@ -483,7 +482,7 @@ WHERE a.close_nback IS NOT NULL
         return array_slice($out, 0, max(1, $limit));
     }
 
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

@@ -20,11 +20,8 @@ use Illuminate\Support\Facades\Log;
  * - New ORB_BREAKOUT pattern for earlier entries
  * - Slightly looser room-to-run (0.6% min room, 1.5x ATR mult) to allow more entries
  */
-class OneMinuteEntryFinderV27_0
+class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v27.0';
 
     private static array $dbg = [
         'called' => 0,
@@ -38,10 +35,21 @@ class OneMinuteEntryFinderV27_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v27.0';
     }
 
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function getName(): string
+    {
+        return \'v27.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
@@ -75,13 +83,13 @@ class OneMinuteEntryFinderV27_0
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
 
-    private function isDebugEnabled(): bool
+    protected function isDebugEnabled(): bool
     {
         return ((string) env('ENTRYFINDER_V27_DEBUG', '0') === '1')
             || (bool) config('trading.v27.debug', false);
     }
 
-    private function maybeLogDebug(): void
+    protected function maybeLogDebug(): void
     {
         if (! $this->isDebugEnabled()) {
             return;
@@ -837,7 +845,7 @@ class OneMinuteEntryFinderV27_0
         return $atr > 0 && ($hod - $entry) >= ($atr * $roomAtrMult);
     }
 
-    private function isAllowedTime(string $tsEst): bool
+    protected function isAllowedTime(string $time, bool $allowLunch = false): bool
     {
         $hh = (int) substr($tsEst, 11, 2);
         $mm = (int) substr($tsEst, 14, 2);
@@ -868,7 +876,7 @@ class OneMinuteEntryFinderV27_0
         return 1.0;
     }
 
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

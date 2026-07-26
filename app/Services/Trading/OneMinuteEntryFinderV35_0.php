@@ -33,11 +33,8 @@ use Illuminate\Support\Facades\Log;
  *   TRADING_V25_ALLOW_LUNCH=0
  *   ATR Multiplier: Uses AUTO_ALPACA_STOP_LOSS_ATR_MULTIPLIER (2.0)
  */
-class OneMinuteEntryFinderV35_0
+class OneMinuteEntryFinderV35_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v35.0';
 
     private static array $dbg = [
         'called' => 0,
@@ -54,14 +51,25 @@ class OneMinuteEntryFinderV35_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v35.0';
+    }
+
+    public function getName(): string
+    {
+        return \'v35.0\';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [\'version\' => $this->getVersion()];
     }
 
     /**
      * REQUIRED by Pipeline:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
@@ -95,13 +103,13 @@ class OneMinuteEntryFinderV35_0
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
 
-    private function isDebugEnabled(): bool
+    protected function isDebugEnabled(): bool
     {
         return ((string) env('ENTRYFINDER_V25_DEBUG', '0') === '1')
             || (bool) config('trading.v25.debug', false);
     }
 
-    private function maybeLogDebug(): void
+    protected function maybeLogDebug(): void
     {
         if (! $this->isDebugEnabled()) {
             return;
@@ -792,7 +800,7 @@ class OneMinuteEntryFinderV35_0
         return false;
     }
 
-    private function isAllowedTime(string $tsEst): bool
+    protected function isAllowedTime(string $time, bool $allowLunch = false): bool
     {
         // Allow 09:35–11:15 and 14:00–15:55 (ET-ish ts_est)
         $hh = (int) substr($tsEst, 11, 2);
@@ -831,7 +839,7 @@ class OneMinuteEntryFinderV35_0
      * @param  array  $fiveMinBars  Array of 5-minute bars (most recent 6-12 bars)
      * @return array ['directional_changes', 'green_bar_pct', 'net_progress']
      */
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

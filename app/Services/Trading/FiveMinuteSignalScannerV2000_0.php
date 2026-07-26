@@ -12,9 +12,8 @@ namespace App\Services\Trading;
  * This intentionally avoids extra filtering so the pipeline can alert on the
  * entire universe first and add refinement later.
  */
-class FiveMinuteSignalScannerV2000_0
+class FiveMinuteSignalScannerV2000_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
 
     private string $version = 'v2000.0';
 
@@ -30,7 +29,13 @@ class FiveMinuteSignalScannerV2000_0
         return $this->name;
     }
 
-    public function scan(
+    /** @return array<string, mixed> */
+    public function scanConfig(): array
+    {
+        return [];
+    }
+
+    protected function doScan(
         string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
