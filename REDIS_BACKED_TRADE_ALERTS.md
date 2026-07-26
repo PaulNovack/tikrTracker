@@ -5,8 +5,6 @@
 Two independent paths produce `trade_alerts`. The SQL batch path (`trade:pipeline-*`)
 is unchanged. The Redis event-driven path (`bar-events:consume`) is new.
 
-### Event-Driven Redis Path
-
 ```
 stream_bars.py / bar_buffer.py
   ├→ rt:bars:5m:{Ymd}:stock:{SYM}  (sorted set) + "5m_bar" event → rt:events:bars
@@ -17,120 +15,134 @@ php artisan bar-events:consume → BarEventConsumer (XREADGROUP rt:events:bars)
   ├─ handle5mBar(): scanSymbol() → rt:bars:5m:* → gates → candidate store
   └─ handle1mBar(): candidate check → findBestLong() → fetchOneMinuteBars() [FROM REDIS]
        → parent pipeline-specific classification → upsertAlert() → trade_alerts
-```
 
-### Batch SQL Path (unchanged)
-
-```
-php artisan trade:pipeline-h
-  → FiveMinuteSignalScannerV25_2::scan()  (SQL)
-  → OneMinuteEntryFinderV25_2::findBestLong()  (SQL)
-  → TradeAlertWriterV1::upsertAlert() → trade_alerts
+Batch SQL: php artisan trade:pipeline-*  (unchanged, SQL-only)
 ```
 
 ## ML Compatibility
 
-The `UsesRedisForEntryFinding` trait **only overrides `fetchOneMinuteBars()`** to read
-from `rt:bars:1m:*` sorted sets instead of MySQL. The parent entry finder's
-`doFindBestLong()` runs **completely unchanged** — same VWAP/EMA/ATR/HOD/OR
-calculations, same entry gates, same **pipeline-specific classification**.
-ML models see the exact same `entry_type` values as the SQL path.
-
-## How It Works
-
-### Scanner (event-driven, per-symbol)
-- `scanSymbol(symbol, asOfTsEst)` reads the latest ~30 5m bars from `rt:bars:5m:*`
-- Computes ATR(14), RVOL(20), 30m move, notional in PHP
-- Applies the same 6 gates as the SQL CTE (notional, ATR%, activity, move_floor, RS)
-- Returns signal array or null
-
-### Entry finder (runs after scanner signal)
-- `findBestLong()` → parent's `doFindBestLong()` 
-- Calls `fetchOneMinuteBars()` → overridden by trait → reads `rt:bars:1m:*` from Redis
-- Parent computes VWAP/EMA9/EMA21/ATR14/HOD/OR-high from Redis bars
-- Parent applies all entry gates (notional, body%, VWAP, room, trend, vol_ratio)
-- Parent classifies entry type using its own pipeline-specific logic
-- Returns `entry_price`, `stop_loss`, `entry_type`, `entry_meta`
-
-### Alert writing
-- `TradeAlertWriterV1::upsertAlert()` — same dedup, freshness, sentiment, position sizing
-- `INSERT INTO trade_alerts` — same table, same schema
+`UsesRedisForEntryFinding` **only overrides `fetchOneMinuteBars()`** to read from Redis.
+The parent's `doFindBestLong()` runs unchanged — same entry types ML models expect.
 
 ## Pipeline Status
 
-All 16 pipelines have `*Redis` scanner + entry finder classes and pipeline-letter `.env` toggles:
+| Pipeline | ENV | Gate parity | Status |
+|---|---|---|---|
+| A (v90.1) | true | Standard | ✅ Prod-ready |
+| B (v120.0) | true | Standard | ✅ Prod-ready |
+| C (v101.0) | false | Custom | SQL fallback |
+| D (v60.3) | true | Standard | ✅ Prod-ready |
+| E (v400.0) | false | Custom | SQL fallback |
+| F (v900.1) | false | Custom | SQL fallback |
+| G (v35.0) | true | Standard | ✅ Prod-ready |
+| H (v25.2) | true | Standard | ✅ Prod-ready |
+| I (v17.0) | true | Standard | ✅ Prod-ready |
+| J (v2000.0) | false | Custom | SQL fallback |
+| K (v1100.0) | false | Custom | SQL fallback |
+| L (v1600.0) | false | Custom | SQL fallback |
+| M (v103.0) | true | Standard | ✅ Prod-ready |
+| N (v1200.0) | false | Custom | SQL fallback |
+| P (v140.0) | true | Standard | ✅ Prod-ready |
+| Q (v27.0) | true | Standard | ✅ Prod-ready |
 
-| Pipeline | Version | `.env` toggle |
+R and S are different stacks (realtime watch/VWAP reversal) — not applicable.
+
+---
+
+## What Needs to Be Done for Custom-Gate Pipelines
+
+These pipelines have SQL with additional gates beyond the standard 6 (notional, ATR%,
+activity, move_floor, RS). The `*Redis` classes exist but `shouldUseRedis()` returns
+`false`, falling back to SQL until gate parity is achieved.
+
+### Per-Pipeline Gap Analysis
+
+| Pipeline | Version | Missing Gates |
 |---|---|---|
-| A | v90.1 | `TRADING_PIPELINE_A_USE_REDIS=true` |
-| B | v120.0 | `TRADING_PIPELINE_B_USE_REDIS=true` |
-| C | v101.0 | `TRADING_PIPELINE_C_USE_REDIS=true` |
-| D | v60.3 | `TRADING_PIPELINE_D_USE_REDIS=true` |
-| E | v400.0 | `TRADING_PIPELINE_E_USE_REDIS=true` |
-| F | v900.1 | `TRADING_PIPELINE_F_USE_REDIS=true` |
-| G | v35.0 | `TRADING_PIPELINE_G_USE_REDIS=true` |
-| H | v25.2 | `TRADING_PIPELINE_H_USE_REDIS=true` |
-| I | v17.0 | `TRADING_PIPELINE_I_USE_REDIS=true` |
-| J | v2000.0 | `TRADING_PIPELINE_J_USE_REDIS=true` |
-| K | v1100.0 | `TRADING_PIPELINE_K_USE_REDIS=true` |
-| L | v1600.0 | `TRADING_PIPELINE_L_USE_REDIS=true` |
-| M | v103.0 | `TRADING_PIPELINE_M_USE_REDIS=true` |
-| N | v1200.0 | `TRADING_PIPELINE_N_USE_REDIS=true` |
-| P | v140.0 | `TRADING_PIPELINE_P_USE_REDIS=true` |
-| Q | v27.0 | `TRADING_PIPELINE_Q_USE_REDIS=true` |
+| C | v101.0 | above_vwap=1, EMA9>EMA21, composite score, priority boost, pre-breakout RVOL |
+| E | v400.0 | multi-day structure: above_vwap, EMA9>EMA21, trend confirmation, impulse detection, choppiness |
+| F | v900.1 | yesterday move, vol_mult, momentum continuation score |
+| J | v2000.0 | market-movers universe, freshness window, movers filtering |
+| K | v1100.0 | SPY below VWAP, RS ratio vs benchmark, EMA spread, range contraction, distance from high (ATR multiples), green close requirement |
+| L | v1600.0 | active window, top_days universe, losers_limit, pre-breakout detection |
+| N | v1200.0 | market movers universe, two-bar momentum, min_gain_pct |
 
-**R and S are different stacks (realtime watch/VWAP reversal) — not applicable.**
+### Fix Strategy (Option B: per-class gate override)
+
+For each custom-gate pipeline, the `*Redis` scanner class should:
+
+1. **Override `doScan()`** — call `redisRepo()->getLatestBars('5m', ...)` to get bars,
+   then apply pipeline-specific gates in PHP (mirroring the SQL logic).
+2. **Override `scanSymbol()`** — same as above but for single-symbol event-driven path.
+3. **Add required data to Redis bar payload** if needed:
+   - `above_vwap`, `ema9`, `ema21`, `vwap` — add to `MarketBar` DTO and bar payload
+   - Benchmark data (SPY VWAP, RS ratio) — compute in PHP from benchmark bars
+4. **Universe building** — the `buildIntradayUniverse()` method already handles
+   market movers expansion via config. The Redis `doScan()` already calls it.
+
+Entry finder side is already ML-safe for all pipelines — no changes needed.
+
+### Example: Fix Pipeline K (v1100.0)
+
+v1100's additional gates require:
+- **SPY below VWAP**: Can be computed in PHP from benchmark bars
+- **RS ratio vs benchmark**: `(stock_move - spy_move)` — already in `spyMove30m` from trait
+- **EMA spread**: Need ema9/ema21 in bar payload (add to Python writer)
+- **Distance from high**: Computable from bar high values
+- **Green close**: `close > open` — simple
+
+### Quick Start for a Fix
+
+```php
+// In FiveMinuteSignalScannerV1100_0Redis.php:
+class FiveMinuteSignalScannerV1100_0Redis extends FiveMinuteSignalScannerV1100_0
+{
+    use UsesRedisForScanning;
+    
+    // Override to true when gate parity is verified
+    protected function shouldUseRedis(): bool
+    {
+        return (bool) config('trading.pipelines.k.use_redis', false);
+    }
+    
+    protected function doScan(...): array
+    {
+        if (! $this->shouldUseRedis()) {
+            return parent::doScan(...func_get_args());
+        }
+        
+        // Read 5m bars from Redis
+        // Apply standard 6 gates + v1100-specific gates
+        // Return signals in same format as parent
+    }
+}
+```
+
+## Startup
+
+```bash
+php artisan redis:hydrate-bars                              # Warm-up (once)
+python3 alpaca_python_api/stream_bars.py                     # Real-time bar stream
+php artisan bar-events:consume --group=scanner-h             # Event consumer
+```
 
 ## Gate Comparison
 
 | Gate | SQL | Redis | Match? |
 |---|---|---|---|
-| Scanner: ATR(14) | AVG(GREATEST(...)) in MySQL CTE | Same formula in PHP | ✅ |
-| Scanner: RVOL(20) | AVG(volume) in MySQL CTE | Same formula in PHP | ✅ |
-| Scanner: 30m move | LAG(price, 6) in MySQL | Same formula in PHP | ✅ |
-| Scanner: 6 gates | Same thresholds, same logic | Same | ✅ |
-| Entry: VWAP | Typical×Vol cumulative | Same | ✅ |
-| Entry: EMA9/21 | 2/(N+1) coefficient | Same | ✅ |
-| Entry: ATR14 | max(H-L,|H-P|,|L-P|) | Same | ✅ |
-| Entry: HOD | max(high) over session | Same | ✅ |
-| Entry: Classification | Pipeline-specific | Pipeline-specific (parent logic) | ✅ |
-| Alert: upsertAlert() | Same dedup/freshness/sentiment | Same | ✅ |
-
-## Startup
-
-```bash
-# 1. Warm up Redis (run tonight or early AM)
-php artisan redis:hydrate-bars
-
-# 2. Start Alpaca stream (continuous market hours)
-/var/www/html/laravel-invest/.venv/bin/python3 alpaca_python_api/stream_bars.py
-
-# 3. Start event consumer (continuous)
-php artisan bar-events:consume --group=scanner-h --consumer=worker-1
-
-# 4. Batch pipeline (optional — auto-skips when Redis enabled, works for backtests)
-php artisan trade:pipeline-h
-```
+| ATR(14) | MySQL AVG(GREATEST(...)) | Same in PHP | ✅ |
+| RVOL(20) | MySQL AVG(volume) | Same in PHP | ✅ |
+| 30m move | MySQL LAG(price, 6) | Same in PHP | ✅ |
+| Standard 6 gates | SQL WHERE clauses | Same in PHP | ✅ |
+| Entry VWAP/EMA/ATR | SQL | Same in PHP | ✅ |
+| Entry classification | Pipeline-specific | Inherited from parent | ✅ |
 
 ## Redis Data Model
 
-| Key | Type | Retention | Writer |
-|---|---|---|---|
-| `rt:bars:1m:{Ymd}:stock:{SYM}` | Sorted set | 420 bars, 2d TTL | Python + hydrate |
-| `rt:bars:5m:{Ymd}:stock:{SYM}` | Sorted set | 100 bars, 2d TTL | Python + hydrate |
-| `rt:events:bars` | Stream | ~100k events | Python |
-| `rt:candidate:v25.2:stock:{SYM}` | String/JSON | 10 min | BarEventConsumer |
-| `rt:alert-lock:v25.2:{SYM}:{epoch}` | String | 5-10 min | BarEventConsumer |
-
-## Key Files
-
-| File | Purpose |
-|---|---|
-| `UsesRedisForScanning.php` | Trait: `doScan()` + `scanSymbol()` from Redis 5m bars |
-| `UsesRedisForEntryFinding.php` | Trait: `fetchOneMinuteBars()` from Redis 1m bars |
-| `RedisBarRepository.php` | `getBars()` / `getLatestBars()` |
-| `BarEventConsumer.php` | Reads `rt:events:bars`, dispatches 5m/1m handlers, calls `upsertAlert()` |
-| `ConsumeBarEvents.php` | `bar-events:consume` command |
-| `AbstractSignalScanner.php` | Default `scanSymbol()`, Redis-aware `scan()` skip |
-| `RedisBarHydrator.php` | `redis:hydrate-bars` warm-up |
-| `bar_buffer.py` | Writes 5m + 1m bars to Redis, emits events |
+| Key | Type | Retention |
+|---|---|---|
+| `rt:bars:1m:{Ymd}:stock:{SYM}` | Sorted set | 420 bars, 2d TTL |
+| `rt:bars:5m:{Ymd}:stock:{SYM}` | Sorted set | 100 bars, 2d TTL |
+| `rt:events:bars` | Stream | ~100k events |
+| `rt:candidate:v{NN}:stock:{SYM}` | String/JSON | 10 min |
+| `rt:alert-lock:v{NN}:{SYM}:{epoch}` | String | 5-10 min |

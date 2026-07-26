@@ -55,22 +55,9 @@ class TradePipelineRunH extends Command
         // Convert version format: v17.0 -> V17_0
         $versionClean = 'V'.str_replace(['v', '.'], ['', '_'], $version);
 
-        // Use Redis variant when TRADING_V25_SCANNER_USE_REDIS=true
-        $pipelineKey = strtolower($versionClean);
-        $useRedis = (bool) config("trading.{$pipelineKey}.scanner.use_redis", false);
-        $redisSuffix = $useRedis ? 'Redis' : '';
-
         // Dynamically instantiate scanner and finder
-        $scannerClass = "App\\Services\\Trading\\FiveMinuteSignalScanner{$versionClean}{$redisSuffix}";
-        $finderClass = "App\\Services\\Trading\\OneMinuteEntryFinder{$versionClean}{$redisSuffix}";
-
-        if (! class_exists($scannerClass) || ! class_exists($finderClass)) {
-            $this->error("Pipeline H version {$version} not found (Scanner: {$scannerClass}, Finder: {$finderClass})");
-
-            return 1;
-        }
-
-        $this->info('Pipeline H: '.($useRedis ? 'Redis (rt:bars)' : 'MySQL (SQL)').' data source');
+        $scannerClass = "App\\Services\\Trading\\FiveMinuteSignalScanner{$versionClean}";
+        $finderClass = "App\\Services\\Trading\\OneMinuteEntryFinder{$versionClean}";
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
