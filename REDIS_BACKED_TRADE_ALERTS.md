@@ -2,42 +2,73 @@
 
 ## Overview
 
-The v25.2 (Pipeline H) signal scanner can now use Redis sorted sets (`rt:bars:5m:*`) instead of MySQL for 5-minute bar data, eliminating slow SQL queries from the realtime scanning path.
+Pipeline H (v25.2) now supports an **event-driven Redis path** that eliminates MySQL from the realtime scanning pipeline. Bar events arrive on a Redis stream and trigger per-symbol scanning — no more polling the full universe via `trade:pipeline-h`.
 
-When enabled, each 1-minute bar arriving via `stream_bars.py` is aggregated into 5-minute bars and written to Redis in real-time. The PHP scanner reads directly from Redis, computes ATR/RVOL/move/notional in memory, and applies the same quality gates as the SQL path.
+**`trade:pipeline-h` and all other `trade:pipeline-*` commands are unchanged and remain SQL-based for backtests and fallback.**
 
-## Architecture
+## Architecture — Two Paths
+
+### Event-Driven Redis (new — `bar-events:consume`)
 
 ```
-Alpaca WebSocket
-  ↓
-stream_bars.py / bar_buffer.py
-  ↓ (indicators computed in memory)
-bar_buffer.py::_maybe_aggregate_5m()
-  ├→ rt:bars:5m:{Ymd}:stock:{SYMBOL}  (sorted set, 100-bar max, 2-day TTL)
-  └→ rt:events:bars                    (stream, 100k maxlen)
-        ↓
-php artisan bar-events:consume  (event-driven per-symbol)
-php artisan trade:pipeline-h    (batch 5m scan)
-        ↓
-FiveMinuteSignalScannerV25_2Redis
-  uses UsesRedisForScanning
-    → RedisBarRepository::getLatestBars()
-    → computes ATR, RVOL, move_30m, notional
-    → applies quality gates
-    → returns signals
+Alpaca WebSocket ↓
+stream_bars.py / bar_buffer.py ↓ (1m bar → indicators)
+  ├─ _cache_latest_bars_redis():
+  │    ├→ rt:bars:1m:{Ymd}:stock:{SYMBOL}  sorted set  420 bars, 2d TTL
+  │    │   + "1m_bar" event → rt:events:bars stream
+  │    └→ {prefix}stream:bar:{SYMBOL}       hash         1h TTL (snapshot)
+  └─ _maybe_aggregate_5m() → _cache_5m_bar_to_sorted_set():
+       ├→ rt:bars:5m:{Ymd}:stock:{SYMBOL}  sorted set  100 bars, 2d TTL
+       │   + "5m_bar" event → rt:events:bars stream
+       └─ MySQL one_minute_prices (async, independent)
+
+                ↓ rt:events:bars stream ↓
+
+php artisan bar-events:consume → BarEventConsumer::run() (XREADGROUP)
+  ├─ handle5mBar():  dedup → scanSymbol() → rt:bars:5m:*
+  │     → ATR(14) RVOL(20) move_30m notional → gates → rt:candidate:v25.2:stock:{SYM}
+  └─ handle1mBar():  candidate? → findBestLong() → rt:bars:1m:*
+        → VWAP EMA9/21 ATR14 HOD → gates → upsertAlert() → trade_alerts
 ```
 
-## .env Configuration
+### Batch SQL (unchanged — `trade:pipeline-*`)
+
+```
+php artisan trade:pipeline-h
+  → FiveMinuteSignalScannerV25_2::scan()  (SQL CTE on five_minute_prices)
+  → EntryFinder::findBestLong()            (SQL on one_minute_prices)
+  → TradeAlertWriterV1::upsertAlert()      → trade_alerts
+```
+
+All `trade:pipeline-*` commands are **NOT modified** — SQL-only for backtests and fallback.
+
+## Full Startup
 
 ```bash
-# Pipeline H version (must be v25.2 or higher)
+# 1. Warm up Redis with today's bars (once or cron)
+php artisan redis:hydrate-bars
+
+# 2. Start Alpaca WebSocket bar/quote stream
+/var/www/html/laravel-invest/.venv/bin/python3 alpaca_python_api/stream_bars.py
+
+# 3. Start event consumer (scans per-symbol, writes trade_alerts)
+php artisan bar-events:consume
+
+# Options:
+# --group=scanner-v25    (consumer group, default: scanner-v25)
+# --consumer=worker-1    (unique name per process, default: worker-1)
+# --batch=100            (max events per XREADGROUP, default: 100)
+```
+
+After all three are running, **`trade:pipeline-h` can be disabled** — trade alerts are generated entirely by bar events.
+
+## .env Settings
+
+```bash
 TRADE_ALERT_H_VERSION=v25.2
 
-# Enable Redis scanning for v25.2 (Pipeline H)
+# Only v25.2 Redis scanning enabled
 TRADING_V25_SCANNER_USE_REDIS=true
-
-# Other pipelines (off by default)
 TRADING_V27_SCANNER_USE_REDIS=false
 TRADING_V17_SCANNER_USE_REDIS=false
 TRADING_V35_SCANNER_USE_REDIS=false
@@ -45,98 +76,12 @@ TRADING_V60_SCANNER_USE_REDIS=false
 TRADING_V90_SCANNER_USE_REDIS=false
 TRADING_V120_SCANNER_USE_REDIS=false
 
-# Redis connection (standard Laravel settings)
 REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=null
 ```
 
-## Prerequisites
-
-### 1. Redis must be running
-
-```bash
-redis-cli ping   # Should return PONG
-```
-
-### 2. Warm up Redis with historical bar data (run once)
-
-```bash
-# Full session warm-up (all symbols with 1_min=1)
-php artisan redis:hydrate-bars
-
-# Specific symbols only
-php artisan redis:hydrate-bars --symbols=AAPL,TSLA,MSFT
-
-# 1-hour window for testing
-php artisan redis:hydrate-bars --minutes-1m=60 --minutes-5m=60
-```
-
-This reads `one_minute_prices` from MySQL, aggregates into 5-minute bars, and writes them to `rt:bars:5m:{date}:stock:{SYMBOL}` sorted sets. It also writes events to the `rt:events:bars` stream.
-
-**Without this step, `getLatestBars()` returns empty results until `stream_bars.py` has been running long enough to fill Redis with live bars.**
-
-### 3. stream_bars.py must be running
-
-```bash
-# Start the Alpaca WebSocket bar/quote stream
-/var/www/html/laravel-invest/.venv/bin/python3 alpaca_python_api/stream_bars.py
-```
-
-This keeps `rt:bars:5m:*` sorted sets updated in real-time as new 5-minute bars complete. Each 1-minute bar is aggregated into 5-minute buckets (OHLCV), written to the sorted set, and a `5m_bar` event is emitted to `rt:events:bars`.
-
-## Running the Pipeline
-
-### Real-time event-driven scanning (per-symbol)
-
-```bash
-# Consume bar events from rt:events:bars stream
-# When a new 5m bar completes, scan just that symbol
-php artisan bar-events:consume
-```
-
-Options:
-```
---group=scanner-v25    Redis stream consumer group name
---consumer=worker-1    Consumer name (unique per process)
---batch=100            Max events per read
-```
-
-### Batch pipeline (all symbols, periodic)
-
-```bash
-# Run Pipeline H — 5m scan → 1m entries → store alerts
-php artisan trade:pipeline-h
-
-# Backtest mode
-php artisan trade:pipeline-h --backtest --from=2026-07-01 --to=2026-07-26
-
-# Rolling window backtest
-php artisan trade:pipeline-h --rolling-window
-```
-
-The command output shows which data source is active:
-```
-Pipeline H: Redis (rt:bars) data source
-```
-
-## Verifying Redis Data
-
-```bash
-# Enter Laravel Tinker
-php artisan tinker
-
-# Check if a symbol has 5m bars in Redis
->>> \Illuminate\Support\Facades\Redis::zcard('rt:bars:5m:20260726:stock:AAPL')
-=> 50
-
-# List today's keys
->>> \Illuminate\Support\Facades\Redis::keys('rt:bars:5m:20260726:stock:*')
-```
-
 ## Per-Pipeline Toggle
-
-Each pipeline with a `*Redis` scanner class has its own `.env` flag:
 
 | Pipeline | ENV Var | Scanner Class |
 |---|---|---|
@@ -145,38 +90,64 @@ Each pipeline with a `*Redis` scanner class has its own `.env` flag:
 | I (v17.0) | `TRADING_V17_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV17_0Redis` |
 | D (v60.3) | `TRADING_V60_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV60_3Redis` |
 | A (v90.1) | `TRADING_V90_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV90_1Redis` |
-| B (v120.0)| `TRADING_V120_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV120_0Redis` |
+| B (v120.0) | `TRADING_V120_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV120_0Redis` |
 | — (v35.0) | `TRADING_V35_SCANNER_USE_REDIS` | `FiveMinuteSignalScannerV35_0Redis` |
 
-When `true`, the `*Redis` class is instantiated with the `UsesRedisForScanning` trait, which reads bars from Redis. When `false`, the base SQL class is used.
+When `true`: `*Redis` class is used, reading bars from `rt:bars:*` sorted sets.
+When `false`: base SQL class is used (MySQL queries).
+
+## Redis Data Model
+
+| Key Pattern | Type | Retention | Writer |
+|---|---|---|---|
+| `rt:bars:1m:{Ymd}:stock:{SYM}` | Sorted set | 420 bars, 2d TTL | bar_buffer.py + hydrate |
+| `rt:bars:5m:{Ymd}:stock:{SYM}` | Sorted set | 100 bars, 2d TTL | bar_buffer.py + hydrate |
+| `rt:events:bars` | Stream | ~100k events | bar_buffer.py |
+| `rt:candidate:v25.2:stock:{SYM}` | String/JSON | 10 min | BarEventConsumer |
+| `rt:alert-lock:v25.2:{SYM}:{epoch}:{type}` | String | 5-10 min | BarEventConsumer |
+| `{prefix}stream:bar:{SYM}` | Hash | 1h | bar_buffer.py |
+
+**Bar member format** (stored as JSON in sorted sets):
+```json
+{"ts":1785166200,"ts_est":"2026-07-26 09:30:00","symbol":"AAPL","open":12.34,"high":12.51,"low":12.30,"close":12.48,"volume":184350,"vwap":12.4275,"is_final":true,"source":"alpaca_stream"}
+```
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `app/Services/Trading/UsesRedisForScanning.php` | Trait: overrides `doScan()` to read from Redis |
-| `app/Repositories/RedisBarRepository.php` | Reads/writes `rt:bars:*` Redis sorted sets |
-| `app/Console/Commands/RedisBarHydrator.php` | `redis:hydrate-bars` — warms up Redis from MySQL |
-| `app/Console/Commands/TradePipelineRunH.php` | `trade:pipeline-h` — Pipeline H command |
-| `app/Console/Commands/ConsumeBarEvents.php` | `bar-events:consume` — event-driven scanning |
-| `alpaca_python_api/bar_buffer.py` | Computes indicators, aggregates 5m bars, writes to Redis |
-| `config/trading.php` | Pipeline config (`scanner.use_redis` keys) |
-| `.env` | `TRADING_V25_SCANNER_USE_REDIS=true` |
+| `app/Services/Trading/UsesRedisForScanning.php` | Trait: `doScan()` + `scanSymbol()` from Redis |
+| `app/Services/Trading/UsesRedisForEntryFinding.php` | Trait: `doFindBestLong()` from Redis 1m bars |
+| `app/Repositories/RedisBarRepository.php` | `getBars()` / `getLatestBars()` |
+| `app/Services/Trading/BarEventConsumer.php` | Reads `rt:events:bars`, dispatches 5m/1m handlers |
+| `app/Console/Commands/ConsumeBarEvents.php` | `bar-events:consume` command |
+| `app/Console/Commands/RedisBarHydrator.php` | `redis:hydrate-bars` warm-up |
+| `app/Services/Trading/AbstractSignalScanner.php` | Has `scanSymbol()` default |
+| `alpaca_python_api/bar_buffer.py` | Writes 1m + 5m bars, emits events |
+| `config/trading.php` | `v*.scanner.use_redis` keys |
+| `.env` | Pipeline toggles |
+
+## Verification
+
+```bash
+# Check bar counts
+redis-cli ZCARD rt:bars:5m:20260726:stock:AAPL
+redis-cli ZCARD rt:bars:1m:20260726:stock:AAPL
+
+# Check stream length
+redis-cli XLEN rt:events:bars
+
+# Tinker
+php artisan tinker
+>>> Redis::zcard('rt:bars:5m:20260726:stock:AAPL')
+```
 
 ## Troubleshooting
 
-### No signals returned
-
-1. Check Redis has data: `redis-cli ZCARD rt:bars:5m:20260726:stock:AAPL`
-2. Run warm-up: `php artisan redis:hydrate-bars`
-3. Verify stream_bars.py is running and producing bars
-4. Check `.env` has `TRADING_V25_SCANNER_USE_REDIS=true`
-5. Run pipeline with debug: add `SCANNER_V25_DEBUG=1` to `.env`
-
-### Empty results after restart
-
-Run `php artisan redis:hydrate-bars` to re-populate Redis after a restart or Redis flush. Redis bar keys have a 2-day TTL.
-
-### Backtest still uses SQL
-
-Backtest mode (`--backtest`) is cache-free by design — it runs against `five_minute_prices_full` table for reproducibility. Redis scanning is designed for live/realtime mode.
+| Symptom | Check |
+|---|---|
+| No trade_alerts | `redis-cli XLEN rt:events:bars` > 0? Is `bar-events:consume` running? |
+| No bar data in Redis | Run `php artisan redis:hydrate-bars` |
+| stale data | Is `stream_bars.py` running? Redis restart requires re-hydration |
+| Entry finder returns nothing | Check `rt:bars:1m:*` has data (warm-up + Python must be active) |
+| Consumer group errors | `redis-cli XGROUP DESTROY rt:events:bars scanner-v25` | 
