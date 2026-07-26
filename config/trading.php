@@ -59,6 +59,7 @@ return [
     */
 
     'scanner' => [
+        'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
         // Enable/disable the CDL3WHITESOLDIERS candlestick scanner command (scan:three-white-soldiers-live)
         'three_white_soldiers_enabled' => (bool) env('TRADING_SCANNER_THREE_WHITE_SOLDIERS_ENABLED', false),
     ],
@@ -476,6 +477,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V140_DEBUG', false),
 
         'scanner' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
             'top_days' => (int) env('TRADING_V140_TOP_DAYS', 5),
             'top_limit' => (int) env('TRADING_V140_TOP_LIMIT', 600),
             'gainers_limit' => (int) env('TRADING_V140_GAINERS_LIMIT', 100),
@@ -988,6 +990,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V1600_DEBUG', false),
 
         'scanner' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
             'active_window_minutes' => (int) env('TRADING_V1600_ACTIVE_WINDOW_MINUTES', 8),
             'top_days' => (int) env('TRADING_V1600_TOP_DAYS', 5),
             'top_limit' => (int) env('TRADING_V1600_TOP_LIMIT', 650),
@@ -1023,6 +1026,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V1600_2_DEBUG', env('ENTRYFINDER_V1600_DEBUG', false)),
 
         'scanner' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
             'active_window_minutes' => (int) env('TRADING_V1600_2_ACTIVE_WINDOW_MINUTES', 8),
             'top_days' => (int) env('TRADING_V1600_2_TOP_DAYS', 5),
             'top_limit' => (int) env('TRADING_V1600_2_TOP_LIMIT', 350),
