@@ -204,9 +204,8 @@ class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
         // - If your table doesn't have high/low columns, replace TR with abs(close - prev_close) proxy.
         $sql = "
 WITH universe AS (
-  SELECT ?, symbol
-  FROM (SELECT 1) t
-  CROSS JOIN (
+  SELECT symbol
+  FROM (
     SELECT DISTINCT symbol
     FROM five_minute_prices
 
