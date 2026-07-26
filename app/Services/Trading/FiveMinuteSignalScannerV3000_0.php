@@ -429,7 +429,7 @@ GROUP BY symbol
         return array_keys($clean);
     }
 
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    private function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

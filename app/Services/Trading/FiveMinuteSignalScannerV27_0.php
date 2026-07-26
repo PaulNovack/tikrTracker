@@ -509,7 +509,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
     /**
      * Get SPY 30m movement for relative strength comparison
      */
-    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

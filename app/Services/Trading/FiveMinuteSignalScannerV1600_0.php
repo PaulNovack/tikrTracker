@@ -448,7 +448,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         return array_slice($out, 0, max(1, $limit));
     }
 
-    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;

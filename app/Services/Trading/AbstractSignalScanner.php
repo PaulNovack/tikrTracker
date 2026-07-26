@@ -154,7 +154,7 @@ abstract class AbstractSignalScanner
      * Used for relative-strength filtering — if the benchmark rips +2% and a candidate
      * is only up +1.5%, the candidate is merely riding the tide, not showing true strength.
      */
-    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
         if ($assetType !== 'stock') {
             return 0.0;
@@ -162,7 +162,7 @@ abstract class AbstractSignalScanner
 
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
@@ -171,7 +171,7 @@ WHERE symbol = ?
 
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
 
         if (! $rows) {
