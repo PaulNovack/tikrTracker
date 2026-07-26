@@ -178,7 +178,7 @@ avg_volume AS (
     FROM five_minute_prices
     WHERE trading_date_est = ?
         AND ts_est < ?
-        WHERE symbol IN ($symbolPlaceholders)
+        AND symbol IN ($symbolPlaceholders)
     GROUP BY symbol
     HAVING COUNT(*) >= 10
 )
