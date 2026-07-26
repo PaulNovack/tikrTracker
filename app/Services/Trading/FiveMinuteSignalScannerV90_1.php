@@ -112,7 +112,6 @@ class FiveMinuteSignalScannerV90_1 extends AbstractSignalScanner
         // 1) Get Yesterday's Big Movers (5%+ gainers with volume)
         // -----------------------------
         $yesterdayGainers = $this->getYesterdaysBigMovers(
-            'stock',
             $tradeDate,
             $minYesterdayMove,
             $minVolMult

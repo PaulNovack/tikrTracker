@@ -117,12 +117,6 @@ class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
         return 'v103.0';
     }
 
-    /** @return array<string, mixed> */
-    public function entryConfig(): array
-    {
-        return ['version' => $this->getVersion()];
-    }
-
     /**
      * @return array<string, int|float>
      */
