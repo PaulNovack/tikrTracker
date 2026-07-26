@@ -166,7 +166,6 @@ class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
 WITH today_data AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -176,7 +175,7 @@ WITH today_data AS (
     f.vwap,
     f.atr_pct
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
+
     AND f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
@@ -184,15 +183,13 @@ WITH today_data AS (
 latest_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM today_data
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 current_state AS (
   SELECT
     td.symbol,
-    td.asset_type,
     td.ts_est AS signal_ts_est,
     td.close,
     td.high,
@@ -220,7 +217,6 @@ with_metrics AS (
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -241,7 +237,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -321,7 +317,7 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'move_pct' => $moveFromOpen,
@@ -428,7 +424,7 @@ WITH recent_days AS (
   SELECT DISTINCT date
   FROM daily_prices
   WHERE date < ?
-    AND asset_type = ?
+
   ORDER BY date DESC
   LIMIT 5
 ),
@@ -445,16 +441,14 @@ consecutive_movers AS (
     dp.volume / NULLIF(
       (SELECT AVG(d2.volume)
        FROM daily_prices d2
-       WHERE d2.symbol = dp.symbol
-         AND d2.asset_type = dp.asset_type
-         AND d2.date < dp.date
+       WHERE d2.symbol = dp.symbol AND d2.date < dp.date
          AND d2.date >= DATE_SUB(dp.date, INTERVAL 10 DAY)
       ), 0
     ) as vol_ratio,
     ROW_NUMBER() OVER (PARTITION BY dp.symbol ORDER BY dp.date DESC) as day_rank
   FROM daily_prices dp
   INNER JOIN recent_days rd ON dp.date = rd.date
-  WHERE dp.asset_type = ?
+
     AND (dp.price - dp.open) / dp.open >= 0.025
   HAVING vol_ratio >= 1.2
 ),
@@ -493,7 +487,6 @@ FROM streak_analysis
         $movers = $this->dbSelect($sql, [
             $tradeDate,
             $assetType,
-            $assetType,
             $minConsecutiveDays,
         ]);
 
@@ -520,15 +513,11 @@ FROM streak_analysis
 SELECT
   f.symbol,
   (SELECT f2.open FROM five_minute_prices f2 
-   WHERE f2.symbol = f.symbol 
-     AND f2.asset_type = f.asset_type 
-     AND f2.trading_date_est = ?
+   WHERE f2.symbol = f.symbol AND f2.trading_date_est = ?
    ORDER BY f2.ts_est ASC LIMIT 1) as first_open,
   prev.close as yesterday_close,
   ((SELECT f2.open FROM five_minute_prices f2 
-    WHERE f2.symbol = f.symbol 
-      AND f2.asset_type = f.asset_type 
-      AND f2.trading_date_est = ?
+    WHERE f2.symbol = f.symbol AND f2.trading_date_est = ?
     ORDER BY f2.ts_est ASC LIMIT 1) - prev.close) / prev.close * 100 as gap_pct,
   MIN(f.price) as intraday_low,
   (MIN(f.price) >= prev.close) as holding_gap
@@ -540,20 +529,20 @@ INNER JOIN (
     SELECT MAX(date) FROM daily_prices 
     WHERE date < ? AND asset_type = ?
   )
-  AND asset_type = ?
+
   AND symbol IN ($placeholders)
 ) prev ON f.symbol = prev.symbol
-WHERE f.asset_type = ?
+
   AND f.symbol IN ($placeholders)
   AND f.trading_date_est = ?
-GROUP BY f.symbol, f.asset_type, prev.close
+GROUP BY f.symbol, prev.close
 HAVING gap_pct >= ?
 ";
 
         $params = array_merge(
-            [$tradeDate, $tradeDate, $tradeDate, $assetType, $assetType],
+            [$tradeDate, $tradeDate, $tradeDate],
             $symbols,
-            [$assetType],
+            [],
             $symbols,
             [$tradeDate, $minGapPct]
         );

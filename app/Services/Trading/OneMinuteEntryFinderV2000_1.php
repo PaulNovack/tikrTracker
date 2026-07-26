@@ -55,7 +55,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
             WHERE symbol = ?
               AND ts_est = ?
             LIMIT 1
-        ', [$symbol, $assetType, $signalTsEst]);
+        ', [$symbol, $signalTsEst]);
 
         if (empty($signalBar)) {
             return [
@@ -105,7 +105,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 30
-        ', [$symbol, $assetType, $asOfTsEst, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst, $asOfTsEst]);
 
         if (empty($recentOneMinuteBars)) {
             return [

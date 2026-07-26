@@ -115,7 +115,7 @@ class OneMinuteEntryFinderV210_0
             }
         }
 
-        $bars = $this->get1mBars($symbol, $assetType, $analysisStart, $analysisEnd);
+        $bars = $this->get1mBars($symbol, $analysisStart, $analysisEnd);
         if (count($bars) < 3) {
             return [
                 'ok' => false,
@@ -327,7 +327,7 @@ class OneMinuteEntryFinderV210_0
         return $this->dbSelect('
             SELECT *,
                 AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                 ) AS avg_vol_20
@@ -338,7 +338,7 @@ class OneMinuteEntryFinderV210_0
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 200
-        ', [$symbol, $assetType, $tradingDate, $startTsEst, $endTsEst]);
+        ', [$symbol, $tradingDate, $startTsEst, $endTsEst]);
     }
 
     private function calculateVolumeRatio(array $bars, int $currentIndex, int $lookback): float

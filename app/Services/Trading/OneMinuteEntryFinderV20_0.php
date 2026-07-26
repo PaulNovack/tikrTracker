@@ -256,7 +256,7 @@ class OneMinuteEntryFinderV20_0
     ): array {
         // v19.0: PRE-CHECK - Skip if not 3 consecutive gains with quality
         // This avoids expensive entry pattern detection on weak symbols
-        if (! $this->hasThreeConsecutiveGains($symbol, $assetType, $asOfTsEst)) {
+        if (! $this->hasThreeConsecutiveGains($symbol, $asOfTsEst)) {
             return ['ok' => false, 'best_entry' => null, 'candidates' => []];
         }
 

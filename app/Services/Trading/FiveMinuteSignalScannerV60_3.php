@@ -151,14 +151,13 @@ class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
 WITH bars AS (
   SELECT
     symbol,
-    asset_type,
     ts_est,
     price AS close,
     volume,
     atr_pct,
-    ROW_NUMBER() OVER (PARTITION BY symbol, asset_type ORDER BY ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
   FROM five_minute_prices
-  WHERE asset_type = ?
+
     AND symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -166,7 +165,6 @@ WITH bars AS (
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
@@ -174,11 +172,10 @@ agg AS (
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   last_close,
   prev_close,
@@ -199,7 +196,7 @@ LIMIT ?
         $minComposite = $this->minComposite;
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -238,7 +235,7 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $stockMovePct,
                 'vol_ratio' => (float) $r->vol_ratio,
@@ -265,12 +262,12 @@ WITH base AS (
   SELECT
     omp.*,
     AVG(omp.volume) OVER (
-      PARTITION BY omp.symbol, omp.asset_type
+      PARTITION BY omp.symbol
       ORDER BY omp.ts_est
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20
   FROM one_minute_prices omp
-  WHERE omp.asset_type = ?
+
     AND omp.symbol IN ($ph)
     AND omp.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND omp.ts_est <  ?
@@ -279,7 +276,6 @@ WITH base AS (
 scored AS (
   SELECT
     b.symbol,
-    b.asset_type,
     b.ts_est,
     ROUND(
       100 * (
@@ -312,7 +308,7 @@ GROUP BY symbol
 ";
 
         $params1mScore = array_merge(
-            [$assetType],
+            [],
             $candSymbols,
             [$asOfTsEst, $lookbackMinutes, $asOfTsEst, $asOfTsEst]
         );
@@ -401,7 +397,7 @@ GROUP BY symbol
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = 'QQQM'
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC

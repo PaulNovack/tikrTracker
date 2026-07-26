@@ -53,7 +53,7 @@ class OneMinuteEntryFinderV22_0
                 continue;
             }
 
-            $entry = $this->checkAlligatorWakeOrEat((string) $symbol, $assetType, $asOfTsEst);
+            $entry = $this->checkAlligatorWakeOrEat((string) $symbol, $asOfTsEst);
 
             if ($entry !== null) {
                 // For the v21 batch writer path, the entry array must contain writer keys.
@@ -78,7 +78,7 @@ class OneMinuteEntryFinderV22_0
     {
         self::$dbg['called']++;
 
-        $entry = $this->checkAlligatorWakeOrEat($symbol, $assetType, $asOfTsEst);
+        $entry = $this->checkAlligatorWakeOrEat($symbol, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();

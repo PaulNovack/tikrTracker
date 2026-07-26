@@ -33,7 +33,6 @@ class OneMinuteEntryFinderMarketMovers
         // Get 1-minute bars around the signal
         $bars = $this->getOneMinuteBars(
             $symbol,
-            $assetType,
             $signalTsEst,
             $asOfTsEst,
             $beforeMinutes,
@@ -87,7 +86,7 @@ class OneMinuteEntryFinderMarketMovers
             ORDER BY ts_est ASC
         ';
 
-        return $this->dbSelect($sql, [$symbol, $assetType, $startTs, $endTs]);
+        return $this->dbSelect($sql, [$symbol, $startTs, $endTs]);
     }
 
     /**

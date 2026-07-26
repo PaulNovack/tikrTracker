@@ -180,12 +180,12 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
         // Volume = SUM(volume).
         $sql = "
 WITH universe AS (
-  SELECT ? AS asset_type, symbol
+  SELECT ?, symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol
     FROM one_minute_prices
-    WHERE asset_type = ?
+
       AND symbol IN ($placeholders)
   ) s
 ),
@@ -193,7 +193,6 @@ WITH universe AS (
 one_min_agg AS (
   SELECT
     symbol,
-    asset_type,
     DATE_FORMAT(ts_est, '%Y-%m-%d %H:%i:00') AS min_ts,
     high,
     low,
@@ -209,7 +208,7 @@ one_min_agg AS (
       ':00'
     ) AS five_min_bucket
   FROM one_minute_prices
-  WHERE asset_type = ?
+
     AND symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -217,35 +216,31 @@ one_min_agg AS (
 partial_5m AS (
   SELECT
     symbol,
-    asset_type,
     five_min_bucket AS ts_est,
     MAX(high) AS high,
     MIN(low) AS low,
     -- Close = price of most recent 1m bar in bucket
     (SELECT o2.price
      FROM one_minute_prices o2
-     WHERE o2.symbol = om.symbol
-       AND o2.asset_type = om.asset_type
-       AND o2.ts_est >= om.five_min_bucket
+     WHERE o2.symbol = om.symbol AND o2.ts_est >= om.five_min_bucket
        AND o2.ts_est < DATE_ADD(om.five_min_bucket, INTERVAL 5 MINUTE)
      ORDER BY o2.ts_est DESC
      LIMIT 1) AS close,
     SUM(volume) AS volume,
     COUNT(*) AS bar_count
   FROM one_min_agg om
-  GROUP BY symbol, asset_type, five_min_bucket
+  GROUP BY symbol, five_min_bucket
 ),
 base AS (
   SELECT
     symbol,
-    asset_type,
     ts_est,
     close,
     high,
     low,
     volume,
-    LAG(close, 1) OVER (PARTITION BY symbol, asset_type ORDER BY ts_est) AS prev_close,
-    ROW_NUMBER() OVER (PARTITION BY symbol, asset_type ORDER BY ts_est DESC) AS rn_desc
+    LAG(close, 1) OVER (PARTITION BY symbol ORDER BY ts_est) AS prev_close,
+    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn_desc
   FROM partial_5m
 ),
 recent AS (
@@ -256,27 +251,24 @@ recent AS (
 agg_last AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn_desc = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn_desc = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn_desc = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn_desc = 1 + ? THEN close END) AS close_nback
   FROM base
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 rvol AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(b.volume) AS avg_vol
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 atr AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(
       GREATEST(
         (b.high - b.low),
@@ -286,16 +278,15 @@ atr AS (
     ) AS atr_val
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 activity AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_seen_ts
+  SELECT symbol, MAX(ts_est) AS last_seen_ts
   FROM recent
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   a.symbol,
-  a.asset_type,
   a.signal_ts_est,
   a.last_close,
   a.last_vol,
@@ -307,16 +298,13 @@ SELECT
   (a.last_close * a.last_vol) AS notional_last5m,
   act.last_seen_ts
 FROM agg_last a
-JOIN rvol r ON r.symbol=a.symbol AND r.asset_type=a.asset_type
-JOIN atr  t ON t.symbol=a.symbol AND t.asset_type=a.asset_type
-JOIN activity act ON act.symbol=a.symbol AND act.asset_type=a.asset_type
-WHERE a.close_nback IS NOT NULL
+JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity act ON act.symbol=a.symbol WHERE a.close_nback IS NOT NULL
 ";
 
         $params = array_merge(
-            [$assetType, $assetType],
+            [],
             $symbols,
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $asOfTsEst, $activeWindowMinutes],
             [$moveBars, $rvolLookback, $atrPeriod]
@@ -341,7 +329,7 @@ WHERE a.close_nback IS NOT NULL
         }
 
         // SPY relative strength (optional gate)
-        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $assetType, $moveBars);
+        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $moveBars);
 
         $asOfEpochRaw = strtotime($asOfTsEst);
         $asOfEpoch = $asOfEpochRaw !== false
@@ -440,7 +428,7 @@ WHERE a.close_nback IS NOT NULL
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M_V35',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -491,7 +479,7 @@ SELECT
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
+
   AND ts_est <= ?
 ORDER BY ts_est ASC
 ";

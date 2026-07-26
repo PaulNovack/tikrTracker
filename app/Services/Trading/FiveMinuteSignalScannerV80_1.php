@@ -144,7 +144,6 @@ class FiveMinuteSignalScannerV80_1
             if ($prevTradingDay) {
                 $losersData = $this->gainersLosersService->getGainersAndLosers(
                     $prevTradingDay,
-                    $assetType,
                     50
                 );
 
@@ -318,7 +317,7 @@ class FiveMinuteSignalScannerV80_1
               JOIN (
                 SELECT omp_u.symbol
                 FROM one_minute_prices omp_u
-                WHERE omp_u.asset_type = ?
+
                   AND omp_u.ts_est >= DATE_SUB(?, INTERVAL {$universeLookbackMin} MINUTE)
                   AND omp_u.ts_est <= ?
                   AND omp_u.symbol IN ($ph)
@@ -327,7 +326,7 @@ class FiveMinuteSignalScannerV80_1
                 LIMIT {$universeLimit}
               ) uni ON uni.symbol = b.symbol
             ";
-            $universeParams = array_merge([$assetType, $asOfTsEst, $asOfTsEst], $symbols);
+            $universeParams = array_merge([ $asOfTsEst, $asOfTsEst], $symbols);
         }
 
         // We compute avg_vol_20 as in your v60_2 score CTE, but we do it inside base.
@@ -336,7 +335,7 @@ class FiveMinuteSignalScannerV80_1
         $sql = "
 WITH params AS (
   SELECT
-    ? AS p_asset_type,
+    ? AS,
     CAST(? AS DATETIME) AS p_asof,
     CAST(? AS DATETIME) - INTERVAL ? MINUTE AS p_from
 ),
@@ -344,7 +343,7 @@ base AS (
   SELECT
     omp.*,
     AVG(COALESCE(omp.volume,0)) OVER (
-      PARTITION BY omp.symbol, omp.asset_type
+      PARTITION BY omp.symbol
       ORDER BY omp.ts_est
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20
@@ -374,7 +373,6 @@ vol_base AS (
 scored AS (
   SELECT
     b.symbol,
-    b.asset_type,
     b.ts_est,
     b.price,
     b.open,
@@ -509,7 +507,6 @@ best_per_symbol AS (
 SELECT
   f.symbol,
   a.id AS asset_id,
-  f.asset_type,
   f.ts_est AS signal_ts_est,
   bps.best_signal_type AS signal_type,
   f.entry_score,
@@ -595,7 +592,7 @@ LIMIT ?
             $out[] = [
                 'symbol' => (string) $r->symbol,
                 'asset_id' => (int) $r->asset_id,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_type' => (string) $r->signal_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'price' => $currentPrice,
@@ -635,7 +632,7 @@ LIMIT ?
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = 'SPYG'
-              AND asset_type = 'stock'
+
               AND ts_est <= ?
               AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
@@ -666,26 +663,23 @@ LIMIT ?
 
         $sql = "
 WITH last_bar AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_ts_est
+  SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
-  WHERE asset_type = ?
+
     AND symbol IN ($ph)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
   JOIN last_bar lb
-    ON lb.symbol = f.symbol AND lb.asset_type = f.asset_type
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($ph)
+    ON lb.symbol = f.symbol AND f.symbol IN ($ph)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
@@ -703,10 +697,10 @@ WHERE prev_close IS NOT NULL
 ";
 
         $params = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, max(15, $lookbackMinutes)],
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, max(15, $lookbackMinutes)],
             [$nback]

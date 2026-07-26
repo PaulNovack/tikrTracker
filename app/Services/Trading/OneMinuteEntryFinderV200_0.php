@@ -15,10 +15,10 @@ namespace App\Services\Trading;
  *  ]
  *
  * Supports legacy-ish signature:
- *  findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fillModel,$signalMeta)
+ *  findBestLong($symbol,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fillModel,$signalMeta)
  *
  * And "opts" signature:
- *  findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst, ['beforeMinutes'=>.., 'signalMeta'=>.., ...])
+ *  findBestLong($symbol,$signalTsEst,$asOfTsEst, ['beforeMinutes'=>.., 'signalMeta'=>.., ...])
  */
 class OneMinuteEntryFinderV200_0
 {
@@ -97,7 +97,7 @@ class OneMinuteEntryFinderV200_0
             }
         }
 
-        $bars = $this->get1mBars($symbol, $assetType, $tradeDate, $analysisStart, $analysisEnd);
+        $bars = $this->get1mBars($symbol, $tradeDate, $analysisStart, $analysisEnd);
         if (count($bars) < 12) {
             return [
                 'ok' => false,
@@ -110,7 +110,7 @@ class OneMinuteEntryFinderV200_0
         }
 
         // 5m trend map (ema9_above_ema21) to avoid entries against 5m direction
-        $trendMap = $this->get5mTrendMap($symbol, $assetType, $tradeDate, $analysisStart, $analysisEnd);
+        $trendMap = $this->get5mTrendMap($symbol, $tradeDate, $analysisStart, $analysisEnd);
 
         $is5mUp = function (string $ts1m) use ($trendMap): bool {
             $relevant = null;
@@ -504,7 +504,7 @@ class OneMinuteEntryFinderV200_0
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
     }
 
     private function get5mTrendMap(string $symbol, string $assetType, string $tradeDate, string $from, string $to): array
@@ -519,7 +519,7 @@ class OneMinuteEntryFinderV200_0
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         $map = [];
         foreach ($rows as $r) {

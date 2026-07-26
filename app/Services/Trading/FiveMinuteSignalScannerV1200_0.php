@@ -126,7 +126,6 @@ class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
 WITH latest_bars AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         f.ts_est,
         f.trading_time_est,
@@ -140,7 +139,7 @@ WITH latest_bars AS (
         f.atr_pct,
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as bar_rank
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
+
         AND f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
@@ -151,7 +150,6 @@ WITH latest_bars AS (
 bar_data AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         MAX(CASE WHEN bar_rank = 1 THEN ts_est END) as ts_bar0,
         MAX(CASE WHEN bar_rank = 1 THEN price END) as close_bar0,
@@ -164,7 +162,7 @@ bar_data AS (
         MAX(CASE WHEN bar_rank = 3 THEN open END) as open_bar2
     FROM latest_bars
     WHERE bar_rank <= 3
-    GROUP BY symbol, asset_type, trading_date_est
+    GROUP BY symbol, trading_date_est
     HAVING close_bar0 IS NOT NULL 
         AND close_bar1 IS NOT NULL 
         AND close_bar2 IS NOT NULL
@@ -174,7 +172,7 @@ avg_volume AS (
         symbol,
         AVG(volume) as avg_vol_20
     FROM five_minute_prices
-    WHERE asset_type = ?
+
         AND trading_date_est = ?
         AND ts_est < ?
         AND symbol IN ($symbolPlaceholders)
@@ -183,7 +181,6 @@ avg_volume AS (
 )
 SELECT 
     b.symbol,
-    b.asset_type,
     b.trading_date_est,
     b.ts_bar0 as signal_ts_est,
     b.close_bar0 as setup_price,
@@ -206,7 +203,6 @@ LIMIT ?
         ";
 
         $params = [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             ...$moverSymbols,
@@ -214,7 +210,6 @@ LIMIT ?
             $timeWindowEnd,
             $minPrice,
             $maxPrice,
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             ...$moverSymbols,
@@ -236,7 +231,7 @@ LIMIT ?
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
+                'asset_type' => $row->,
                 'signal_type' => 'TWO_BAR_MOMENTUM',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => $row->entry_score,

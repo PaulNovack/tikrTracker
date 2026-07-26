@@ -54,7 +54,7 @@ class OneMinuteEntryFinderV1400_0
             'SELECT price, high, low, open, volume
              FROM five_minute_prices
              WHERE symbol = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -66,7 +66,7 @@ class OneMinuteEntryFinderV1400_0
         $signalClose = (float) $signalBar->price;
 
         // Calculate simple ATR approximation from recent bars if needed
-        $atrApprox = $this->estimateATR($symbol, $assetType, $signalTsEst);
+        $atrApprox = $this->estimateATR($symbol, $signalTsEst);
         $atr = $atrApprox;
         $atrPct = $atr ? ($atr / $signalClose) * 100 : null;
 
@@ -85,7 +85,7 @@ class OneMinuteEntryFinderV1400_0
                AND ts_est <= ?
              ORDER BY ts_est ASC
              LIMIT 20',
-            [$symbol, $assetType, $signalTsEst, $searchStart, $searchEnd]
+            [$symbol, $signalTsEst, $searchStart, $searchEnd]
         );
 
         if (empty($bars)) {
@@ -93,7 +93,7 @@ class OneMinuteEntryFinderV1400_0
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for clean continuation entries with minimal risk
         $entry = $this->findCleanContinuationEntry(
@@ -348,7 +348,7 @@ class OneMinuteEntryFinderV1400_0
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;
@@ -368,7 +368,7 @@ class OneMinuteEntryFinderV1400_0
                AND ts_est <= ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_range ? (float) $result->avg_range : 0.10;

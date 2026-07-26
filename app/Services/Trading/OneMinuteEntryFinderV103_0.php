@@ -169,7 +169,7 @@ class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
     ): array {
         $fillMethod = isset($rest[4]) ? (string) $rest[4] : 'next_open';
 
-        [$entry, $reason] = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst, $fillMethod);
+        [$entry, $reason] = $this->findEntry($symbol, $signalTsEst, $asOfTsEst, $fillMethod);
 
         if ($entry === null) {
             return [

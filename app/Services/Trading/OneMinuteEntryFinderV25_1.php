@@ -65,7 +65,7 @@ class OneMinuteEntryFinderV25_1
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();

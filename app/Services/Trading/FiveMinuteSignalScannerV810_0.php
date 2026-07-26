@@ -70,7 +70,6 @@ class FiveMinuteSignalScannerV810_0
 WITH f AS (
     SELECT
         symbol,
-        asset_type,
         ts_est,
         trading_date_est,
         trading_time_est,
@@ -91,19 +90,19 @@ WITH f AS (
         rsi_14,
 
         FIRST_VALUE(open) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
         ) AS day_open,
 
         AVG(volume) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
         ) AS avg_volume_20
 
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
       AND trading_time_est BETWEEN ? AND ?
@@ -111,7 +110,6 @@ WITH f AS (
 )
 SELECT
     symbol,
-    asset_type,
     trading_date_est,
     ts_est AS signal_ts_est,
     trading_time_est,
@@ -153,7 +151,7 @@ ORDER BY
 LIMIT ?
 ';
 
-        $params = [$assetType, $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
+        $params = [ $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
         $rows = $this->dbSelect($sql, $params);
 
         if (empty($rows)) {
@@ -226,7 +224,7 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->asset_type,
+                'asset_type' => $r->,
                 'signal_type' => 'ema_pullback',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

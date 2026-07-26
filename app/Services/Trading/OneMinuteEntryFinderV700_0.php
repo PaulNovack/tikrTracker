@@ -101,7 +101,7 @@ class OneMinuteEntryFinderV700_0
               atr,
               atr_pct,
               AVG(volume) OVER (
-                PARTITION BY symbol, asset_type
+                PARTITION BY symbol
                 ORDER BY ts_est
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
@@ -842,7 +842,6 @@ class OneMinuteEntryFinderV700_0
     ): array {
         return $this->findBestLong(
             $symbol,
-            $assetType,
             $signalTsEst,
             $asOfTsEst,
             $beforeMinutes,

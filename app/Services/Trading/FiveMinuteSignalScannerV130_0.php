@@ -83,7 +83,6 @@ class FiveMinuteSignalScannerV130_0
             if ($prevTradingDay) {
                 $losersData = $this->gainersLosersService->getGainersAndLosers(
                     $prevTradingDay,
-                    $assetType,
                     75
                 );
                 $losers = $losersData['losers'] ?? [];
@@ -105,7 +104,7 @@ class FiveMinuteSignalScannerV130_0
             $lookbackStart = date('Y-m-d H:i:s', strtotime($asOf.' -'.$lookbackMinutes.' minutes'));
 
             // Get 5-minute bars for pattern detection
-            $bars = $this->get5MinBars($symbol, $assetType, $lookbackStart, $asOf);
+            $bars = $this->get5MinBars($symbol, $lookbackStart, $asOf);
             if (count($bars) < 8) {
                 continue;
             }
@@ -169,11 +168,11 @@ class FiveMinuteSignalScannerV130_0
                 ema9_above_ema21
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
+
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $from, $to]);
+        ', [$symbol, $from, $to]);
     }
 
     /**

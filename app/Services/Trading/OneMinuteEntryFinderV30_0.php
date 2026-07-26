@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\Log;
  * Supports BOTH APIs:
  *
  * 1) Legacy (Pipeline B non-v21.0 currently uses this):
- *    findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fill)
+ *    findBestLong($symbol,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fill)
  *    Returns: ['ok'=>bool,'best_entry'=>array|null,'reasons'=>array,'meta'=>array]
  *
  * 2) Modern:
- *    findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst,$optsArrayOrFillScalar)
+ *    findBestLong($symbol,$signalTsEst,$asOfTsEst,$optsArrayOrFillScalar)
  *    Returns same legacy-shaped response for compatibility.
  *
  * TradeAlertWriterV1 requires best_entry keys:
@@ -127,7 +127,7 @@ class OneMinuteEntryFinderV30_0
 
         $minutesBack = max($entryLookbackMins, $vwapLookbackMins, $volLookbackMins, ($atrLen + 5), $pullbackLookbackMins) + 10;
 
-        $bars = $this->loadBarsBetween($symbol, $assetType, $startBase, $endTsForLoad, $minutesBack);
+        $bars = $this->loadBarsBetween($symbol, $startBase, $endTsForLoad, $minutesBack);
 
         if (count($bars) < 25) {
             $reason = 'NotEnoughBars';
@@ -402,7 +402,7 @@ class OneMinuteEntryFinderV30_0
 
         $tradingDate = substr($startTsEst, 0, 10);
 
-        return $this->dbSelect($sql, [$symbol, $assetType, $tradingDate, $startTsEst, $minutesBack, $endTsEst]);
+        return $this->dbSelect($sql, [$symbol, $tradingDate, $startTsEst, $minutesBack, $endTsEst]);
     }
 
     /**

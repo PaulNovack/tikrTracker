@@ -34,7 +34,7 @@ class OneMinuteEntryFinderV1500_0
             'SELECT price, high, low, open, volume, atr, atr_pct
              FROM five_minute_prices
              WHERE symbol = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -55,7 +55,7 @@ class OneMinuteEntryFinderV1500_0
              WHERE symbol = ? 
                AND trading_date_est = ?
                AND trading_time_est BETWEEN '09:30:00' AND '10:00:00'",
-            [$symbol, $assetType, $tradeDate]
+            [$symbol, $tradeDate]
         );
 
         if (! $openingRange || ! $openingRange->or_high) {
@@ -80,7 +80,7 @@ class OneMinuteEntryFinderV1500_0
                AND ts_est <= ?
              ORDER BY ts_est ASC
              LIMIT 20',
-            [$symbol, $assetType, $tradeDate, $searchStart, $searchEnd]
+            [$symbol, $tradeDate, $searchStart, $searchEnd]
         );
 
         if (empty($bars)) {
@@ -88,7 +88,7 @@ class OneMinuteEntryFinderV1500_0
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for entry patterns specific to ORB
         $entry = $this->findOrbEntry($bars, $orHigh, $orLow, $signalClose, $avgVol, $atr);
@@ -293,7 +293,7 @@ class OneMinuteEntryFinderV1500_0
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;

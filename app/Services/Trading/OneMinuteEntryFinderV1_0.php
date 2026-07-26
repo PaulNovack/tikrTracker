@@ -62,14 +62,14 @@ class OneMinuteEntryFinderV1_0
         $tradingDate = substr($asOfTsEst, 0, 10);
 
         // Get 1-minute bars from signal time to asOfTsEst
-        $bars = $this->getBars($symbol, $assetType, $tradingDate, $signalTsEst, $asOfTsEst);
+        $bars = $this->getBars($symbol, $tradingDate, $signalTsEst, $asOfTsEst);
 
         if (count($bars) < $consolidationMinBars) {
             return ['ok' => false, 'reason' => 'Insufficient bars for consolidation'];
         }
 
         // Get ATR for stop calculation
-        $atr = $this->getATR($symbol, $assetType, $tradingDate);
+        $atr = $this->getATR($symbol, $tradingDate);
 
         // Detect consolidation patterns
         $consolidations = $this->detectConsolidations($bars, $consolidationMinBars);

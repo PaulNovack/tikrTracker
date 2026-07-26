@@ -192,18 +192,16 @@ class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
 WITH
 candidates AS (
     /* Step 1: cheaply find the latest bar per qualifying symbol — no window functions */
-    SELECT f.symbol, f.asset_type, f.ts_est AS latest_ts
+    SELECT f.symbol, f.ts_est AS latest_ts
     FROM five_minute_prices f
     INNER JOIN (
-        SELECT symbol, asset_type, MAX(ts_est) AS max_ts
+        SELECT symbol, MAX(ts_est) AS max_ts
         FROM five_minute_prices
-        WHERE asset_type = 'stock'
+
           AND trading_date_est = ?
           AND ts_est <= ?
-        GROUP BY symbol, asset_type
-    ) latest ON f.symbol = latest.symbol
-             AND f.asset_type = latest.asset_type
-             AND f.ts_est = latest.max_ts
+        GROUP BY symbol
+    ) latest ON f.symbol = latest.symbol AND f.ts_est = latest.max_ts
     WHERE f.trading_date_est = ?
       AND f.above_vwap = 1
       AND f.ema9_above_ema21 = 1
@@ -216,7 +214,6 @@ base AS (
     /* Step 2: window functions only over the small set of qualifying symbols */
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.trading_date_est,
         f.trading_time_est,
@@ -238,25 +235,25 @@ base AS (
 
         ((f.price - f.open) / NULLIF(f.open, 0)) * 100 AS bar_gain_pct,
 
-        LAG(f.price, 1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_price,
-        LAG(f.low,   1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_low,
-        LAG(f.high,  1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_high,
-        LAG(f.volume,1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_volume,
+        LAG(f.price, 1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_price,
+        LAG(f.low,   1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_low,
+        LAG(f.high,  1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_high,
+        LAG(f.volume,1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_volume,
 
         MAX(f.high) OVER (
-            PARTITION BY f.symbol, f.asset_type
+            PARTITION BY f.symbol
             ORDER BY f.ts_est
             ROWS BETWEEN {$lookbackBarsForHigh} PRECEDING AND CURRENT ROW
         ) AS rolling_high,
 
         MIN(f.low) OVER (
-            PARTITION BY f.symbol, f.asset_type
+            PARTITION BY f.symbol
             ORDER BY f.ts_est
             ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
         ) AS recent_3bar_low,
 
         AVG((f.high - f.low) / NULLIF(f.price, 0) * 100) OVER (
-            PARTITION BY f.symbol, f.asset_type
+            PARTITION BY f.symbol
             ORDER BY f.ts_est
             ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING
         ) AS prior_avg_range_pct,
@@ -265,10 +262,9 @@ base AS (
 
         f.change_from_open AS day_gain_pct,
 
-        ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+        ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
     FROM five_minute_prices f
-    INNER JOIN candidates c ON f.symbol = c.symbol AND f.asset_type = c.asset_type
-    WHERE f.trading_date_est = ?
+    INNER JOIN candidates c ON f.symbol = c.symbol WHERE f.trading_date_est = ?
       AND f.ts_est >= ?
       AND f.ts_est <= ?
 ),
@@ -327,7 +323,6 @@ scored AS (
 )
 SELECT
     symbol,
-    asset_type,
     ts_est,
     trading_date_est,
     trading_time_est,

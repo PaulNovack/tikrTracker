@@ -170,7 +170,6 @@ class FiveMinuteSignalScannerV3000_0
         $sql = '
 SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est AS signal_ts_est,
     f.price AS last_close,
     f.volume AS last_vol,
@@ -185,7 +184,7 @@ SELECT
     (f.price * f.volume) AS notional_last5m,
     ((f.price - f.open) / NULLIF(f.open, 0)) * 100 AS bar_move_pct
 FROM five_minute_prices f
-WHERE f.asset_type = ?
+
   AND f.trading_date_est = ?
   AND f.ts_est <= ?
   AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -197,7 +196,7 @@ ORDER BY f.symbol, f.ts_est DESC
 ';
 
         $params = array_merge(
-            [$assetType, $tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
+            [ $tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             $symbols
         );
 
@@ -218,7 +217,7 @@ ORDER BY f.symbol, f.ts_est DESC
             }
         }
 
-        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $assetType, $moveBars);
+        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $moveBars);
 
         $asOfEpochRaw = strtotime($asOfTsEst);
         $asOfEpoch = $asOfEpochRaw !== false
@@ -254,7 +253,7 @@ FROM (
     SELECT symbol, volume,
         ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
       AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
@@ -262,7 +261,7 @@ FROM (
 WHERE rn <= 20
 GROUP BY symbol
 ';
-            $rvolParams = array_merge([$assetType, $tradeDate, $asOfTsEst], array_keys($seen));
+            $rvolParams = array_merge([ $tradeDate, $asOfTsEst], array_keys($seen));
             $rvolRows = $this->dbSelect($rvolSql, $rvolParams);
             foreach ($rvolRows as $rv) {
                 $rvolData[(string) $rv->symbol] = (float) ($rv->avg_vol ?? 0);
@@ -277,7 +276,7 @@ FROM (
     SELECT symbol, price,
         ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
       AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
@@ -285,7 +284,7 @@ FROM (
 WHERE rn <= 7
 GROUP BY symbol
 ';
-            $moveParams = array_merge([$assetType, $tradeDate, $asOfTsEst], array_keys($seen));
+            $moveParams = array_merge([ $tradeDate, $asOfTsEst], array_keys($seen));
             $moveRows = $this->dbSelect($moveSql, $moveParams);
             foreach ($moveRows as $mv) {
                 $lastP = (float) ($mv->last_p ?? 0);
@@ -377,7 +376,6 @@ GROUP BY symbol
     {
         $tradeDate = substr($asOfTsEst, 0, 10);
         $cacheKey = 'scan_v3000_0_s3_universe:'.implode(':', [
-            $assetType,
             $this->fiveMinuteTable,
             $tradeDate,
             $this->topDays,
@@ -406,7 +404,7 @@ GROUP BY symbol
                     ->value('trading_date_est');
 
                 if ($prevTradingDay) {
-                    $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $assetType, $this->losersLimit);
+                    $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $this->losersLimit);
                     $baseSymbols = array_merge($baseSymbols, array_column($losersData['losers'] ?? [], 'symbol'));
                 }
             } catch (\Throwable $e) {
@@ -447,7 +445,7 @@ SELECT
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
+
   AND ts_est <= ?
 ORDER BY ts_est ASC
 ";

@@ -56,7 +56,7 @@ class OneMinuteEntryFinderV21_0
             $symbol = $signal['symbol'];
 
             // Get Alligator WAKE_UP confirmation for this symbol
-            $alligatorEntry = $this->checkAlligatorWakeUp($symbol, $assetType, $asOfTsEst);
+            $alligatorEntry = $this->checkAlligatorWakeUp($symbol, $asOfTsEst);
 
             if ($alligatorEntry !== null) {
                 $entries[] = array_merge($signal, $alligatorEntry, [

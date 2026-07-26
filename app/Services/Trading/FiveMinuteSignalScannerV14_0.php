@@ -100,7 +100,6 @@ class FiveMinuteSignalScannerV14_0
                 // Get top 50 losers from previous day with price filter
                 $losersData = $this->gainersLosersService->getGainersAndLosers(
                     $prevTradingDay,
-                    $assetType,
                     50,
                     1.50,
                     100.00
@@ -129,46 +128,40 @@ class FiveMinuteSignalScannerV14_0
 WITH last_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
-  WHERE asset_type = ?
+
     AND symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.volume,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
   INNER JOIN last_bar lb
-    ON lb.symbol = f.symbol AND lb.asset_type = f.asset_type
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    ON lb.symbol = f.symbol AND f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   last_close,
   prev_close,
@@ -190,12 +183,12 @@ LIMIT ?
 
         // Build parameter array: symbols twice (for two IN clauses) + other params
         $params = array_merge(
-            [$assetType],           // asset_type (first occurrence)
+            [],           // asset_type (first occurrence)
             $symbols,               // symbols (first IN clause)
             [$asOfTsEst],          // as_of (first occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
             [15],                  // active_window
-            [$assetType],          // asset_type (second occurrence)
+            [],          // asset_type (second occurrence)
             $symbols,              // symbols (second IN clause)
             [$asOfTsEst],          // as_of (second occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
@@ -230,7 +223,7 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -265,7 +258,7 @@ LIMIT ?
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = ?
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC

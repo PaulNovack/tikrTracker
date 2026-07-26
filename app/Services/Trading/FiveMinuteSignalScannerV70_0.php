@@ -97,7 +97,7 @@ class FiveMinuteSignalScannerV70_0
         $sql1mScore = "
 WITH params AS (
   SELECT
-    ? AS p_asset_type,
+    ? AS,
     CAST(? AS DATETIME) AS p_asof,
     CAST(? AS DATETIME) - INTERVAL ? MINUTE AS p_from
 ),
@@ -105,7 +105,7 @@ base AS (
   SELECT
     omp.*,
     AVG(omp.volume) OVER (
-      PARTITION BY omp.symbol, omp.asset_type
+      PARTITION BY omp.symbol
       ORDER BY omp.ts_est
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20
@@ -119,7 +119,6 @@ base AS (
 scored AS (
   SELECT
     b.symbol,
-    b.asset_type,
     b.ts_est,
     ROUND(
       100 * (
@@ -154,7 +153,7 @@ GROUP BY symbol
 ";
 
         $params1mScore = array_merge(
-            [$assetType, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
+            [ $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             $symbols
         );
 
@@ -239,7 +238,6 @@ GROUP BY symbol
 WITH bars AS (
   SELECT
     symbol,
-    asset_type,
     ts_est,
     price,
     high,
@@ -247,7 +245,7 @@ WITH bars AS (
     volume,
     (high - low) / NULLIF(price, 0) AS bar_range_pct
   FROM one_minute_prices
-  WHERE asset_type = ?
+
     AND trading_date_est = ?
     AND ts_est <= ?
     AND volume > ?
@@ -255,13 +253,12 @@ WITH bars AS (
 volatility AS (
   SELECT
     symbol,
-    asset_type,
     AVG(bar_range_pct) AS avg_range_pct,
     SUM(volume) AS total_volume,
     COUNT(*) AS bar_count,
     MAX(ts_est) AS last_ts
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
   HAVING bar_count >= 10
     AND total_volume >= 5000000
 )
@@ -272,7 +269,6 @@ LIMIT ?
         ';
 
         $rows = $this->dbSelect($sql, [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             $minVolume,
@@ -326,7 +322,7 @@ WITH recent_5m AS (
     ) AS avg_vol_10,
     ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
+
     AND f.symbol IN ($ph)
     AND f.ts_est <= ?
     AND f.ts_est >= CAST(? AS DATETIME) - INTERVAL 2 HOUR
@@ -346,7 +342,7 @@ WHERE rn = 1
         ";
 
         $params = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst]
         );

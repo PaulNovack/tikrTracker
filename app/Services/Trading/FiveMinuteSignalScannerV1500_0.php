@@ -147,25 +147,23 @@ class FiveMinuteSignalScannerV1500_0
 WITH opening_range AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         MAX(f.high) as or_high,
         MIN(f.low) as or_low,
         AVG(f.volume) as or_avg_volume,
         COUNT(*) as or_bar_count
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
+
         AND f.trading_date_est = ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN '09:30:00' AND '10:00:00'
         AND f.open > 0
-    GROUP BY f.symbol, f.asset_type, f.trading_date_est
+    GROUP BY f.symbol, f.trading_date_est
     HAVING COUNT(*) >= 5  -- Need at least 5 bars for 30min range (some might be missing)
 ),
 range_quality AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         or_high,
         or_low,
@@ -179,7 +177,6 @@ range_quality AS (
 current_bar AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         f.ts_est as signal_ts_est,
         f.trading_time_est,
@@ -189,7 +186,7 @@ current_bar AS (
         f.atr,
         f.atr_pct
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
+
         AND f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
@@ -198,16 +195,13 @@ current_bar AS (
     AND EXISTS (
         SELECT 1 
         FROM five_minute_prices sub
-        WHERE sub.symbol = f.symbol 
-            AND sub.asset_type = f.asset_type
-            AND sub.trading_date_est = f.trading_date_est
+        WHERE sub.symbol = f.symbol AND sub.trading_date_est = f.trading_date_est
             AND sub.ts_est = f.ts_est
     )
 ),
 breakout_candidates AS (
     SELECT 
         c.symbol,
-        c.asset_type,
         c.trading_date_est,
         c.signal_ts_est,
         c.current_close as setup_price,
@@ -229,15 +223,12 @@ breakout_candidates AS (
         ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.signal_ts_est DESC) as recency_rank
     FROM current_bar c
     INNER JOIN range_quality r 
-        ON c.symbol = r.symbol 
-        AND c.asset_type = r.asset_type
-        AND c.trading_date_est = r.trading_date_est
+        ON c.symbol = r.symbol AND c.trading_date_est = r.trading_date_est
     WHERE c.current_high > r.or_high  -- Must break above OR high
         AND (c.current_volume / NULLIF(r.or_avg_volume, 0)) >= ?  -- Volume confirmation
 )
 SELECT 
     symbol,
-    asset_type,
     trading_date_est,
     signal_ts_est,
     setup_price,
@@ -260,10 +251,10 @@ LIMIT ?
 
         // Build parameter array
         $params = array_merge(
-            [$assetType, $tradeDate], // opening_range CTE
+            [ $tradeDate], // opening_range CTE
             $moverSymbols,
             [$minRangePct, $maxRangePct, $minPrice, $maxPrice], // range_quality CTE
-            [$assetType, $tradeDate, $asOfTsEst], // current_bar CTE
+            [ $tradeDate, $asOfTsEst], // current_bar CTE
             $moverSymbols,
             [$timeWindowStart, $timeWindowEnd],
             [$minVolRatio], // breakout_candidates WHERE
@@ -283,7 +274,7 @@ LIMIT ?
         foreach ($results as $row) {
             $signals[] = [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
+                'asset_type' => $row->,
                 'trading_date_est' => $row->trading_date_est,
                 'signal_ts_est' => $row->signal_ts_est,
                 'signal_type' => 'ORB_BREAKOUT',

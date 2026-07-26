@@ -184,15 +184,15 @@ class FiveMinuteSignalScannerV55
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
-                WHERE asset_type = ?
+
                   AND symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
-            $params = array_merge([$assetType], $symbols, [$marketOpen, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$marketOpen, $asOfTsEst]);
 
             if ($skipCache) {
                 $rows = $this->dbSelect($sql, $params);

@@ -106,7 +106,6 @@ class FiveMinuteSignalScannerV1400_0
 WITH price_window AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         f.ts_est,
         f.trading_time_est,
@@ -120,7 +119,7 @@ WITH price_window AS (
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as reverse_bar_num,
         COUNT(*) OVER (PARTITION BY f.symbol) as total_bars
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
+
         AND f.trading_date_est = ?
         AND f.ts_est >= ?
         AND f.ts_est <= ?
@@ -133,7 +132,6 @@ WITH price_window AS (
 running_peaks AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         ts_est,
         close,
@@ -147,7 +145,6 @@ running_peaks AS (
 trend_metrics AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         total_bars,
         MAX(CASE WHEN reverse_bar_num = 1 THEN ts_est END) as latest_ts_est,
@@ -159,14 +156,13 @@ trend_metrics AS (
             ((peak_so_far - close) / NULLIF(peak_so_far, 0)) * 100
         ) as max_drawdown_pct
     FROM running_peaks
-    GROUP BY symbol, asset_type, trading_date_est, total_bars
+    GROUP BY symbol, trading_date_est, total_bars
     HAVING total_bars >= ?
 ),
 -- Calculate final metrics and risk score
 scored_trends AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         latest_ts_est as signal_ts_est,
         latest_close as setup_price,
@@ -188,7 +184,6 @@ scored_trends AS (
 )
 SELECT 
     symbol,
-    asset_type,
     trading_date_est,
     signal_ts_est,
     setup_price,
@@ -205,7 +200,6 @@ LIMIT ?
         ";
 
         $params = [
-            $assetType,
             $tradeDate,
             $lookbackStartTsEst,
             $asOfTsEst,
@@ -237,7 +231,7 @@ LIMIT ?
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
+                'asset_type' => $row->,
                 'signal_type' => 'CLEAN_TREND_2H',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => $row->entry_score,

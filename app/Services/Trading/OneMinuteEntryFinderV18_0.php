@@ -1523,7 +1523,6 @@ class OneMinuteEntryFinderV18_0
         $filtered = $this->applyFiveMinuteBreakoutConfirmation(
             $filtered,
             $symbol,
-            $assetType,
             $asOfTsEst
         );
 

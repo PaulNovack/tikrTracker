@@ -108,7 +108,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
         $recentRows = $this->dbSelect("
             SELECT
                 ranked.symbol,
-                ranked.asset_type,
                 ranked.ts_est,
                 ranked.price AS close_price,
                 ranked.open,
@@ -130,7 +129,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
             FROM (
                 SELECT
                     f.symbol,
-                    f.asset_type,
                     f.ts_est,
                     f.price,
                     f.open,
@@ -150,14 +148,14 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                     f.trading_date_est,
                     ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
                 FROM five_minute_prices f
-                WHERE f.asset_type = ?
+
                   AND f.trading_date_est = ?
                   AND f.ts_est <= ?
                   AND f.symbol IN ($placeholders)
             ) ranked
             WHERE ranked.rn <= 20
             ORDER BY ranked.symbol ASC, ranked.rn ASC
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([ $tradeDate, $asOfTsEst], $symbols));
 
         if (empty($recentRows)) {
             return [];
@@ -177,12 +175,12 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                 AVG(f.volume) AS avg_5m_volume,
                 AVG(f.price * f.volume) / 5 AS avg_dollar_volume_per_minute
             FROM five_minute_prices f
-            WHERE f.asset_type = ?
+
               AND f.trading_date_est = ?
               AND f.ts_est <= ?
               AND f.symbol IN ($placeholders)
             GROUP BY f.symbol
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([ $tradeDate, $asOfTsEst], $symbols));
 
         $dayStatsBySymbol = [];
         foreach ($dayStatsRows as $row) {
@@ -354,7 +352,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $latest->asset_type,
+                'asset_type' => (string) $latest->,
                 'signal_type' => $setupType,
                 'signal_ts_est' => (string) $latest->ts_est,
                 'score' => $score,

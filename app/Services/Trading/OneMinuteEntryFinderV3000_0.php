@@ -54,7 +54,7 @@ class OneMinuteEntryFinderV3000_0
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -504,7 +504,7 @@ class OneMinuteEntryFinderV3000_0
         $best['suggested_trailing_stop_pct'] = round($trailPct, 3);
 
         // Only run the 5m query after a valid candidate exists.
-        $choppiness = $this->loadRecent5MinChoppiness($symbol, $assetType, $tradeDate, $marketOpen, $analysisEnd);
+        $choppiness = $this->loadRecent5MinChoppiness($symbol, $tradeDate, $marketOpen, $analysisEnd);
         $best['five_min_directional_changes'] = $choppiness['directional_changes'] ?? null;
         $best['five_min_green_bar_pct'] = isset($choppiness['green_bar_pct']) ? round($choppiness['green_bar_pct'], 1) : null;
         $best['five_min_net_progress'] = isset($choppiness['net_progress']) ? round($choppiness['net_progress'], 3) : null;
@@ -515,7 +515,7 @@ class OneMinuteEntryFinderV3000_0
     /** @return array<int, object> */
     private function loadOneMinuteBars(string $symbol, string $assetType, string $tradeDate, string $marketOpen, string $analysisEnd): array
     {
-        $key = implode('|', [$this->oneMinuteTable, $assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        $key = implode('|', [$this->oneMinuteTable, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
         if (isset(self::$oneMinuteBarsCache[$key])) {
             return self::$oneMinuteBarsCache[$key];
         }

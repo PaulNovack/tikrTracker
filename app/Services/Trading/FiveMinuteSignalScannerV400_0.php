@@ -114,7 +114,6 @@ class FiveMinuteSignalScannerV400_0 extends AbstractSignalScanner
 WITH recent_bars AS (
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.price AS close,
         f.open,
@@ -130,9 +129,9 @@ WITH recent_bars AS (
         f.ema9_above_ema21,
         f.atr_pct,
         f.rsi_14,
-        ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) as rn
+        ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as rn
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
+
       AND f.ts_est <= ?
       AND f.ts_est >= ?
       AND f.trading_date_est >= ?  -- Changed from = to >= for multi-day patterns
@@ -149,20 +148,19 @@ bar_sequence AS (
     SELECT *
     FROM recent_bars
     WHERE rn <= ?
-    ORDER BY symbol, asset_type, ts_est ASC
+    ORDER BY symbol, ts_est ASC
 ),
 -- Calculate lagged values for higher low detection
 bar_sequence_with_lag AS (
     SELECT
         bs.*,
-        LAG(bs.low, 1) OVER (PARTITION BY bs.symbol, bs.asset_type ORDER BY bs.ts_est) as prev_low
+        LAG(bs.low, 1) OVER (PARTITION BY bs.symbol ORDER BY bs.ts_est) as prev_low
     FROM bar_sequence bs
 ),
 -- Identify pullback characteristics
 pullback_analysis AS (
     SELECT
         bs.symbol,
-        bs.asset_type,
         COUNT(CASE WHEN bs.close < bs.open THEN 1 END) as red_bars,
         COUNT(CASE WHEN bs.close > bs.open THEN 1 END) as green_bars,
         COUNT(CASE WHEN bs.close >= (bs.high - (bs.high - bs.low) * 0.3) THEN 1 END) as closes_near_high,
@@ -180,24 +178,22 @@ pullback_analysis AS (
         -- Check for VWAP violations
         COUNT(CASE WHEN bs.close < bs.vwap AND bs.above_vwap = 0 THEN 1 END) as vwap_violations
     FROM bar_sequence_with_lag bs
-    GROUP BY bs.symbol, bs.asset_type
+    GROUP BY bs.symbol
 ),
 -- Volume profile analysis
 volume_analysis AS (
     SELECT
         bs.symbol,
-        bs.asset_type,
         AVG(CASE WHEN bs.close > bs.open THEN bs.volume ELSE NULL END) as avg_green_vol,
         AVG(CASE WHEN bs.close < bs.open THEN bs.volume ELSE NULL END) as avg_red_vol,
         AVG(bs.volume) as avg_total_vol
     FROM bar_sequence bs
-    GROUP BY bs.symbol, bs.asset_type
+    GROUP BY bs.symbol
 ),
 -- Final scoring
 scored_signals AS (
     SELECT
         lb.symbol,
-        lb.asset_type,
         lb.ts_est as signal_ts_est,
         lb.close as signal_price,
         lb.vwap,
@@ -250,10 +246,8 @@ scored_signals AS (
         
     FROM latest_bar lb
     INNER JOIN pullback_analysis pa 
-        ON lb.symbol = pa.symbol AND lb.asset_type = pa.asset_type
-    INNER JOIN volume_analysis va
-        ON lb.symbol = va.symbol AND lb.asset_type = va.asset_type
-    WHERE lb.above_vwap = 1  -- Must be above VWAP
+        ON lb.symbol = pa.symbol INNER JOIN volume_analysis va
+        ON lb.symbol = va.symbol WHERE lb.above_vwap = 1  -- Must be above VWAP
       AND lb.ema9_above_ema21 = 1  -- Must have bullish EMA alignment
       AND lb.atr_pct >= ?  -- Must have meaningful movement potential
       AND lb.atr_pct <= 6  -- Filter out overly volatile stocks
@@ -268,7 +262,6 @@ scored_signals AS (
 )
 SELECT
     symbol,
-    asset_type,
     signal_ts_est,
     signal_price,
     vwap,
@@ -303,8 +296,7 @@ ORDER BY continuation_score DESC, latest_volume DESC
 LIMIT ?
 ';
 
-        $bindings = [
-            $assetType,          // f.asset_type = ?
+        $bindings = [          // f.asset_type = ?
             $asOfTsEst,          // f.ts_est <= ?
             $lookbackStart,      // f.ts_est >= ?
             $priorTradeDate,     // f.trading_date_est >= ? (multi-day lookback for patterns)
@@ -333,7 +325,7 @@ LIMIT ?
 
             $signals[] = [
                 'symbol' => $r->symbol,
-                'asset_type' => $r->asset_type,
+                'asset_type' => $r->,
                 'signal_ts_est' => $barCloseTsEst,
                 'signal_type' => 'TREND_CONTINUATION',
                 'price' => (float) $r->signal_price,

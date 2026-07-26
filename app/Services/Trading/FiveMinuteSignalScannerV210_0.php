@@ -107,7 +107,7 @@ class FiveMinuteSignalScannerV210_0
         }
 
         // Single query for all symbols instead of N+1 per-symbol queries.
-        $symbolBars = $this->batchGet5mBars($symbols, $assetType, $asOfTsEst, $lookbackMinutes + 15);
+        $symbolBars = $this->batchGet5mBars($symbols, $asOfTsEst, $lookbackMinutes + 15);
 
         $signals = [];
 
@@ -115,7 +115,6 @@ class FiveMinuteSignalScannerV210_0
             $signal = $this->analyzeSymbol(
                 $symbolBars[$symbol] ?? [],
                 $symbol,
-                $assetType,
                 $asOfTsEst,
                 $minDeclinePct,
                 $minVolumeMult,
@@ -273,11 +272,11 @@ class FiveMinuteSignalScannerV210_0
                     $rows = $this->dbSelect('
                     SELECT *
                     FROM five_minute_prices
-                    WHERE asset_type = ?
+
                       AND ts <= ?
                       AND ts >= ?
                     ORDER BY symbol ASC, ts DESC
-                ', [$assetType, $asOfTsEst, $startTime]);
+                ', [ $asOfTsEst, $startTime]);
 
                     $allGrouped = [];
                     foreach ($rows as $row) {

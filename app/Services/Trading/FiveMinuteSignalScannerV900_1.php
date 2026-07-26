@@ -184,15 +184,15 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         // ]);
 
         // ── Step 1: Get yesterday closes (15:55 bar) ─────────────────────────
-        // Uses idx_5m_asset_date_time_ts: (asset_type, trading_date_est, trading_time_est, ts_est)
+        // Uses idx_5m_asset_date_time_ts: (, trading_date_est, trading_time_est, ts_est)
         $yesterdayCloses = $this->dbSelect('
             SELECT symbol, price AS prev_close
             FROM five_minute_prices
-            WHERE asset_type = ?
+
               AND trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [$assetType, $prevTradingDate, $minPrice, $maxPrice]);
+        ', [ $prevTradingDate, $minPrice, $maxPrice]);
 
         if (empty($yesterdayCloses)) {
             Log::debug('[V900.1 Scanner] No yesterday closes found');
@@ -209,11 +209,11 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         $twoDaysAgoCloses = $this->dbSelect('
             SELECT symbol, price AS close_2d
             FROM five_minute_prices
-            WHERE asset_type = ?
+
               AND trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [$assetType, $prevPrevTradingDate, $minPrice, $maxPrice]);
+        ', [ $prevPrevTradingDate, $minPrice, $maxPrice]);
 
         $prevPrevCloseMap = [];
         foreach ($twoDaysAgoCloses as $row) {
@@ -273,14 +273,14 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
                 MAX(CASE WHEN trading_time_est = '09:30:00' THEN open ELSE NULL END) AS today_open_price,
                 MAX(CASE WHEN trading_time_est <= '09:45:00' THEN price ELSE NULL END) AS highest_first_15min
             FROM five_minute_prices
-            WHERE asset_type = ?
+
               AND trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
               AND symbol IN ({$placeholders})
             GROUP BY symbol
             HAVING today_open_price IS NOT NULL AND highest_first_15min IS NOT NULL
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $qualifyingSymbols));
+        ", array_merge([ $tradeDate, $asOfTsEst], $qualifyingSymbols));
 
         if (empty($openingRows)) {
             Log::debug('[V900.1 Scanner] No opening data found for qualifying symbols');
@@ -341,11 +341,11 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
         $avgVolumeRows = $this->dbSelect("
             SELECT symbol, AVG(volume) AS avg_volume
             FROM five_minute_prices
-            WHERE asset_type = ?
+
               AND trading_date_est = ?
               AND symbol IN ({$placeholders2})
             GROUP BY symbol
-        ", array_merge([$assetType, $prevTradingDate], $signalSymbols));
+        ", array_merge([ $prevTradingDate], $signalSymbols));
 
         $avgVolumeMap = [];
         foreach ($avgVolumeRows as $row) {
@@ -373,7 +373,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
                     ELSE 0
                 END AS bb_position
             FROM five_minute_prices
-            WHERE asset_type = ?
+
               AND trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est BETWEEN ? AND ?
@@ -382,7 +382,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
               AND symbol IN ({$placeholders3})
             ORDER BY ts_est DESC
         ", array_merge(
-            [$assetType, $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
+            [ $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
             $signalSymbols
         ));
 

@@ -172,16 +172,16 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$this->fiveMinuteTable}
-                WHERE asset_type = ?
+
                   AND symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
 
-            $params = array_merge([$assetType], $symbols, [$marketOpen, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$marketOpen, $asOfTsEst]);
             $lock = Cache::lock("lock:{$cacheKey}", $this->cacheLockSeconds);
             if ($lock->get()) {
                 try {

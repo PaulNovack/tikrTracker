@@ -62,7 +62,7 @@ class OneMinuteEntryFinderV80_1
         $to = $analysisEnd;
 
         // Detect which strategy fired (from your scanner output)
-        $signalType = $this->inferSignalType($symbol, $assetType, $signalTsEst);
+        $signalType = $this->inferSignalType($symbol, $signalTsEst);
 
         $bars = $this->dbSelect('
             SELECT
@@ -82,7 +82,7 @@ class OneMinuteEntryFinderV80_1
               atr,
               atr_pct,
               AVG(COALESCE(volume,0)) OVER (
-                PARTITION BY symbol, asset_type
+                PARTITION BY symbol
                 ORDER BY ts_est
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20

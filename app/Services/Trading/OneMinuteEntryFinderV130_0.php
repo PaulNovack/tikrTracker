@@ -73,7 +73,7 @@ class OneMinuteEntryFinderV130_0
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $from, $to]);
+        ', [$symbol, $from, $to]);
 
         if (count($bars) < 10) {
             return [

@@ -64,7 +64,6 @@ class OneMinuteEntryFinderV820_0
 WITH one_minute_candidates AS (
     SELECT
         o.symbol,
-        o.asset_type,
         o.trading_date_est,
         o.ts_est AS entry_ts_est,
         o.price AS entry_price,
@@ -81,14 +80,14 @@ WITH one_minute_candidates AS (
         o.atr_pct,
 
         AVG(o.volume) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
         ) AS avg_volume_20,
 
         -- Previous bar for momentum check
         LAG(o.price, 1) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
         ) AS prev_close
 
@@ -167,7 +166,7 @@ FROM (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY entry_ts_est
         ) AS rn
     FROM qualified_entries
@@ -180,7 +179,6 @@ LIMIT 1
 
         $params = [
             $symbol,
-            $assetType,
             $tradeDate,
             $signalTsEst,
             $entryWindowEnd,
@@ -220,7 +218,7 @@ LIMIT 1
                   AND ts_est > ?
                 ORDER BY ts_est ASC
                 LIMIT 1
-            ', [$symbol, $assetType, $tradeDate, $entryTs]);
+            ', [$symbol, $tradeDate, $entryTs]);
 
             if ($nextBar && (float) $nextBar->open > 0) {
                 $entryPx = (float) $nextBar->open;

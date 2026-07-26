@@ -168,7 +168,7 @@ SELECT
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
+
   AND ts_est <= ?
 ORDER BY ts_est ASC
 ";

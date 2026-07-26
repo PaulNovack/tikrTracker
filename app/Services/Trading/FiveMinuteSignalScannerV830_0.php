@@ -90,7 +90,6 @@ class FiveMinuteSignalScannerV830_0
         $sql = '
 SELECT
     f.symbol,
-    f.asset_type,
     f.trading_date_est,
     f.ts_est AS signal_ts_est,
     f.trading_time_est,
@@ -152,7 +151,7 @@ SELECT
     ) AS price_5d_ago
     
 FROM five_minute_prices f
-WHERE f.asset_type = ?
+
   AND f.trading_date_est = ?
   AND f.ts_est <= ?
   AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -182,7 +181,6 @@ LIMIT ?
 ';
 
         $params = [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             $asOfTsEst,
@@ -297,7 +295,7 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->asset_type,
+                'asset_type' => $r->,
                 'signal_type' => 'multi_day_trend',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

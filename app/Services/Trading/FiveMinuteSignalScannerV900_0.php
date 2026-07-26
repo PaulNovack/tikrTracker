@@ -146,10 +146,9 @@ class FiveMinuteSignalScannerV900_0
 WITH two_days_ago AS (
     SELECT
         symbol,
-        asset_type,
         price AS close_2d_ago
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND trading_time_est = '15:55:00'
       AND price BETWEEN ? AND ?
@@ -158,14 +157,11 @@ WITH two_days_ago AS (
 prev_day_close AS (
     SELECT
         p.symbol,
-        p.asset_type,
         p.price AS prev_day_close,
         t.close_2d_ago,
         ((p.price - t.close_2d_ago) / t.close_2d_ago * 100) AS yesterday_move_pct
     FROM five_minute_prices p
-    INNER JOIN two_days_ago t ON p.symbol = t.symbol AND p.asset_type = t.asset_type
-    WHERE p.asset_type = ?
-      AND p.trading_date_est = ?
+    INNER JOIN two_days_ago t ON p.symbol = t.symbol AND p.trading_date_est = ?
       AND p.trading_time_est = '15:55:00'
       AND p.price BETWEEN ? AND ?
       AND p.price > 0
@@ -173,37 +169,35 @@ prev_day_close AS (
       AND ((p.price - t.close_2d_ago) / t.close_2d_ago * 100) >= ?
 ),
 prev_day_opens AS (
-    SELECT symbol, asset_type, price AS prev_day_open
+    SELECT symbol, price AS prev_day_open
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND trading_time_est = '09:30:00'
 ),
 prev_day_vols AS (
-    SELECT symbol, asset_type, AVG(volume) AS avg_volume
+    SELECT symbol, AVG(volume) AS avg_volume
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
-    GROUP BY symbol, asset_type
+    GROUP BY symbol
 ),
 today_opening AS (
     SELECT
         symbol,
-        asset_type,
         MAX(CASE WHEN trading_time_est = '09:30:00' THEN open ELSE NULL END) AS today_open_price,
         MAX(CASE WHEN trading_time_est <= '09:45:00' THEN price ELSE NULL END) AS highest_first_15min
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
       AND trading_time_est <= '09:45:00'
-    GROUP BY symbol, asset_type
+    GROUP BY symbol
     HAVING today_open_price IS NOT NULL AND highest_first_15min IS NOT NULL
 ),
 today_bars AS (
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.trading_date_est,
         f.trading_time_est,
@@ -237,12 +231,7 @@ today_bars AS (
         to_open.today_open_price,
         to_open.highest_first_15min
     FROM five_minute_prices f
-    INNER JOIN prev_day_close pd ON f.symbol = pd.symbol AND f.asset_type = pd.asset_type
-    LEFT JOIN prev_day_opens pdo ON f.symbol = pdo.symbol AND f.asset_type = pdo.asset_type
-    INNER JOIN prev_day_vols pdv ON f.symbol = pdv.symbol AND f.asset_type = pdv.asset_type
-    INNER JOIN today_opening to_open ON f.symbol = to_open.symbol AND f.asset_type = to_open.asset_type
-    WHERE f.asset_type = ?
-      AND f.trading_date_est = ?
+    INNER JOIN prev_day_close pd ON f.symbol = pd.symbol LEFT JOIN prev_day_opens pdo ON f.symbol = pdo.symbol INNER JOIN prev_day_vols pdv ON f.symbol = pdv.symbol INNER JOIN today_opening to_open ON f.symbol = to_open.symbol AND f.trading_date_est = ?
       AND f.ts_est <= ?
       AND f.trading_time_est BETWEEN ? AND ?
       AND f.price BETWEEN ? AND ?
@@ -251,7 +240,6 @@ today_bars AS (
 )
 SELECT
     t.symbol,
-    t.asset_type,
     t.trading_date_est,
     t.ts_est AS signal_ts_est,
     t.trading_time_est,
@@ -350,7 +338,7 @@ LIMIT ?
 
             $signals[] = [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
+                'asset_type' => $row->,
                 'signal_type' => 'MOMENTUM_CONTINUATION_SETUP',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => round($score, 2),

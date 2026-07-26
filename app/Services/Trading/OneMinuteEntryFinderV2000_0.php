@@ -40,7 +40,7 @@ class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
             WHERE symbol = ?
               AND ts_est = ?
             LIMIT 1
-        ', [$symbol, $assetType, $signalTsEst]);
+        ', [$symbol, $signalTsEst]);
 
         if (empty($signalBar)) {
             return [
@@ -63,7 +63,7 @@ class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 20
-        ', [$symbol, $assetType, $asOfTsEst, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst, $asOfTsEst]);
 
         $entryTsEst = $signalTsEst;
         $volRatio = null;

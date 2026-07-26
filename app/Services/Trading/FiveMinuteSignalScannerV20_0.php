@@ -80,7 +80,7 @@ class FiveMinuteSignalScannerV20_0
         ]);
 
         // Step 2: Get 5-minute signals - pass all symbols through with high limit
-        $fiveMinSignals = $this->scanFiveMinute($symbols, $assetType, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, 5000);
+        $fiveMinSignals = $this->scanFiveMinute($symbols, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, 5000);
 
         if (empty($fiveMinSignals)) {
             return [];
@@ -142,31 +142,30 @@ class FiveMinuteSignalScannerV20_0
 
         $sql = "
 WITH last_bar AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_ts_est
+  SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
   WHERE asset_type = ? AND symbol IN ($placeholders)
     AND ts_est <= ? AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bars AS (
-  SELECT f.symbol, f.asset_type, f.ts_est, f.price AS close, f.volume,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+  SELECT f.symbol, f.ts_est, f.price AS close, f.volume,
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
-  INNER JOIN last_bar lb ON lb.symbol = f.symbol AND lb.asset_type = f.asset_type
-  WHERE f.asset_type = ? AND f.symbol IN ($placeholders)
+  INNER JOIN last_bar lb ON lb.symbol = f.symbol WHERE f.asset_type = ? AND f.symbol IN ($placeholders)
     AND f.ts_est <= ? AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 agg AS (
-  SELECT symbol, asset_type,
+  SELECT symbol,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END) AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
-SELECT symbol, asset_type, signal_ts_est, last_close, prev_close, last_vol, avg_vol,
+SELECT symbol, signal_ts_est, last_close, prev_close, last_vol, avg_vol,
   ((last_close - prev_close) / NULLIF(prev_close, 0)) * 100 AS move_pct,
   (last_vol / NULLIF(avg_vol, 0)) AS vol_ratio
 FROM agg
@@ -176,8 +175,8 @@ LIMIT ?
 ";
 
         $params = array_merge(
-            [$assetType], $symbols, [$asOfTsEst], [$asOfTsEst], [15],
-            [$assetType], $symbols, [$asOfTsEst], [$asOfTsEst], [$lookbackMinutes],
+            [], $symbols, [$asOfTsEst], [$asOfTsEst], [15],
+            [], $symbols, [$asOfTsEst], [$asOfTsEst], [$lookbackMinutes],
             [$nback], [$limit]
         );
 
@@ -187,7 +186,7 @@ LIMIT ?
         foreach ($rows as $r) {
             $signals[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'last_close' => (float) $r->last_close,
                 'prev_close' => (float) $r->prev_close,
@@ -233,7 +232,7 @@ WHERE asset_type = ? AND symbol IN ($symbolPlaceholders)
 GROUP BY symbol
 ";
 
-        $oneMinParams = array_merge([$assetType], $symbols, [$asOfTsEst], [$asOfTsEst], [$lookbackMinutes]);
+        $oneMinParams = array_merge([], $symbols, [$asOfTsEst], [$asOfTsEst], [$lookbackMinutes]);
         $oneMinData = $this->dbSelect($oneMinSql, $oneMinParams);
 
         // Get 5-minute high and body data
@@ -248,7 +247,7 @@ WHERE asset_type = ? AND symbol IN ($symbolPlaceholders)
 GROUP BY symbol
 ";
 
-        $fiveMinParams = array_merge([$assetType], $symbols, [$asOfTsEst], [$asOfTsEst]);
+        $fiveMinParams = array_merge([], $symbols, [$asOfTsEst], [$asOfTsEst]);
         $fiveMinData = $this->dbSelect($fiveMinSql, $fiveMinParams);
 
         // Index data by symbol
@@ -550,7 +549,7 @@ WHERE consecutive_count >= 3
 GROUP BY symbol
 ";
 
-        $params = array_merge([$assetType, $asOfTsEst], $symbols);
+        $params = array_merge([ $asOfTsEst], $symbols);
         $rows = $this->dbSelect($sql, $params);
 
         // Build lookup of symbols with 3+ consecutive WAKE_UP

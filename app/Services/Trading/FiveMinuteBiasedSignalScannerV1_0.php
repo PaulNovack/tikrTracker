@@ -53,7 +53,6 @@ class FiveMinuteBiasedSignalScannerV1_0
 WITH daily_stats AS (
   SELECT
     symbol,
-    asset_type,
     trading_date_est,
     MIN(low) AS day_low,
     MAX(high) AS day_high,
@@ -63,15 +62,14 @@ WITH daily_stats AS (
     AVG(volume) AS avg_volume,
     SUM(volume) AS total_volume
   FROM five_minute_prices
-  WHERE asset_type = ?
+
     AND trading_date_est = ?
     AND TIME(ts_est) BETWEEN '09:30:00' AND '16:00:00'
-  GROUP BY symbol, asset_type, trading_date_est
+  GROUP BY symbol, trading_date_est
 ),
 gainers AS (
   SELECT
     symbol,
-    asset_type,
     trading_date_est,
     day_low,
     day_high,
@@ -99,7 +97,6 @@ gainers AS (
 )
 SELECT 
   symbol,
-  asset_type,
   trading_date_est,
   day_low,
   day_high,
@@ -114,9 +111,7 @@ SELECT
   -- Require entry within 2 hours of the day low to ensure we capture the move
   (SELECT ts_est 
    FROM five_minute_prices f
-   WHERE f.symbol = gainers.symbol
-     AND f.asset_type = gainers.asset_type  
-     AND f.trading_date_est = gainers.trading_date_est
+   WHERE f.symbol = gainers.symbol AND f.trading_date_est = gainers.trading_date_est
      AND TIME(f.ts_est) BETWEEN '09:30:00' AND '13:00:00'
      AND f.ts_est <= (
        SELECT ADDTIME(ts_est, '02:00:00')
@@ -133,15 +128,11 @@ SELECT
   -- Get price at that signal time
   (SELECT price
    FROM five_minute_prices f
-   WHERE f.symbol = gainers.symbol
-     AND f.asset_type = gainers.asset_type
-     AND f.trading_date_est = gainers.trading_date_est
+   WHERE f.symbol = gainers.symbol AND f.trading_date_est = gainers.trading_date_est
      AND f.ts_est = (
        SELECT ts_est 
        FROM five_minute_prices f2
-       WHERE f2.symbol = gainers.symbol
-         AND f2.asset_type = gainers.asset_type
-         AND f2.trading_date_est = gainers.trading_date_est
+       WHERE f2.symbol = gainers.symbol AND f2.trading_date_est = gainers.trading_date_est
          AND TIME(f2.ts_est) BETWEEN '09:30:00' AND '15:30:00'
        ORDER BY ABS(f2.low - (gainers.day_low * 1.02))
        LIMIT 1
@@ -152,7 +143,7 @@ ORDER BY low_to_high_pct DESC, total_volume DESC
 LIMIT ?
 ";
 
-        $params = [$assetType, $tradingDate, $minMovePct, $limit * 3]; // Fetch 3x more to account for filtering
+        $params = [ $tradingDate, $minMovePct, $limit * 3]; // Fetch 3x more to account for filtering
         $rows = $this->dbSelect($sql, $params);
 
         $out = [];
@@ -162,7 +153,7 @@ LIMIT ?
             }
 
             // Check if a 1% trailing stop would survive from entry to day high
-            if (! $this->wouldSurviveTrailingStop($r->symbol, $r->asset_type, $r->trading_date_est, $r->signal_ts_est, 0.01)) {
+            if (! $this->wouldSurviveTrailingStop($r->symbol, $r->, $r->trading_date_est, $r->signal_ts_est, 0.01)) {
                 continue; // Skip stocks that would get stopped out
             }
 
@@ -176,7 +167,7 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_type' => 'BIASED_10PCT_GAINER',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'price' => $entryPrice,
@@ -214,13 +205,13 @@ LIMIT ?
             SELECT high, low, ts_est
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
+
               AND trading_date_est = ?
               AND ts_est >= ?
             ORDER BY ts_est ASC
         ';
 
-        $bars = $this->dbSelect($sql, [$symbol, $assetType, $tradingDate, $entryTs]);
+        $bars = $this->dbSelect($sql, [$symbol, $tradingDate, $entryTs]);
 
         if (empty($bars)) {
             return false;

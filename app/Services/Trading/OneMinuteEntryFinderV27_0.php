@@ -52,7 +52,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -133,7 +133,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
             $analysisStart = $marketOpen;
         }
 
-        // Cache 1m bars per (symbol, asset_type, trading_date) for 60 seconds.
+        // Cache 1m bars per (symbol, trading_date) for 60 seconds.
         // During backtests data never changes, so caching eliminates redundant
         // queries for symbols that the scanner signals repeatedly.
         $cacheKey1m = "entry_finder_v27:1m:{$assetType}:{$symbol}:{$tradeDate}";
@@ -169,7 +169,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
             }
         }
 
-        // Cache 5m bars per (symbol, asset_type, trading_date) for 60 seconds
+        // Cache 5m bars per (symbol, trading_date) for 60 seconds
         $cacheKey5m = "entry_finder_v27:5m:{$assetType}:{$symbol}:{$tradeDate}";
         $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('

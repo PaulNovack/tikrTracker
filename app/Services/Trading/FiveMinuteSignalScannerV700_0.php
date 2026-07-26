@@ -208,7 +208,6 @@ class FiveMinuteSignalScannerV700_0
 WITH sym_bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -221,7 +220,7 @@ WITH sym_bars AS (
     f.ema9_above_ema21,
     CASE WHEN f.price > f.vwap THEN 1 ELSE 0 END AS above_vwap
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
+
     AND f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
@@ -232,7 +231,7 @@ mkt_bars AS (
     ts_est,
     price AS m_close
   FROM five_minute_prices
-  WHERE asset_type = 'stock'
+
     AND symbol = ?
     AND trading_date_est = DATE(?)
     AND ts_est <= ?
@@ -247,14 +246,13 @@ aligned AS (
     ON m.ts_est = s.ts_est
 ),
 latest_bar AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_ts_est
+  SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM aligned
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 window_calcs AS (
   SELECT
     a.symbol,
-    a.asset_type,
     a.ts_est,
     a.close,
     a.m_close,
@@ -262,15 +260,15 @@ window_calcs AS (
     a.low,
     a.high,
     a.above_vwap,
-    FIRST_VALUE(a.close) OVER (PARTITION BY a.symbol, a.asset_type ORDER BY a.ts_est) AS first_close,
+    FIRST_VALUE(a.close) OVER (PARTITION BY a.symbol ORDER BY a.ts_est) AS first_close,
     LAST_VALUE(a.close) OVER (
-      PARTITION BY a.symbol, a.asset_type
+      PARTITION BY a.symbol
       ORDER BY a.ts_est
       ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
     ) AS last_close,
-    FIRST_VALUE(a.m_close) OVER (PARTITION BY a.symbol, a.asset_type ORDER BY a.ts_est) AS m_first_close,
+    FIRST_VALUE(a.m_close) OVER (PARTITION BY a.symbol ORDER BY a.ts_est) AS m_first_close,
     LAST_VALUE(a.m_close) OVER (
-      PARTITION BY a.symbol, a.asset_type
+      PARTITION BY a.symbol
       ORDER BY a.ts_est
       ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
     ) AS m_last_close
@@ -279,7 +277,6 @@ window_calcs AS (
 window_stats AS (
   SELECT
     wc.symbol,
-    wc.asset_type,
     SUM(wc.above_vwap) AS bars_above_vwap,
     COUNT(*) AS total_bars,
     AVG(wc.volume) AS avg_vol,
@@ -290,23 +287,21 @@ window_stats AS (
     MIN(wc.m_first_close) AS m_first_close,
     MIN(wc.m_last_close) AS m_last_close
   FROM window_calcs wc
-  GROUP BY wc.symbol, wc.asset_type
+  GROUP BY wc.symbol
 ),
 chop AS (
   SELECT
     a.symbol,
-    a.asset_type,
     SUM(CASE WHEN a.close >= a.open THEN 1 ELSE 0 END) AS green_bars,
     SUM((a.high - a.low)) AS total_range,
     MIN(a.ts_est) AS start_ts,
     MAX(a.ts_est) AS end_ts
   FROM aligned a
-  GROUP BY a.symbol, a.asset_type
+  GROUP BY a.symbol
 ),
 current AS (
   SELECT
     a.symbol,
-    a.asset_type,
     a.ts_est AS signal_ts_est,
     a.close,
     a.high,
@@ -333,20 +328,13 @@ current AS (
     c.total_range
   FROM aligned a
   INNER JOIN latest_bar lb
-    ON a.symbol = lb.symbol
-   AND a.asset_type = lb.asset_type
-   AND a.ts_est = lb.last_ts_est
+    ON a.symbol = lb.symbol AND a.ts_est = lb.last_ts_est
   INNER JOIN window_stats ws
-    ON ws.symbol = a.symbol
-   AND ws.asset_type = a.asset_type
-  INNER JOIN chop c
-    ON c.symbol = a.symbol
-   AND c.asset_type = a.asset_type
-  WHERE a.close >= a.vwap
+    ON ws.symbol = a.symbol INNER JOIN chop c
+    ON c.symbol = a.symbol WHERE a.close >= a.vwap
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -372,7 +360,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             [$marketProxy, $asOfTsEst, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
@@ -458,7 +446,7 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'rs_pct' => $rsPct,
@@ -548,23 +536,21 @@ LIMIT ?
         $sql = '
 SELECT DISTINCT
     f.symbol,
-    f.asset_type,
     MAX(f.price) AS current_price
 FROM five_minute_prices f
-WHERE f.asset_type = ?
+
     AND f.trading_date_est = DATE(?)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND f.price >= ?
     AND f.price <= ?
-GROUP BY f.symbol, f.asset_type
+GROUP BY f.symbol
 HAVING COUNT(*) >= 5
 ORDER BY MAX(f.price) DESC
 LIMIT 1200
 ';
 
         $params = [
-            $assetType,
             $asOfTsEst,
             $asOfTsEst,
             $asOfTsEst,
@@ -588,7 +574,7 @@ LIMIT 1200
             SELECT price, vwap
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = 'stock'
+
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 1

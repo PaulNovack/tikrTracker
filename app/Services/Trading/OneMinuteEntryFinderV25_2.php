@@ -77,7 +77,7 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $tradeDate = substr($signalTsEst, 0, 10);
         $marketOpen = $tradeDate.' 09:30:00';
 
-        $bars = $this->fetchOneMinuteBars($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $bars = $this->fetchOneMinuteBars($symbol, $marketOpen, $asOfTsEst);
         if (! $bars || count($bars) < $cfg['min_bars']) {
             return null;
         }
@@ -190,7 +190,7 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $score = ($volRatio * 1.2) + max(0.0, 1.5 - abs($aboveVwapPct)) + ($bodyPct * 50.0);
 
         $choppiness = [];
-        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $marketOpen, $asOfTsEst);
         if (count($fiveMinBars) >= 6) {
             $recent5Min = array_slice($fiveMinBars, -12);
             $choppiness = $this->calculate5MinChoppiness($recent5Min);

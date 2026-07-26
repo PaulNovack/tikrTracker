@@ -83,7 +83,7 @@ class FiveMinuteSignalScannerV40_0
                     volume,
                     FIRST_VALUE(price) OVER (PARTITION BY symbol ORDER BY ts_est) as open_price
                 FROM five_minute_prices
-                WHERE asset_type = ?
+
                   AND symbol IN ({$placeholders})
                   AND trading_date_est = ?
                   AND ts_est <= ?
@@ -180,7 +180,7 @@ class FiveMinuteSignalScannerV40_0
         ";
 
         $params = array_merge(
-            [$assetType],
+            [],
             $activeSymbols,
             [$currentDate, $asOfTsEst, $minMovePct, $volMult, $limit]
         );

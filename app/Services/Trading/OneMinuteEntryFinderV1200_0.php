@@ -34,7 +34,7 @@ class OneMinuteEntryFinderV1200_0
             'SELECT price, high, low, open, volume, atr, atr_pct
              FROM five_minute_prices
              WHERE symbol = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -60,7 +60,7 @@ class OneMinuteEntryFinderV1200_0
                AND ts_est <= ?
              ORDER BY ts_est ASC
              LIMIT 20',
-            [$symbol, $assetType, $signalTsEst, $searchStart, $searchEnd]
+            [$symbol, $signalTsEst, $searchStart, $searchEnd]
         );
 
         if (empty($bars)) {
@@ -68,7 +68,7 @@ class OneMinuteEntryFinderV1200_0
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for entry patterns
         $entry = $this->findMomentumEntry($bars, $signalHigh, $signalLow, $signalClose, $avgVol, $atr);
@@ -206,7 +206,7 @@ class OneMinuteEntryFinderV1200_0
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;

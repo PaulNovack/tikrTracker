@@ -192,7 +192,7 @@ class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
                 ->value('trading_date_est');
 
             if ($prevTradingDay) {
-                $gainersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $assetType, $gainersLimit);
+                $gainersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $gainersLimit);
                 $gainerSymbols = array_column($gainersData['gainers'] ?? [], 'symbol');
                 $symbols = array_values(array_unique(array_merge($symbols, $gainerSymbols)));
             }
@@ -216,30 +216,28 @@ class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
         // ---------- 2) Build SQL query for institutional signals ----------
         $sql = "
 WITH universe AS (
-  SELECT ? AS asset_type, symbol
+  SELECT ?, symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND symbol IN ($placeholders)
   ) s
 ),
 base AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
     f.low,
     f.volume,
-    LAG(f.price, 1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_close,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn_desc
+    LAG(f.price, 1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_close,
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn_desc
   FROM five_minute_prices f
   JOIN universe u
-    ON u.symbol = f.symbol AND u.asset_type = f.asset_type
-  WHERE f.ts_est <= ?
+    ON u.symbol = f.symbol WHERE f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 recent AS (
@@ -250,27 +248,24 @@ recent AS (
 agg_last AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn_desc = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn_desc = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn_desc = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn_desc = 1 + ? THEN close END) AS close_nback
   FROM base
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 rvol AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(b.volume) AS avg_vol
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 atr AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(
       GREATEST(
         (b.high - b.low),
@@ -280,16 +275,15 @@ atr AS (
     ) AS atr_val
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 activity AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_seen_ts
+  SELECT symbol, MAX(ts_est) AS last_seen_ts
   FROM recent
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   a.symbol,
-  a.asset_type,
   a.signal_ts_est,
   a.last_close,
   a.last_vol,
@@ -301,15 +295,12 @@ SELECT
   (a.last_close * a.last_vol) AS notional_last5m,
   act.last_seen_ts
 FROM agg_last a
-JOIN rvol r ON r.symbol=a.symbol AND r.asset_type=a.asset_type
-JOIN atr  t ON t.symbol=a.symbol AND t.asset_type=a.asset_type
-JOIN activity act ON act.symbol=a.symbol AND act.asset_type=a.asset_type
-WHERE a.close_nback IS NOT NULL
+JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity act ON act.symbol=a.symbol WHERE a.close_nback IS NOT NULL
   AND a.last_close >= ?
 ";
 
         $params = array_merge(
-            [$assetType, $assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $asOfTsEst, $activeWindowMinutes],
             [$moveBars, $rvolLookback, $atrPeriod],
@@ -416,7 +407,7 @@ WHERE a.close_nback IS NOT NULL
             }
 
             // Gate 6: Multi-day consistency check (institutions accumulate over days)
-            $greenDays = $this->countRecentGreenDays((string) $r->symbol, $assetType, $asOfTsEst);
+            $greenDays = $this->countRecentGreenDays((string) $r->symbol, $asOfTsEst);
             if ($greenDays < $minGreenDays) {
                 $dropCounts['multi_day_check']++;
 
@@ -437,7 +428,7 @@ WHERE a.close_nback IS NOT NULL
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => (string) $r->,
                 'signal_type' => 'INSTITUTIONAL_V140',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
