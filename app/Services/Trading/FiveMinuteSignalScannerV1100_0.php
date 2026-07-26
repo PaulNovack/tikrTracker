@@ -41,7 +41,6 @@ use Illuminate\Support\Facades\DB;
  */
 class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v1100.0';
 
     private string $name = 'Scarcity Leader (RS vs SPY)';
@@ -138,7 +137,7 @@ class FiveMinuteSignalScannerV1100_0 extends AbstractSignalScanner
      * @param  string  $asOfTsEst  Scan timestamp (EST)
      * @param  int  $limit  Max rows to return
      */
-    protected function doScan(string $asOfTsEst, int $limit = 20, bool \$skipCache = false, ?string \$symbol = null): array
+    protected function doScan(string $asOfTsEst, int $limit = 20, bool $skipCache = false, ?string $symbol = null): array
     {
         $benchmarkSymbol = config('app.trading_market_benchmark_symbol', 'SPY');
 
