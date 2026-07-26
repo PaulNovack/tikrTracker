@@ -26,7 +26,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v35.0';
 
     private string $name = 'Quality-First (Quote-Triggered)';

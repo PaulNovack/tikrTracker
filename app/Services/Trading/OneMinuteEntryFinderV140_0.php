@@ -35,7 +35,6 @@ use Illuminate\Support\Facades\Log;
  */
 class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
 {
-
     private static array $dbg = [
         'called' => 0,
         'not_enough_bars' => 0,
@@ -54,13 +53,13 @@ class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v140.0\';
+        return 'v140.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     /**

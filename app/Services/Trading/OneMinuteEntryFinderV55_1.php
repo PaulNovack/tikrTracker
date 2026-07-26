@@ -75,7 +75,6 @@ class OneMinuteEntryFinderV55_1
 
     public float $maxPullbackBelowVwapPct = 0.10;
 
-
     public int $impulseLookbackBars = 3;
 
     public float $minImpulsePct = 0.35;
@@ -111,7 +110,6 @@ class OneMinuteEntryFinderV55_1
     public float $sessionHighBreakTolerancePct = 0.05;
 
     public float $trailingStopAtrMultiplier = 4.0;
-
 
     public float $minTrailingStopPct = 1.00;
 
@@ -348,6 +346,7 @@ class OneMinuteEntryFinderV55_1
 
         if (! $allowLunch && ! $this->isAllowedTime($asOfTsEst)) {
             self::$dbg['time_blocked']++;
+
             return [null, 'time_blocked'];
         }
 
@@ -360,6 +359,7 @@ class OneMinuteEntryFinderV55_1
         $signalAgeSeconds = $asOfEpoch - $signalEpoch;
         if ($signalAgeSeconds < 0 || $signalAgeSeconds > ($maxSignalAgeMinutes * 60)) {
             self::$dbg['signal_stale']++;
+
             return [null, 'signal_stale'];
         }
 
@@ -379,12 +379,14 @@ class OneMinuteEntryFinderV55_1
 
         if (count($rows) < $minBars) {
             self::$dbg['not_enough_bars']++;
+
             return [null, 'not_enough_bars'];
         }
 
         $bars = $this->normalizeBars($rows, $atrPeriod, $volLookback);
         if ($bars === null || count($bars) < $minBars) {
             self::$dbg['bad_data']++;
+
             return [null, 'bad_data'];
         }
 
@@ -398,6 +400,7 @@ class OneMinuteEntryFinderV55_1
 
             if (! $allowLunch && ! $this->isAllowedTime($entryTs)) {
                 self::$dbg['entry_time_blocked']++;
+
                 continue;
             }
 
@@ -411,6 +414,7 @@ class OneMinuteEntryFinderV55_1
             }
             if ($entryEpoch < ($signalEpoch + $minEntryDelaySecondsAfterSignal)) {
                 self::$dbg['before_signal']++;
+
                 continue;
             }
 
@@ -449,11 +453,13 @@ class OneMinuteEntryFinderV55_1
                 || $emaSlopePct < $minEmaSlopePct
             ) {
                 self::$dbg['trend_failed']++;
+
                 continue;
             }
 
             if ($bodyRangeFraction < $minBodyRangeFraction) {
                 self::$dbg['body_range_failed']++;
+
                 continue;
             }
 
@@ -463,11 +469,13 @@ class OneMinuteEntryFinderV55_1
                 || $upperWickFraction > $maxUpperWickFraction
             ) {
                 self::$dbg['quality_failed']++;
+
                 continue;
             }
 
             if ($volumeRatio < $minVolumeRatio || $notional < $minNotional1m) {
                 self::$dbg['volume_failed']++;
+
                 continue;
             }
 
@@ -477,6 +485,7 @@ class OneMinuteEntryFinderV55_1
                 || $atrPct > $maxAtrPct
             ) {
                 self::$dbg['extension_failed']++;
+
                 continue;
             }
 
@@ -530,6 +539,7 @@ class OneMinuteEntryFinderV55_1
 
             if ($trigger === null || $structureLow === null || $breakLevel === null) {
                 self::$dbg['no_trigger']++;
+
                 continue;
             }
 
@@ -546,6 +556,7 @@ class OneMinuteEntryFinderV55_1
 
             if ($riskPerShare <= 0 || $riskPct < $minStopPct || $riskPct > $maxStopPct) {
                 self::$dbg['risk_failed']++;
+
                 continue;
             }
 
@@ -557,6 +568,7 @@ class OneMinuteEntryFinderV55_1
 
             if (! $breaksSessionHigh && $roomToSessionHighR < $minRoomToSessionHighR) {
                 self::$dbg['resistance_failed']++;
+
                 continue;
             }
 
@@ -576,6 +588,7 @@ class OneMinuteEntryFinderV55_1
 
             if ((float) $scoreParts['score'] < $minEntryScore) {
                 self::$dbg['score_failed']++;
+
                 continue;
             }
 
@@ -1032,6 +1045,7 @@ class OneMinuteEntryFinderV55_1
         $start = max(0, $index - $lookback);
         $base = (float) $bars[$start]['ema9'];
         $current = (float) $bars[$index]['ema9'];
+
         return $base > 0 ? (($current - $base) / $base) * 100.0 : 0.0;
     }
 

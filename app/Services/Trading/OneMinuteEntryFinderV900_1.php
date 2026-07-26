@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\DB;
  */
 class OneMinuteEntryFinderV900_1 extends AbstractOneMinuteEntryFinder
 {
-
     public function getVersion(): string
     {
         return 'v900.1';
@@ -26,13 +25,13 @@ class OneMinuteEntryFinderV900_1 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v900.1\';
+        return 'v900.1';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     protected function doFindBestLong(

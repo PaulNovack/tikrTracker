@@ -22,7 +22,6 @@ use Illuminate\Support\Facades\Log;
  */
 class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
 {
-
     private static array $dbg = [
         'called' => 0,
         'not_enough_bars' => 0,
@@ -40,13 +39,13 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v27.0\';
+        return 'v27.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     protected function doFindBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
@@ -138,7 +137,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         // During backtests data never changes, so caching eliminates redundant
         // queries for symbols that the scanner signals repeatedly.
         $cacheKey1m = "entry_finder_v27:1m:{$assetType}:{$symbol}:{$tradeDate}";
-        $bars = Cache::remember($cacheKey1m, 60, function () use ($assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst) {
+        $bars = Cache::remember($cacheKey1m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, `open`, high, low, price AS close, volume
                 FROM one_minute_prices
@@ -172,7 +171,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
 
         // Cache 5m bars per (symbol, asset_type, trading_date) for 60 seconds
         $cacheKey5m = "entry_finder_v27:5m:{$assetType}:{$symbol}:{$tradeDate}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst) {
+        $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices

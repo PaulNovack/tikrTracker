@@ -33,7 +33,6 @@ use Illuminate\Support\Facades\Log;
  */
 class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 {
-
     public function getVersion(): string
     {
         return 'v400.0';
@@ -41,13 +40,13 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v400.0\';
+        return 'v400.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     protected function doFindBestLong(
@@ -111,7 +110,7 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 
         // Get 1-minute bars
         $cacheKey1m = "1m_bars:v400_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                                     symbol,

@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Log;
  */
 class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
 {
-
     public bool $debug = false;
 
     public int $marketOpenMinute = 570;
@@ -115,13 +114,13 @@ class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v103.0\';
+        return 'v103.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     /**

@@ -23,7 +23,6 @@ use Illuminate\Support\Facades\Log;
  */
 class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v1600.0';
 
     private string $name = 'Early Momentum Pre-Breakout';

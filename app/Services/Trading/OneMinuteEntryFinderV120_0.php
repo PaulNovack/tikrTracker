@@ -25,7 +25,6 @@ use Illuminate\Support\Facades\Cache;
  */
 class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 {
-
     public function getVersion(): string
     {
         return 'v120.0';
@@ -33,13 +32,13 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v120.0\';
+        return 'v120.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     protected function doFindBestLong(
@@ -83,7 +82,7 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 
         $bucketTs = date('Y-m-d H:i', strtotime($to));
         $cacheKey1m = "1m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -137,7 +136,7 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 
         // Get 5-minute bars for trend confirmation
         $cacheKey5m = "5m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
                 FROM five_minute_prices

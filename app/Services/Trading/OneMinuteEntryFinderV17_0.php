@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Cache;
  */
 class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 {
-
     private float $maxRiskPct;
 
     private float $atrMultiplier;
@@ -330,7 +329,7 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 
         $bucketTs = date('Y-m-d H:i', strtotime($vwapEnd));
         $cacheKey1m = "1m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd) {
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -370,7 +369,7 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 
         // Get 5-minute bars for choppiness detection (use full VWAP window, not analysis window)
         $cacheKey5m = "5m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd) {
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices

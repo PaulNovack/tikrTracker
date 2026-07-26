@@ -69,7 +69,7 @@ class OneMinuteEntryFinderV600_0
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
         $cacheKey1m = "1m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -123,7 +123,7 @@ class OneMinuteEntryFinderV600_0
 
         // 5m bars for trend/chop filter - enhanced with spread and distance
         $cacheKey5m = "5m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap,
                        ema9_ema21_spread, vwap_dist_pct

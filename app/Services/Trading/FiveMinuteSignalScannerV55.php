@@ -239,18 +239,21 @@ class FiveMinuteSignalScannerV55
             $metrics = $this->calculateMetrics($bars, $atrPeriod, $rvolLookback);
             if ($metrics === null) {
                 $drops['not_enough_bars']++;
+
                 continue;
             }
 
             $signalEpoch = strtotime((string) $metrics['signal_ts_est']);
             if ($signalEpoch === false) {
                 $drops['stale']++;
+
                 continue;
             }
 
             $signalAgeSeconds = $asOfEpoch - $signalEpoch;
             if ($signalAgeSeconds < 0 || $signalAgeSeconds > $maxSignalAgeSeconds) {
                 $drops['stale']++;
+
                 continue;
             }
 
@@ -262,6 +265,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['last_close'] < ((float) $metrics['ema9'] - (0.15 * (float) $metrics['atr']))
             ) {
                 $drops['trend']++;
+
                 continue;
             }
 
@@ -270,6 +274,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['max_notional_last3'] >= ($minNotional5m * 1.50);
             if (! $liquidityOk) {
                 $drops['liquidity']++;
+
                 continue;
             }
 
@@ -278,6 +283,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['atr_pct'] > $maxAtrPct5m
             ) {
                 $drops['atr']++;
+
                 continue;
             }
 
@@ -286,6 +292,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['move_20m_pct'] >= max(0.75, $minMove20mPct * 1.50);
             if (! $activityOk) {
                 $drops['activity']++;
+
                 continue;
             }
 
@@ -294,11 +301,13 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['move_20m_pct'] > $maxMove20mPct
             ) {
                 $drops['move']++;
+
                 continue;
             }
 
             if ((float) $metrics['above_vwap_pct'] > $maxAboveVwapPct) {
                 $drops['extended']++;
+
                 continue;
             }
 
@@ -307,6 +316,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['compression_ratio'] > $maxCompressionRatio
             ) {
                 $drops['compression']++;
+
                 continue;
             }
 
@@ -316,6 +326,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['green_bar_pct'] < $minGreenBarPct
             ) {
                 $drops['location']++;
+
                 continue;
             }
 
@@ -324,6 +335,7 @@ class FiveMinuteSignalScannerV55
                 && (float) $metrics['distance_from_ema9_atr'] > $maxDistanceFromEma9Atr
             ) {
                 $drops['ema_distance']++;
+
                 continue;
             }
 
@@ -616,6 +628,7 @@ class FiveMinuteSignalScannerV55
     private function maxObjectField(array $rows, string $field): float
     {
         $values = array_map(static fn (object $row): float => (float) ($row->{$field} ?? 0.0), $rows);
+
         return $values === [] ? 0.0 : max($values);
     }
 
@@ -623,6 +636,7 @@ class FiveMinuteSignalScannerV55
     private function minObjectField(array $rows, string $field): float
     {
         $values = array_map(static fn (object $row): float => (float) ($row->{$field} ?? 0.0), $rows);
+
         return $values === [] ? 0.0 : min($values);
     }
 

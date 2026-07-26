@@ -22,7 +22,6 @@ namespace App\Services\Trading;
  */
 class OneMinuteEntryFinderV1100_0 extends AbstractOneMinuteEntryFinder
 {
-
     public function getVersion(): string
     {
         return 'v1100.0';
@@ -30,13 +29,13 @@ class OneMinuteEntryFinderV1100_0 extends AbstractOneMinuteEntryFinder
 
     public function getName(): string
     {
-        return \'v1100.0\';
+        return 'v1100.0';
     }
 
     /** @return array<string, mixed> */
     public function entryConfig(): array
     {
-        return [\'version\' => $this->getVersion()];
+        return ['version' => $this->getVersion()];
     }
 
     /**
