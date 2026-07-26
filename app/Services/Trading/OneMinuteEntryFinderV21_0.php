@@ -85,7 +85,7 @@ class OneMinuteEntryFinderV21_0
      * @param  string  $asOfTsEst  Current EST timestamp
      * @return array|null Entry data or null if no WAKE_UP pattern
      */
-    private function checkAlligatorWakeUp(string $symbol, string $assetType, string $asOfTsEst): ?array
+    private function checkAlligatorWakeUp(string $symbol, string $asOfTsEst): ?array
     {
         $minPrice = 1.0;
         $minVol5 = 30000;

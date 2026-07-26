@@ -39,7 +39,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
@@ -54,7 +53,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
         $addIntradayUniverse = (int) config('trading.market_movers.pipeline_j_add_intraday_universe', 0);
 
         if ($addIntradayUniverse > 0) {
-            $universeCacheKey = "scan_v2000_1:universe_symbols:{$assetType}";
+            $universeCacheKey = 'scan_v2000_1:universe_symbols';
             $universeSymbols = Cache::get($universeCacheKey);
 
             if ($universeSymbols === null) {
@@ -155,7 +154,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
             ) ranked
             WHERE ranked.rn <= 20
             ORDER BY ranked.symbol ASC, ranked.rn ASC
-        ", array_merge([ $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $symbols));
 
         if (empty($recentRows)) {
             return [];
@@ -180,7 +179,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
               AND f.ts_est <= ?
               AND f.symbol IN ($placeholders)
             GROUP BY f.symbol
-        ", array_merge([ $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $symbols));
 
         $dayStatsBySymbol = [];
         foreach ($dayStatsRows as $row) {
@@ -352,7 +351,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $latest->,
                 'signal_type' => $setupType,
                 'signal_ts_est' => (string) $latest->ts_est,
                 'score' => $score,

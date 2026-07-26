@@ -73,7 +73,6 @@ class FiveMinuteSignalScannerV1400_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst
     ): array {
         // Load all config from trading.v1400
@@ -217,7 +216,7 @@ LIMIT ?
         // universe is stable within a 5m window. Multiple pipeline fires per
         // minute will share one DB hit.
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v1400:{$assetType}:{$bucketTs}";
+        $cacheKey = "scan_v1400:{$bucketTs}";
         $rows = Cache::remember($cacheKey, 240, fn () => $this->dbSelect($sql, $params));
 
         if (empty($rows)) {
@@ -231,7 +230,6 @@ LIMIT ?
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->,
                 'signal_type' => 'CLEAN_TREND_2H',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => $row->entry_score,

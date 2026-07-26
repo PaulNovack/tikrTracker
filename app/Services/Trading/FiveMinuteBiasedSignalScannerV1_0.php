@@ -42,7 +42,7 @@ class FiveMinuteBiasedSignalScannerV1_0
      *   ['symbol'=>'TQQQ','asset_type'=>'stock','signal_type'=>'BIASED_10PCT_GAINER','signal_ts_est'=>'YYYY-mm-dd HH:MM:SS', 'score'=>...],
      * ]
      */
-    public function scan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 10.0, float $volMult = 3.0, int $limit = 60): array
+    public function scan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 10.0, float $volMult = 3.0, int $limit = 60): array
     {
         // Extract trading date from timestamp
         $tradingDate = substr($asOfTsEst, 0, 10);
@@ -167,7 +167,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'BIASED_10PCT_GAINER',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'price' => $entryPrice,
@@ -198,7 +197,7 @@ LIMIT ?
      *
      * @param  float  $stopPct  Stop distance as decimal (e.g., 0.01 for 1%)
      */
-    private function wouldSurviveTrailingStop(string $symbol, string $assetType, string $tradingDate, string $entryTs, float $stopPct): bool
+    private function wouldSurviveTrailingStop(string $symbol, string $tradingDate, string $entryTs, float $stopPct): bool
     {
         // Get all bars from entry time onwards
         $sql = '

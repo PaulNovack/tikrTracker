@@ -84,7 +84,6 @@ class OneMinuteEntryFinderV2100_0
                 'meta' => [
                     'version' => $this->version,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -102,7 +101,6 @@ class OneMinuteEntryFinderV2100_0
                 'meta' => [
                     'version' => $this->version,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -121,7 +119,6 @@ class OneMinuteEntryFinderV2100_0
                     'version' => $this->version,
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'entry_search_start_ts_est' => $entrySearchStartTsEst,
@@ -144,7 +141,6 @@ class OneMinuteEntryFinderV2100_0
                     'version' => $this->version,
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -163,7 +159,6 @@ class OneMinuteEntryFinderV2100_0
                     'version' => $this->version,
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'rough_day_low' => $roughContext['rough_day_low'],
@@ -353,7 +348,6 @@ class OneMinuteEntryFinderV2100_0
                     'version' => $this->version,
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'entry_search_start_ts_est' => $entrySearchStartTsEst,
@@ -547,7 +541,7 @@ class OneMinuteEntryFinderV2100_0
      *
      * @return array<string,mixed>|null
      */
-    private function queryRoughFivePctContext(string $symbol, string $assetType, string $tradingDate): ?array
+    private function queryRoughFivePctContext(string $symbol, string $tradingDate): ?array
     {
         $rows = $this->dbSelect('
             SELECT
@@ -587,7 +581,7 @@ class OneMinuteEntryFinderV2100_0
      *
      * @return array<string,mixed>|null
      */
-    private function queryRunContext(string $symbol, string $assetType, string $tradingDate): ?array
+    private function queryRunContext(string $symbol, string $tradingDate): ?array
     {
         $bars = $this->dbSelect('
             SELECT ts_est, high, low
@@ -673,7 +667,7 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Query the regular-session high-of-day for a symbol on a given trading date.
      */
-    private function queryHod(string $symbol, string $assetType, string $tradingDate): ?float
+    private function queryHod(string $symbol, string $tradingDate): ?float
     {
         $result = $this->dbSelect('
             SELECT MAX(high) as hod
@@ -692,7 +686,7 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Calculate 5-minute choppiness metrics from bars leading up to the entry.
      */
-    private function calculate5MinChoppiness(string $symbol, string $assetType, string $tradingDate, string $entryTsEst): array
+    private function calculate5MinChoppiness(string $symbol, string $tradingDate, string $entryTsEst): array
     {
         $bars = $this->dbSelect('
             SELECT ts_est, open, high, low, price
@@ -753,7 +747,7 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Calculate RSI-14 from the 14 prior 1-minute bars before entry.
      */
-    private function calculateRsi14(string $symbol, string $assetType, string $tradingDate, string $entryTsEst): ?float
+    private function calculateRsi14(string $symbol, string $tradingDate, string $entryTsEst): ?float
     {
         $bars = $this->dbSelect('
             SELECT ts_est, price

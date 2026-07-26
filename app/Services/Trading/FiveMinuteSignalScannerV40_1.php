@@ -48,7 +48,6 @@ class FiveMinuteSignalScannerV40_1
      * @return array Runner signals
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 30,
         float $minMovePct = 3.0,
@@ -85,7 +84,7 @@ class FiveMinuteSignalScannerV40_1
                     FIRST_VALUE(price) OVER (PARTITION BY symbol ORDER BY ts_est) as open_price
                 FROM five_minute_prices
 
-                  AND symbol IN ({$placeholders})
+                  WHERE symbol IN ({$placeholders})
                   AND trading_date_est = ?
                   AND ts_est <= ?
                   AND TIME(ts_est) BETWEEN '09:30:00' AND '16:00:00'
@@ -191,7 +190,6 @@ class FiveMinuteSignalScannerV40_1
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'RUNNER_5M',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => round($row->runner_score, 2),

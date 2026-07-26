@@ -291,7 +291,6 @@ class OneMinuteEntryFinderV55_1
      */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst
     ): array {

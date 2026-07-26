@@ -143,7 +143,7 @@ class FiveMinuteSignalScannerV35_0 extends AbstractSignalScanner
         $lookbackMinutes = max($lookbackMinutes, $minimumLookbackMinutes);
 
         // ---------- 1) Universe: intraday_universe (pre-built, fast, cached 8h) ----------
-        $universeCacheKey = "scan_v35_0:universe_symbols:{$assetType}";
+        $universeCacheKey = 'scan_v35_0:universe_symbols';
         $symbols = Cache::get($universeCacheKey);
         if ($symbols === null) {
             $symbols = DB::table('intraday_universe')
@@ -186,7 +186,7 @@ WITH universe AS (
     SELECT DISTINCT symbol
     FROM one_minute_prices
 
-      AND symbol IN ($placeholders)
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 -- Build partial 5-minute candles from 1-minute bars
@@ -209,7 +209,7 @@ one_min_agg AS (
     ) AS five_min_bucket
   FROM one_minute_prices
 
-    AND symbol IN ($placeholders)
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
@@ -312,7 +312,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
         // Cache for 60 seconds — partial candles update every 1 minute.
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 60) * 60));
-        $cacheKey = "scan_v35_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v35_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 30);
@@ -428,7 +428,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M_V35',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -454,7 +453,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         if ($debugEnabled) {
             Log::info('[ScannerV35_0] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),
@@ -473,7 +471,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
@@ -482,7 +480,7 @@ WHERE symbol = ?
 
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
         if (! $rows) {
             return 0.0;

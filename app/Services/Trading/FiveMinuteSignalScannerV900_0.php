@@ -56,7 +56,6 @@ class FiveMinuteSignalScannerV900_0
      * Scan for Momentum Continuation candidates (LONG)
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.0,
@@ -120,7 +119,6 @@ class FiveMinuteSignalScannerV900_0
 
         if (count($prevTradingDates) < 2) {
             Log::warning('[V900.0 Scanner] Need 2 previous trading days for day-over-day calc', [
-                'asset_type' => $assetType,
                 'trade_date' => $tradeDate,
                 'found' => count($prevTradingDates),
             ]);
@@ -132,7 +130,6 @@ class FiveMinuteSignalScannerV900_0
         $prevPrevTradingDate = $prevTradingDates[1]; // Day before yesterday
 
         Log::debug('[V900.0 Scanner] Starting momentum continuation scan', [
-            'asset_type' => $assetType,
             'as_of' => $asOfTsEst,
             'trade_date' => $tradeDate,
             'prev_trade_date' => $prevTradingDate,
@@ -338,7 +335,6 @@ LIMIT ?
 
             $signals[] = [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->,
                 'signal_type' => 'MOMENTUM_CONTINUATION_SETUP',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => round($score, 2),

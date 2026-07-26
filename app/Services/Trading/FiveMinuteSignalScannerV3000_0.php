@@ -132,7 +132,6 @@ class FiveMinuteSignalScannerV3000_0
      * @return array<int, array>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.2,
@@ -196,12 +195,12 @@ ORDER BY f.symbol, f.ts_est DESC
 ';
 
         $params = array_merge(
-            [ $tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
+            [$tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             $symbols
         );
 
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v3000_0_s3:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v3000_0_s3:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -256,12 +255,12 @@ FROM (
 
       AND trading_date_est = ?
       AND ts_est <= ?
-      AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
+      WHERE symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
 ) sub
 WHERE rn <= 20
 GROUP BY symbol
 ';
-            $rvolParams = array_merge([ $tradeDate, $asOfTsEst], array_keys($seen));
+            $rvolParams = array_merge([$tradeDate, $asOfTsEst], array_keys($seen));
             $rvolRows = $this->dbSelect($rvolSql, $rvolParams);
             foreach ($rvolRows as $rv) {
                 $rvolData[(string) $rv->symbol] = (float) ($rv->avg_vol ?? 0);
@@ -279,12 +278,12 @@ FROM (
 
       AND trading_date_est = ?
       AND ts_est <= ?
-      AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
+      WHERE symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
 ) sub
 WHERE rn <= 7
 GROUP BY symbol
 ';
-            $moveParams = array_merge([ $tradeDate, $asOfTsEst], array_keys($seen));
+            $moveParams = array_merge([$tradeDate, $asOfTsEst], array_keys($seen));
             $moveRows = $this->dbSelect($moveSql, $moveParams);
             foreach ($moveRows as $mv) {
                 $lastP = (float) ($mv->last_p ?? 0);
@@ -342,7 +341,6 @@ GROUP BY symbol
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'EMA_ALIGNMENT_V3000',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -372,7 +370,7 @@ GROUP BY symbol
     }
 
     /** @return array<int, string> */
-    private function buildUniverseSymbols(string $assetType, string $asOfTsEst): array
+    private function buildUniverseSymbols(string $asOfTsEst): array
     {
         $tradeDate = substr($asOfTsEst, 0, 10);
         $cacheKey = 'scan_v3000_0_s3_universe:'.implode(':', [
@@ -383,7 +381,7 @@ GROUP BY symbol
             $this->losersLimit,
         ]);
 
-        $symbols = Cache::remember($cacheKey, 60, function () use ($assetType, $asOfTsEst, $tradeDate) {
+        $symbols = Cache::remember($cacheKey, 60, function () use ($asOfTsEst, $tradeDate) {
             $topPerformers = $this->bestPerformersService->getBestPerformers([
                 'assetType' => $assetType,
                 'testDateTime' => $asOfTsEst,
@@ -439,7 +437,7 @@ GROUP BY symbol
 
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
@@ -448,7 +446,7 @@ WHERE symbol = ?
 
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
         if (! $rows) {
             return 0.0;

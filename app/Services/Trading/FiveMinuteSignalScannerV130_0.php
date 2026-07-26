@@ -52,7 +52,6 @@ class FiveMinuteSignalScannerV130_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 30,
         float $minMovePct = 0.5,
@@ -152,7 +151,7 @@ class FiveMinuteSignalScannerV130_0
         return array_slice($candidates, 0, $limit);
     }
 
-    private function get5MinBars(string $symbol, string $assetType, string $from, string $to): array
+    private function get5MinBars(string $symbol, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT 
@@ -222,7 +221,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'VWAP_BOUNCE',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $price,
@@ -329,7 +327,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'BULL_FLAG_BREAKOUT',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $currentPrice,
@@ -398,7 +395,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'FAILED_BREAKDOWN',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $currentPrice,

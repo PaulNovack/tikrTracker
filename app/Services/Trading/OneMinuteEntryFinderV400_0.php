@@ -108,7 +108,7 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
         // Get 1-minute bars
-        $cacheKey1m = "1m_bars:v400_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey1m = "1m_bars:v400_0:{$symbol}:{$tradeDate}:{$bucketTs}";
         $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
@@ -147,7 +147,6 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
                 'ok' => false,
                 'error' => 'Not enough 1m data for continuation analysis',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -164,7 +163,6 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
                         'ok' => false,
                         'error' => 'Bad data detected - extreme price drop (reverse split or data error)',
                         'symbol' => $symbol,
-                        'asset_type' => $assetType,
                         'drop_pct' => round($dropPct, 2),
                     ];
                 }
@@ -533,7 +531,6 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
                 'ok' => false,
                 'error' => 'No continuation entry patterns found in analysis window',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'candidates_checked' => 0,
             ];
         }
@@ -545,7 +542,6 @@ class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'best_entry' => $best,
             'candidates' => $candidates,
         ];

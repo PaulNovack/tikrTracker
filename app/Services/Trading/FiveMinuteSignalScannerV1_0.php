@@ -51,7 +51,6 @@ class FiveMinuteSignalScannerV1_0
      * @return array Array of qualifying signals
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         float $minChangeFromOpen = 3.0,
         float $minRelativeVolume = 1.5,
@@ -90,7 +89,7 @@ class FiveMinuteSignalScannerV1_0
     /**
      * Calculate change_from_open and relative_volume for all bars up to asOfTsEst
      */
-    private function calculateMomentumMetrics(string $assetType, string $tradingDate, string $asOfTsEst): void
+    private function calculateMomentumMetrics(string $tradingDate, string $asOfTsEst): void
     {
         // Get opening prices for all symbols today (first 5m bar price)
         $openPrices = DB::table($this->fiveMinuteTable)
@@ -175,7 +174,6 @@ class FiveMinuteSignalScannerV1_0
      * Find stocks currently meeting TradeThatSwing momentum criteria
      */
     private function findMomentumMovers(
-        string $assetType,
         string $tradingDate,
         string $asOfTsEst,
         float $minChangeFromOpen,
@@ -229,10 +227,9 @@ class FiveMinuteSignalScannerV1_0
             ->limit($limit)
             ->get();
 
-        return $signals->map(function ($row) use ($assetType) {
+        return $signals->map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'MOMENTUM_MOVER',
                 'signal_ts_est' => $row->signal_ts_est,
                 'price' => $row->price,

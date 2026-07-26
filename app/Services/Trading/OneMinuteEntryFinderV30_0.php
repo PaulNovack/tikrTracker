@@ -359,7 +359,6 @@ class OneMinuteEntryFinderV30_0
 
         Log::channel('trading')->info('[OneMinuteEntryFinderV30_0] ENTRY', [
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'as_of_ts_est' => $asOfTsEst,
             'end_load_ts_est' => $endTsForLoad,
@@ -383,7 +382,7 @@ class OneMinuteEntryFinderV30_0
     /**
      * @return array<int,object>
      */
-    private function loadBarsBetween(string $symbol, string $assetType, string $startTsEst, string $endTsEst, int $minutesBack): array
+    private function loadBarsBetween(string $symbol, string $startTsEst, string $endTsEst, int $minutesBack): array
     {
         $sql = '
             SELECT

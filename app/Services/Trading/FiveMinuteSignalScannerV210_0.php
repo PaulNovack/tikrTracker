@@ -78,7 +78,6 @@ class FiveMinuteSignalScannerV210_0
      * @return array Array of signal arrays
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minDeclinePct = 1.2,
@@ -214,7 +213,6 @@ class FiveMinuteSignalScannerV210_0
 
         return [
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_type' => 'OVERSOLD_BOUNCE',
             'signal_ts_est' => $asOfTsEst,
             'price' => $currentPrice,
@@ -262,7 +260,7 @@ class FiveMinuteSignalScannerV210_0
         // Symbol list is intentionally excluded so all callers share the same cache entry
         // regardless of which subset of symbols they request — filtered in PHP below.
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "5m_bars:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "5m_bars:{$bucketTs}:{$lookbackMinutes}";
 
         $allGrouped = Cache::get($cacheKey);
         if ($allGrouped === null) {
@@ -276,7 +274,7 @@ class FiveMinuteSignalScannerV210_0
                       AND ts <= ?
                       AND ts >= ?
                     ORDER BY symbol ASC, ts DESC
-                ', [ $asOfTsEst, $startTime]);
+                ', [$asOfTsEst, $startTime]);
 
                     $allGrouped = [];
                     foreach ($rows as $row) {

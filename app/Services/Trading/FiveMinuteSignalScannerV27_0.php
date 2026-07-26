@@ -223,7 +223,7 @@ WITH universe AS (
     SELECT DISTINCT symbol
     FROM five_minute_prices
 
-      AND symbol IN ($placeholders)
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
@@ -308,7 +308,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
         // Cache for 4 minutes
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v27_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v27_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -446,7 +446,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'VOLUME_FIRST_V27',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -474,7 +473,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         if ($debugEnabled) {
             Log::info('[ScannerV27_0] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),
@@ -487,7 +485,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
     /**
      * Count how many of the last 5 trading days closed green (close > open)
      */
-    private function countRecentGreenDays(string $symbol, string $assetType, string $asOfTsEst): int
+    private function countRecentGreenDays(string $symbol, string $asOfTsEst): int
     {
         $currentDate = substr($asOfTsEst, 0, 10);
 
@@ -519,7 +517,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
@@ -528,7 +526,7 @@ WHERE symbol = ?
 
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
         if (! $rows) {
             return 0.0;

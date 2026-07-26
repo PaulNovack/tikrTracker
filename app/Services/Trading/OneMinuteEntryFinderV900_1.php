@@ -154,7 +154,6 @@ LIMIT 1
                 'ok' => false,
                 'error' => 'No qualifying momentum continuation entry found within window.',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'entry_window' => [$signalTsEst, $entryWindowEnd],
             ];
@@ -197,7 +196,6 @@ LIMIT 1
                 'ok' => false,
                 'error' => sprintf('Entry score %.2f outside range [%.2f, %.2f]', $entryScore, $minScore, $maxScore),
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'entry_ts_est' => $entryTs,
                 'entry_score' => $entryScore,
@@ -221,7 +219,6 @@ LIMIT 1
             'best_entry' => [
                 'type' => 'MOMENTUM_CONTINUATION',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'entry_ts_est' => $entryTs,
                 'entry_price' => round($entryPx, 4),
                 'entry_score' => round($entryScore, 2),

@@ -24,7 +24,6 @@ class OneMinuteUniverseScannerV1
      * - only symbols marked with 1_min=1 (top 1500 most liquid stocks)
      */
     public function activeSymbols(
-        string $assetType,
         string $asOfTsEst,
         int $activeMinutes = 3,
         int $minVolume = 100000,

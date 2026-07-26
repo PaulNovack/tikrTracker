@@ -80,7 +80,7 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
         $to = $analysisEnd;
 
         $bucketTs = date('Y-m-d H:i', strtotime($to));
-        $cacheKey1m = "1m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey1m = "1m_bars:v120:{$symbol}:{$tradeDate}:{$bucketTs}";
         $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
@@ -118,7 +118,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -134,7 +133,7 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
         }
 
         // Get 5-minute bars for trend confirmation
-        $cacheKey5m = "5m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey5m = "5m_bars:v120:{$symbol}:{$tradeDate}:{$bucketTs}";
         $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
@@ -240,7 +239,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => sprintf('Excessive 5-minute choppiness (%d/%d changes)', $choppiness['directional_changes'] ?? 0, $maxChanges),
@@ -547,7 +545,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -671,7 +668,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Filtered by elite multi-day momentum criteria',
                 'meta' => [
@@ -694,7 +690,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -722,7 +717,6 @@ class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,

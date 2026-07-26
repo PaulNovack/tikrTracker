@@ -46,7 +46,6 @@ class FiveMinuteSignalScannerV300_0
      * @return array Array of reversal candidates with scores
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.2,
@@ -89,7 +88,7 @@ class FiveMinuteSignalScannerV300_0
     /**
      * Get candidate symbols with sufficient liquidity
      */
-    private function getCandidateSymbols(string $assetType, string $asOfTsEst, float $minDollarVol): array
+    private function getCandidateSymbols(string $asOfTsEst, float $minDollarVol): array
     {
         // Get all active symbols with recent data
         // Liquidity filtering happens during evaluation
@@ -171,7 +170,6 @@ class FiveMinuteSignalScannerV300_0
         // Return signal with metadata for 1m entry finder
         return [
             'symbol' => $symbol,
-            'asset_type' => 'stock',
             'signal_type' => $best['signal_type'],
             'signal_ts_est' => $last5->ts_est ?? $asOfTsEst,
             'side' => $best['side'], // LONG or SHORT

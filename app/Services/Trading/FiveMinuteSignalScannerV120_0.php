@@ -317,7 +317,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'move_pct' => $moveFromOpen,
@@ -376,7 +375,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'ELITE_MOMENTUM_CONTINUATION',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -413,7 +411,6 @@ LIMIT ?
      * Get stocks with 2+ consecutive up days with increasing volume
      */
     private function getEliteMultiDayMovers(
-        string $assetType,
         string $tradeDate,
         int $minConsecutiveDays,
         bool $requireVolIncrease
@@ -486,7 +483,6 @@ FROM streak_analysis
 
         $movers = $this->dbSelect($sql, [
             $tradeDate,
-            $assetType,
             $minConsecutiveDays,
         ]);
 
@@ -497,7 +493,6 @@ FROM streak_analysis
      * Get gap-up data and check if stocks are holding the gap
      */
     private function getGapUpData(
-        string $assetType,
         array $symbols,
         string $tradeDate,
         float $minGapPct
@@ -530,7 +525,7 @@ INNER JOIN (
     WHERE date < ? AND asset_type = ?
   )
 
-  AND symbol IN ($placeholders)
+  WHERE symbol IN ($placeholders)
 ) prev ON f.symbol = prev.symbol
 
   AND f.symbol IN ($placeholders)

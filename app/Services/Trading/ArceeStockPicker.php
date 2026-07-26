@@ -32,7 +32,6 @@ class ArceeStockPicker
         foreach ($stocks as $stock) {
             $results[] = [
                 'symbol' => $stock->symbol,
-                'asset_type' => $stock->asset_type,
                 'price' => $stock->price,
                 'ema9' => $stock->ema9,
                 'ema21' => $stock->ema21,

@@ -156,7 +156,7 @@ class OneMinuteEntryFinderV22_0
      * - entry
      * - stop
      */
-    private function checkAlligatorWakeOrEat(string $symbol, string $assetType, string $asOfTsEst): ?array
+    private function checkAlligatorWakeOrEat(string $symbol, string $asOfTsEst): ?array
     {
         // ========= Tunables =========
         $minPrice = 1.0;

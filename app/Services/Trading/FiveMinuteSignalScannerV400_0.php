@@ -325,7 +325,6 @@ LIMIT ?
 
             $signals[] = [
                 'symbol' => $r->symbol,
-                'asset_type' => $r->,
                 'signal_ts_est' => $barCloseTsEst,
                 'signal_type' => 'TREND_CONTINUATION',
                 'price' => (float) $r->signal_price,

@@ -36,7 +36,6 @@ class FiveMinuteSignalScannerV810_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -151,7 +150,7 @@ ORDER BY
 LIMIT ?
 ';
 
-        $params = [ $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
+        $params = [$tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
         $rows = $this->dbSelect($sql, $params);
 
         if (empty($rows)) {
@@ -224,7 +223,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->,
                 'signal_type' => 'ema_pullback',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Log;
  * Output signals:
  * [
  *   'symbol' => 'AAPL',
- *   'asset_type' => 'stock',
  *   'signal_type' => 'MOMO_5M',
  *   'signal_ts_est' => 'YYYY-mm-dd HH:MM:SS',
  *   'score' => 12.34,
@@ -48,7 +47,7 @@ class FiveMinuteSignalScannerV30_0
      * @param  array<string,mixed>|int|string|null  $opts
      * @return array<int,array<string,mixed>>
      */
-    public function scan(string $assetType, string $asOfTsEst, array|int|string|null $opts = []): array
+    public function scan(string $asOfTsEst, array|int|string|null $opts = []): array
     {
         // Normalize opts (Pipeline sometimes passes lookback minutes as an int)
         if (! is_array($opts)) {
@@ -89,7 +88,6 @@ class FiveMinuteSignalScannerV30_0
         );
 
         Log::channel('trading')->info('[FiveMinuteSignalScannerV30_0] scan done', [
-            'asset_type' => $assetType,
             'as_of_ts_est' => $asOfTsEst,
             'lookback_minutes' => $lookbackMinutes,
             'min_move_pct' => $minMovePct,
@@ -107,7 +105,7 @@ class FiveMinuteSignalScannerV30_0
     /**
      * @return array<int,string>
      */
-    private function loadUniverse(string $assetType, string $tradingDateEst): array
+    private function loadUniverse(string $tradingDateEst): array
     {
         $rows = DB::table('eligible_symbols')
             ->select('symbol')
@@ -131,7 +129,6 @@ class FiveMinuteSignalScannerV30_0
      * @return array<int,array<string,mixed>>
      */
     private function querySignals(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes,
         float $minMovePct,
@@ -253,7 +250,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->last_ts,
                 'score' => $score,

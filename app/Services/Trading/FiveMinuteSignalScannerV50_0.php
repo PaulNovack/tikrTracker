@@ -37,7 +37,6 @@ class FiveMinuteSignalScannerV50_0
      * Uses $lookbackMinutes as the scan window (recommend: 10).
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 10,
         float $minMovePct = 0.5,
@@ -171,7 +170,6 @@ LIMIT ?
         foreach ($rows as $r) {
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'ENTRY_SCORE',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => (float) $r->entry_score,

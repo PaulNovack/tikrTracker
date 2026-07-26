@@ -114,7 +114,6 @@ class OneMinuteEntryFinderV31_0
                 'ok' => false,
                 'error' => 'Not enough 1m data for analysis.',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'bars_found' => $bars ? count($bars) : 0,
             ];
         }
@@ -539,7 +538,6 @@ class OneMinuteEntryFinderV31_0
         return [
             'ok' => (bool) $best,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,

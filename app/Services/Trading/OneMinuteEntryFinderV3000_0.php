@@ -100,7 +100,7 @@ class OneMinuteEntryFinderV3000_0
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v3000.entry', []);
 
@@ -513,7 +513,7 @@ class OneMinuteEntryFinderV3000_0
     }
 
     /** @return array<int, object> */
-    private function loadOneMinuteBars(string $symbol, string $assetType, string $tradeDate, string $marketOpen, string $analysisEnd): array
+    private function loadOneMinuteBars(string $symbol, string $tradeDate, string $marketOpen, string $analysisEnd): array
     {
         $key = implode('|', [$this->oneMinuteTable, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
         if (isset(self::$oneMinuteBarsCache[$key])) {
@@ -540,7 +540,7 @@ class OneMinuteEntryFinderV3000_0
     }
 
     /** @return array<string, mixed> */
-    private function loadRecent5MinChoppiness(string $symbol, string $assetType, string $tradeDate, string $marketOpen, string $analysisEnd): array
+    private function loadRecent5MinChoppiness(string $symbol, string $tradeDate, string $marketOpen, string $analysisEnd): array
     {
         $table = $this->safeTable($this->fiveMinuteTable);
         $bars = DB::select("

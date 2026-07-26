@@ -62,7 +62,6 @@ class OneMinuteEntryFinderMarketMovers
 
     private function getOneMinuteBars(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes,

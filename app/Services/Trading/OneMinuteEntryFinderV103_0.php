@@ -216,7 +216,6 @@ class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
      */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         string $fillMethod

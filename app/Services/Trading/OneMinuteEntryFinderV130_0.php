@@ -79,7 +79,6 @@ class OneMinuteEntryFinderV130_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Insufficient 1-minute bars',
             ];
@@ -225,7 +224,6 @@ class OneMinuteEntryFinderV130_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'filter_reason' => 'Unknown pattern type: '.$patternType,
                 ];
@@ -235,7 +233,6 @@ class OneMinuteEntryFinderV130_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No qualifying entries for pattern: '.$patternType,
             ];
@@ -254,7 +251,6 @@ class OneMinuteEntryFinderV130_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -267,7 +263,6 @@ class OneMinuteEntryFinderV130_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,

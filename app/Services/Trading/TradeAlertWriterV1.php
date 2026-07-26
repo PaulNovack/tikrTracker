@@ -371,7 +371,7 @@ class TradeAlertWriterV1
      * Calculate 5-day daily trend percentage.
      * Returns (today_close - 5_days_ago_close) / 5_days_ago_close * 100
      */
-    private function calculateDailyTrend(string $symbol, string $assetType, string $tradingDate): ?float
+    private function calculateDailyTrend(string $symbol, string $tradingDate): ?float
     {
         $result = DB::table('daily_prices as dp')
             ->select([
@@ -399,7 +399,7 @@ class TradeAlertWriterV1
      * Calculate position in 60-minute range (0.0 to 1.0).
      * Uses 12 five-minute bars before entry to establish range.
      */
-    private function calculateRangePosition(string $symbol, string $assetType, string $entryTs, float $entryPrice): ?float
+    private function calculateRangePosition(string $symbol, string $entryTs, float $entryPrice): ?float
     {
         // Get 60 minutes of 5-minute bars before entry (12 bars * 5 minutes = 60 minutes)
         $bars = DB::table($this->fiveMinuteTable)
@@ -539,7 +539,6 @@ class TradeAlertWriterV1
         $sentimentResult = $this->calculateSentimentBoost($signal['symbol']);
         $alertData = [
             'symbol' => $signal['symbol'],
-            'asset_type' => $signal['asset_type'],
 
             'trading_date_est' => $tradingDate,
             'as_of_ts_est' => $asOfTsEst,

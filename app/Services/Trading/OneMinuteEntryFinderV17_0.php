@@ -328,7 +328,7 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
         $vwapEnd = $analysisEnd;
 
         $bucketTs = date('Y-m-d H:i', strtotime($vwapEnd));
-        $cacheKey1m = "1m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey1m = "1m_bars:v17:{$symbol}:{$tradeDate}:{$bucketTs}";
         $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT
@@ -352,7 +352,6 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$vwapStart, $vwapEnd],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -368,7 +367,7 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
         }
 
         // Get 5-minute bars for choppiness detection (use full VWAP window, not analysis window)
-        $cacheKey5m = "5m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey5m = "5m_bars:v17:{$symbol}:{$tradeDate}:{$bucketTs}";
         $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
@@ -1742,7 +1741,6 @@ class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
         return [
             'ok' => (bool) $best,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'freshness_reference_est' => $freshnessReference,

@@ -48,7 +48,6 @@ class FiveMinuteSignalScannerV31_0
      * @return array Signals with symbol, score, volatility metrics
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.0,
@@ -135,7 +134,7 @@ WITH last_bar AS (
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
 
-    AND symbol IN ($placeholders)
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   GROUP BY symbol
@@ -203,7 +202,6 @@ ORDER BY move_pct DESC
 
             $results[] = [
                 'symbol' => $sig->symbol,
-                'asset_type' => $sig->,
                 'signal_type' => 'VOLATILE_SWING',
                 'signal_ts_est' => $sig->last_ts_est,
                 'score' => round($combinedScore, 2),

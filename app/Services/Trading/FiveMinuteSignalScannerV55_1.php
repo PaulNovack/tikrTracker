@@ -138,7 +138,6 @@ class FiveMinuteSignalScannerV55_1
      * @return array<int, array<string, mixed>>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.35,
@@ -182,7 +181,7 @@ class FiveMinuteSignalScannerV55_1
         $lookbackMinutes = max($lookbackMinutes, $analysisLookbackMinutes);
         $table = $this->fiveMinuteTable;
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
-        $cacheKey = "scan_v55_1:{$table}:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v55_1:{$table}:{$bucketTs}:{$lookbackMinutes}";
 
         $rows = $skipCache ? null : Cache::get($cacheKey);
         if ($rows === null) {
@@ -191,7 +190,7 @@ class FiveMinuteSignalScannerV55_1
                 SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
 
-                  AND symbol IN ({$placeholders})
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
@@ -354,7 +353,6 @@ class FiveMinuteSignalScannerV55_1
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'QUALITY_TREND_COMPRESSION_SETUP_5M_V55_1',
                 'signal_ts_est' => $metrics['signal_ts_est'],
                 'score' => $scores['score'],
@@ -397,7 +395,6 @@ class FiveMinuteSignalScannerV55_1
         if ($this->isDebugEnabled()) {
             Log::info('[ScannerV55_1] debug counters', array_merge($drops, [
                 'as_of_ts_est' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'returned' => count($out),
                 'pid' => getmypid(),
             ]));
@@ -407,9 +404,9 @@ class FiveMinuteSignalScannerV55_1
     }
 
     /** @return array<int, string> */
-    private function loadUniverse(string $assetType, bool $skipCache): array
+    private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = "scan_v55_1:universe_symbols:{$assetType}";
+        $cacheKey = 'scan_v55_1:universe_symbols';
         $symbols = $skipCache ? null : Cache::get($cacheKey);
 
         if ($symbols === null) {

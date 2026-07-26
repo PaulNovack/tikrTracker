@@ -284,7 +284,6 @@ class OneMinuteEntryFinderV26_1
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$vwapStart, $vwapEnd],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -1656,7 +1655,6 @@ class OneMinuteEntryFinderV26_1
         return [
             'ok' => (bool) $best,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,

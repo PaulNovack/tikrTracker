@@ -164,7 +164,6 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 
         if (count($prevTradingDates) < 2) {
             Log::warning('[V900.1 Scanner] Need 2 previous trading days', [
-                'asset_type' => $assetType,
                 'trade_date' => $tradeDate,
                 'found' => count($prevTradingDates),
             ]);
@@ -177,7 +176,6 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 
         // Disabled noisy scanner logs.
         // Log::debug('[V900.1 Scanner] Starting scan', [
-        //     'asset_type' => $assetType,
         //     'as_of' => $asOfTsEst,
         //     'trade_date' => $tradeDate,
         //     'prev_trade_date' => $prevTradingDate,
@@ -192,7 +190,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
               AND trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [ $prevTradingDate, $minPrice, $maxPrice]);
+        ', [$prevTradingDate, $minPrice, $maxPrice]);
 
         if (empty($yesterdayCloses)) {
             Log::debug('[V900.1 Scanner] No yesterday closes found');
@@ -213,7 +211,7 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
               AND trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [ $prevPrevTradingDate, $minPrice, $maxPrice]);
+        ', [$prevPrevTradingDate, $minPrice, $maxPrice]);
 
         $prevPrevCloseMap = [];
         foreach ($twoDaysAgoCloses as $row) {
@@ -277,10 +275,10 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
               AND trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
-              AND symbol IN ({$placeholders})
+              WHERE symbol IN ({$placeholders})
             GROUP BY symbol
             HAVING today_open_price IS NOT NULL AND highest_first_15min IS NOT NULL
-        ", array_merge([ $tradeDate, $asOfTsEst], $qualifyingSymbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $qualifyingSymbols));
 
         if (empty($openingRows)) {
             Log::debug('[V900.1 Scanner] No opening data found for qualifying symbols');
@@ -343,9 +341,9 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
             FROM five_minute_prices
 
               AND trading_date_est = ?
-              AND symbol IN ({$placeholders2})
+              WHERE symbol IN ({$placeholders2})
             GROUP BY symbol
-        ", array_merge([ $prevTradingDate], $signalSymbols));
+        ", array_merge([$prevTradingDate], $signalSymbols));
 
         $avgVolumeMap = [];
         foreach ($avgVolumeRows as $row) {
@@ -379,10 +377,10 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
               AND trading_time_est BETWEEN ? AND ?
               AND ema9_above_ema21 = 1
               AND rsi_14 >= ?
-              AND symbol IN ({$placeholders3})
+              WHERE symbol IN ({$placeholders3})
             ORDER BY ts_est DESC
         ", array_merge(
-            [ $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
+            [$tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
             $signalSymbols
         ));
 
@@ -445,7 +443,6 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 
             $signals[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'MOMENTUM_CONTINUATION_SETUP',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => round($score, 2),

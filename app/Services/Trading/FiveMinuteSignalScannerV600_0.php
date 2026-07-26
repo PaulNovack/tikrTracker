@@ -107,7 +107,6 @@ class FiveMinuteSignalScannerV600_0
      * Drop-in compatible signature.
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 1.2,
@@ -178,7 +177,7 @@ class FiveMinuteSignalScannerV600_0
                 WHERE date < ? AND asset_type = ?
             )
 
-            AND symbol IN ($placeholders)
+            WHERE symbol IN ($placeholders)
         ", array_merge([$tradeDate], $symbols));
 
         $yesterdayHighBySymbol = [];
@@ -342,7 +341,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $moveFromOpen,
                 'vol_ratio' => $volRatio,
@@ -391,7 +389,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'MOMENTUM_BREAKOUT_3_5PCT',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -446,7 +443,6 @@ LIMIT ?
     }
 
     private function getYesterdaysBigMovers(
-        string $assetType,
         string $tradeDate,
         float $minMovePct,
         float $minVolMult

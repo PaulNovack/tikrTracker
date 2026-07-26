@@ -166,7 +166,7 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
         $tradeDate = substr($asOfTsEst, 0, 10);
         $marketOpen = $tradeDate.' 09:30:00';
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
-        $cacheKey = "scan_v103_0:{$assetType}:{$bucketTs}:{$limit}";
+        $cacheKey = "scan_v103_0:{$bucketTs}:{$limit}";
 
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
@@ -175,7 +175,7 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
                 SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$this->fiveMinuteTable}
 
-                  AND symbol IN ({$placeholders})
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
@@ -332,7 +332,6 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
             $drops['passed']++;
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'ORB_RETEST_SETUP_5M_V103_0',
                 'signal_ts_est' => $metrics['breakout_ts_est'],
                 'score' => $scores['score'],
@@ -381,7 +380,7 @@ class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
     /** @return array<int, string> */
     private function loadUniverse(string $assetType): array
     {
-        $cacheKey = "scan_v103_0:universe_symbols:{$assetType}";
+        $cacheKey = 'scan_v103_0:universe_symbols';
         $symbols = Cache::get($cacheKey);
 
         if ($symbols === null) {

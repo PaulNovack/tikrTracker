@@ -158,7 +158,7 @@ WITH bars AS (
     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
   FROM five_minute_prices
 
-    AND symbol IN ($placeholders)
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
@@ -235,7 +235,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $stockMovePct,
                 'vol_ratio' => (float) $r->vol_ratio,
@@ -363,7 +362,6 @@ GROUP BY symbol
 
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'HYBRID_MOMO_ENTRY_SCORE',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => round((float) $r['combined_score'], 3),

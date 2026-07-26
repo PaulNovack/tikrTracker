@@ -48,7 +48,6 @@ class FiveMinuteSignalScannerV200_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         int $limit = 80
@@ -84,7 +83,7 @@ class FiveMinuteSignalScannerV200_0
                AND max_price_in_window BETWEEN ? AND ?
             ORDER BY vol_sum DESC
             LIMIT ?
-        ', [ $start, $asOfTsEst, $minSumVol, $minPrice, $maxPrice, $universeLimit]);
+        ', [$start, $asOfTsEst, $minSumVol, $minPrice, $maxPrice, $universeLimit]);
 
         if (empty($symbols)) {
             return [];
@@ -269,7 +268,6 @@ class FiveMinuteSignalScannerV200_0
 
             $candidates[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'TPB_5M',
                 'signal_ts_est' => (string) ($last->ts_est ?? $asOfTsEst),
                 'price' => round($lastPrice, 4),
@@ -305,7 +303,7 @@ class FiveMinuteSignalScannerV200_0
         return array_slice($candidates, 0, $limit);
     }
 
-    private function get5MinBars(string $symbol, string $assetType, string $from, string $to): array
+    private function get5MinBars(string $symbol, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT

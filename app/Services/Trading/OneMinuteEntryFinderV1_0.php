@@ -106,7 +106,7 @@ class OneMinuteEntryFinderV1_0
     /**
      * Get 1-minute bars for analysis
      */
-    private function getBars(string $symbol, string $assetType, string $tradingDate, string $startTs, string $endTs): array
+    private function getBars(string $symbol, string $tradingDate, string $startTs, string $endTs): array
     {
         return DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
@@ -122,7 +122,7 @@ class OneMinuteEntryFinderV1_0
     /**
      * Get average ATR for stop calculation
      */
-    private function getATR(string $symbol, string $assetType, string $tradingDate): ?float
+    private function getATR(string $symbol, string $tradingDate): ?float
     {
         return DB::table('daily_prices')
             ->where('symbol', $symbol)

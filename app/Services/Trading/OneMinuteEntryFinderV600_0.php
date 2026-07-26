@@ -68,7 +68,7 @@ class OneMinuteEntryFinderV600_0
         $to = $analysisEnd;
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
-        $cacheKey1m = "1m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey1m = "1m_bars:v600_0:{$symbol}:{$tradeDate}:{$bucketTs}";
         $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
@@ -106,7 +106,6 @@ class OneMinuteEntryFinderV600_0
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -122,7 +121,7 @@ class OneMinuteEntryFinderV600_0
         }
 
         // 5m bars for trend/chop filter - enhanced with spread and distance
-        $cacheKey5m = "5m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $cacheKey5m = "5m_bars:v600_0:{$symbol}:{$tradeDate}:{$bucketTs}";
         $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap,
@@ -188,7 +187,6 @@ class OneMinuteEntryFinderV600_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Choppy 5-minute action (directional_changes >= 6)',
@@ -201,7 +199,6 @@ class OneMinuteEntryFinderV600_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => sprintf('Insufficient 5m green bars (%.1f%% < 55%%)', $greenBarPct * 100),
@@ -632,7 +629,6 @@ class OneMinuteEntryFinderV600_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -668,7 +664,6 @@ class OneMinuteEntryFinderV600_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -729,7 +724,6 @@ class OneMinuteEntryFinderV600_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,

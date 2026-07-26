@@ -222,7 +222,7 @@ WITH universe AS (
     SELECT DISTINCT symbol
     FROM five_minute_prices
 
-      AND symbol IN ($placeholders)
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
@@ -309,7 +309,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
         // Cache for 4 minutes
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v140_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v140_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -428,7 +428,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'INSTITUTIONAL_V140',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -455,7 +454,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         if ($debugEnabled) {
             Log::info('[ScannerV140_0] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),
@@ -469,7 +467,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
      * Count how many of the last 5 trading days closed green (close > open)
      * Institutions accumulate in stocks with multi-day consistency
      */
-    private function countRecentGreenDays(string $symbol, string $assetType, string $asOfTsEst): int
+    private function countRecentGreenDays(string $symbol, string $asOfTsEst): int
     {
         $currentDate = substr($asOfTsEst, 0, 10);
 

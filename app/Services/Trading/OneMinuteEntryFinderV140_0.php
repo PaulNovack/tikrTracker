@@ -116,7 +116,7 @@ class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v140.entry', []);
 

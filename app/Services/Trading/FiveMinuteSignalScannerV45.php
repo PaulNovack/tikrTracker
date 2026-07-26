@@ -156,7 +156,6 @@ class FiveMinuteSignalScannerV45
      * @return array<int, array<string, mixed>>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.30,
@@ -208,7 +207,7 @@ class FiveMinuteSignalScannerV45
 
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
         $table = $this->fiveMinuteTable;
-        $cacheKey = "scan_v45:{$table}:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v45:{$table}:{$bucketTs}:{$lookbackMinutes}";
 
         $rows = null;
         if (! $skipCache) {
@@ -221,7 +220,7 @@ class FiveMinuteSignalScannerV45
                 SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
 
-                  AND symbol IN ({$placeholders})
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
@@ -403,7 +402,6 @@ class FiveMinuteSignalScannerV45
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'VWAP_HIGHER_LOW_SETUP_5M_V45',
                 'signal_ts_est' => $metrics['signal_ts_est'],
                 'score' => $scoreParts['score'],
@@ -451,7 +449,6 @@ class FiveMinuteSignalScannerV45
         if ($debugEnabled) {
             Log::info('[ScannerV45] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $drops,
                 'returned' => count($out),
@@ -480,9 +477,9 @@ class FiveMinuteSignalScannerV45
     }
 
     /** @return array<int, string> */
-    private function loadUniverse(string $assetType, bool $skipCache): array
+    private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = "scan_v45:universe_symbols:{$assetType}";
+        $cacheKey = 'scan_v45:universe_symbols';
         $symbols = $skipCache ? null : Cache::get($cacheKey);
 
         if ($symbols === null) {

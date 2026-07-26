@@ -124,7 +124,6 @@ class FiveMinuteSignalScannerV700_0
      * Scan for Risk-Off Winners candidates (LONG)
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -446,7 +445,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'rs_pct' => $rsPct,
@@ -491,7 +489,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'RISK_OFF_WINNER_LONG',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -522,7 +519,6 @@ LIMIT ?
      * REUSED NAME (compatibility): now returns "active liquid symbols" instead of "weak stocks".
      */
     private function getWeakStocks(
-        string $assetType,
         string $tradeDate,
         string $asOfTsEst,
         int $lookbackMinutes
@@ -570,7 +566,7 @@ LIMIT 1200
      */
     private function isSpyBelowVwap(string $asOfTsEst, string $proxySymbol = 'ONEQ'): bool
     {
-        $result = DB::selectOne("
+        $result = DB::selectOne('
             SELECT price, vwap
             FROM five_minute_prices
             WHERE symbol = ?
@@ -578,7 +574,7 @@ LIMIT 1200
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 1
-        ", [$proxySymbol, $asOfTsEst]);
+        ', [$proxySymbol, $asOfTsEst]);
 
         if (! $result || ! $result->vwap) {
             return false;

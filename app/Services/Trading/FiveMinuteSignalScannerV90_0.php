@@ -60,7 +60,6 @@ class FiveMinuteSignalScannerV90_0
      * - $volMult: 2.0–4.0
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.2,
@@ -121,7 +120,7 @@ class FiveMinuteSignalScannerV90_0
                 WHERE date < ? AND asset_type = ?
             )
 
-            AND symbol IN ($placeholders)
+            WHERE symbol IN ($placeholders)
         ", array_merge([$tradeDate], $symbols));
 
         $yesterdayHighBySymbol = [];
@@ -270,7 +269,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $moveFromOpen,
                 'vol_ratio' => $volRatio,
@@ -316,7 +314,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'MOMENTUM_BREAKOUT',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -368,7 +365,6 @@ LIMIT ?
      * Get yesterday's big movers (5%+ with volume) as momentum candidates
      */
     private function getYesterdaysBigMovers(
-        string $assetType,
         string $tradeDate,
         float $minMovePct,
         float $minVolMult

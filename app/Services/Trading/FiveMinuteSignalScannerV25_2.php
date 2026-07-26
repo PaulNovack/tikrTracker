@@ -144,7 +144,7 @@ class FiveMinuteSignalScannerV25_2 extends AbstractSignalScanner
         $lookbackMinutes = max($lookbackMinutes, $minimumLookbackMinutes);
 
         // ---------- 1) Universe: intraday_universe (pre-built, fast, cached 8h) ----------
-        $universeCacheKey = "scan_v25_2:universe_symbols:{$assetType}";
+        $universeCacheKey = 'scan_v25_2:universe_symbols';
         $symbols = Cache::get($universeCacheKey);
         if ($symbols === null) {
             $symbols = DB::table('intraday_universe')
@@ -196,7 +196,7 @@ WITH universe AS (
     SELECT DISTINCT symbol
     FROM five_minute_prices
 
-      AND symbol IN ($placeholders)
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
@@ -287,7 +287,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         $rows = null;
         if (! $skipCache) {
             $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-            $cacheKey = "scan_v25_2:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+            $cacheKey = "scan_v25_2:{$bucketTs}:{$lookbackMinutes}";
             $rows = Cache::get($cacheKey);
         }
         if ($rows === null) {
@@ -410,7 +410,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M_V25',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -436,7 +435,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         if ($debugEnabled) {
             Log::info('[ScannerV25_2] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),

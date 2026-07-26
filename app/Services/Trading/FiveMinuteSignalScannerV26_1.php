@@ -70,7 +70,7 @@ class FiveMinuteSignalScannerV26_1
      *   ['symbol'=>'TQQQ','asset_type'=>'stock','signal_type'=>'MOMO_5M','signal_ts_est'=>'YYYY-mm-dd HH:MM:SS', 'score'=>...],
      * ]
      */
-    public function scan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.5, float $volMult = 3.0, int $limit = 10): array
+    public function scan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.5, float $volMult = 3.0, int $limit = 10): array
     {
         // V26.0: Get stocks that closed above open at least 4 out of last 5 trading days
         // This filters for consistent daily winners (allows 1 red day)
@@ -155,7 +155,7 @@ WITH last_bar AS (
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
 
-    AND symbol IN ($placeholders)
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   GROUP BY symbol
@@ -253,7 +253,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -284,7 +283,7 @@ LIMIT ?
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
         $nback = max(2, (int) floor($lookbackMinutes / 5));
 
-        $sql = "
+        $sql = '
             SELECT 
                 price AS last_close,
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
@@ -295,7 +294,7 @@ LIMIT ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
             LIMIT 1
-        ";
+        ';
 
         $result = DB::selectOne($sql, [$nback, $benchmarkSymbol, $asOfTsEst, $asOfTsEst, $lookbackMinutes]);
 

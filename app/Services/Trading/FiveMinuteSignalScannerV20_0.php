@@ -56,7 +56,7 @@ class FiveMinuteSignalScannerV20_0
      * 3. Pass to OneMinuteEntryFinderV20_0
      * 4. v20.0 NEW: RSI filter in entry finder (50 < RSI < 70)
      */
-    public function scan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.6, float $volMult = 3.0, int $limit = 100): array
+    public function scan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.6, float $volMult = 3.0, int $limit = 100): array
     {
         // v20.0: Get ALL symbols with 1-minute data (no pre-filtering)
         // RSI filtering happens in OneMinuteEntryFinderV20_0
@@ -105,7 +105,6 @@ class FiveMinuteSignalScannerV20_0
 
             $out[] = [
                 'symbol' => $signal['symbol'],
-                'asset_type' => $signal['asset_type'],
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => $signal['signal_ts_est'],
                 'score' => round($score, 3),
@@ -186,7 +185,6 @@ LIMIT ?
         foreach ($rows as $r) {
             $signals[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'last_close' => (float) $r->last_close,
                 'prev_close' => (float) $r->prev_close,
@@ -549,7 +547,7 @@ WHERE consecutive_count >= 3
 GROUP BY symbol
 ";
 
-        $params = array_merge([ $asOfTsEst], $symbols);
+        $params = array_merge([$asOfTsEst], $symbols);
         $rows = $this->dbSelect($sql, $params);
 
         // Build lookup of symbols with 3+ consecutive WAKE_UP

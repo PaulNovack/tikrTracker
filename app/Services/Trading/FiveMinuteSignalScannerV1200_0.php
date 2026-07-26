@@ -17,7 +17,6 @@ namespace App\Services\Trading;
  */
 class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
 {
-
     private string $version = 'v1200.0';
 
     private string $name = 'Two-Bar Momentum';
@@ -175,7 +174,7 @@ avg_volume AS (
 
         AND trading_date_est = ?
         AND ts_est < ?
-        AND symbol IN ($symbolPlaceholders)
+        WHERE symbol IN ($symbolPlaceholders)
     GROUP BY symbol
     HAVING COUNT(*) >= 10
 )
@@ -231,7 +230,6 @@ LIMIT ?
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->,
                 'signal_type' => 'TWO_BAR_MOMENTUM',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => $row->entry_score,

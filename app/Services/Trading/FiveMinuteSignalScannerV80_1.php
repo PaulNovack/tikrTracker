@@ -68,7 +68,6 @@ class FiveMinuteSignalScannerV80_1
      * Drop-in compatible signature.
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.2,
@@ -255,7 +254,6 @@ class FiveMinuteSignalScannerV80_1
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => (string) $r['signal_type'],
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => round((float) $r['combined_score'], 3),
@@ -281,7 +279,6 @@ class FiveMinuteSignalScannerV80_1
      * - Computes EntryScore using same v60.2 formula shape (via SQL).
      */
     private function scanStrategies1m(
-        string $assetType,
         string $asOfTsEst,
         int $windowMinutes,
         array $symbols,
@@ -326,7 +323,7 @@ class FiveMinuteSignalScannerV80_1
                 LIMIT {$universeLimit}
               ) uni ON uni.symbol = b.symbol
             ";
-            $universeParams = array_merge([ $asOfTsEst, $asOfTsEst], $symbols);
+            $universeParams = array_merge([$asOfTsEst, $asOfTsEst], $symbols);
         }
 
         // We compute avg_vol_20 as in your v60_2 score CTE, but we do it inside base.
@@ -592,7 +589,6 @@ LIMIT ?
             $out[] = [
                 'symbol' => (string) $r->symbol,
                 'asset_id' => (int) $r->asset_id,
-                'asset_type' => (string) $r->,
                 'signal_type' => (string) $r->signal_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'price' => $currentPrice,
@@ -651,7 +647,7 @@ LIMIT ?
     /**
      * Used only to preserve your RS filter; computes 5m move_pct per symbol over window.
      */
-    private function get5mMovePctBySymbol(string $assetType, string $asOfTsEst, int $lookbackMinutes, array $symbols): array
+    private function get5mMovePctBySymbol(string $asOfTsEst, int $lookbackMinutes, array $symbols): array
     {
         $symbols = array_values(array_filter(array_unique(array_map('strval', $symbols))));
         if (empty($symbols)) {
@@ -666,7 +662,7 @@ WITH last_bar AS (
   SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
 
-    AND symbol IN ($ph)
+    WHERE symbol IN ($ph)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   GROUP BY symbol

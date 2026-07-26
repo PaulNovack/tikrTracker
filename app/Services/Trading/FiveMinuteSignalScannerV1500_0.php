@@ -80,7 +80,6 @@ class FiveMinuteSignalScannerV1500_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst
     ): array {
         // Load all config from trading.v1500
@@ -251,10 +250,10 @@ LIMIT ?
 
         // Build parameter array
         $params = array_merge(
-            [ $tradeDate], // opening_range CTE
+            [$tradeDate], // opening_range CTE
             $moverSymbols,
             [$minRangePct, $maxRangePct, $minPrice, $maxPrice], // range_quality CTE
-            [ $tradeDate, $asOfTsEst], // current_bar CTE
+            [$tradeDate, $asOfTsEst], // current_bar CTE
             $moverSymbols,
             [$timeWindowStart, $timeWindowEnd],
             [$minVolRatio], // breakout_candidates WHERE
@@ -274,7 +273,6 @@ LIMIT ?
         foreach ($results as $row) {
             $signals[] = [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->,
                 'trading_date_est' => $row->trading_date_est,
                 'signal_ts_est' => $row->signal_ts_est,
                 'signal_type' => 'ORB_BREAKOUT',

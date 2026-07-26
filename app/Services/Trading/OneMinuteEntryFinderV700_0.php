@@ -120,7 +120,6 @@ class OneMinuteEntryFinderV700_0
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -158,7 +157,6 @@ class OneMinuteEntryFinderV700_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Excessive 5-minute choppiness',
@@ -513,7 +511,6 @@ class OneMinuteEntryFinderV700_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -548,7 +545,6 @@ class OneMinuteEntryFinderV700_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -609,7 +605,6 @@ class OneMinuteEntryFinderV700_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,

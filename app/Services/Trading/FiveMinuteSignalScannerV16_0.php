@@ -60,7 +60,6 @@ class FiveMinuteSignalScannerV16_0
      * }>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.8,
@@ -208,7 +207,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'QUALITY_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -242,7 +240,7 @@ LIMIT ?
         $nback = max(2, (int) floor($lookbackMinutes / 5));
 
         // Use window functions with correct ordering: we want last_close at asOf and close N bars back.
-        $sql = "
+        $sql = '
 WITH w AS (
   SELECT
     ts_est,
@@ -267,7 +265,7 @@ SELECT
 FROM calc
 ORDER BY ts_est DESC
 LIMIT 1
-";
+';
         $row = DB::selectOne($sql, [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $nback]);
 
         if (! $row || ! $row->prev_close) {

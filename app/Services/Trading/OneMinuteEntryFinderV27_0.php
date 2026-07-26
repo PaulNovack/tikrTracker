@@ -98,7 +98,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v27.entry', []);
 
@@ -136,7 +136,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         // Cache 1m bars per (symbol, trading_date) for 60 seconds.
         // During backtests data never changes, so caching eliminates redundant
         // queries for symbols that the scanner signals repeatedly.
-        $cacheKey1m = "entry_finder_v27:1m:{$assetType}:{$symbol}:{$tradeDate}";
+        $cacheKey1m = "entry_finder_v27:1m:{$symbol}:{$tradeDate}";
         $bars = Cache::remember($cacheKey1m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, `open`, high, low, price AS close, volume
@@ -170,7 +170,7 @@ class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
         }
 
         // Cache 5m bars per (symbol, trading_date) for 60 seconds
-        $cacheKey5m = "entry_finder_v27:5m:{$assetType}:{$symbol}:{$tradeDate}";
+        $cacheKey5m = "entry_finder_v27:5m:{$symbol}:{$tradeDate}";
         $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price

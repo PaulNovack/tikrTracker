@@ -61,7 +61,6 @@ class FiveMinuteSignalScannerV2100_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
@@ -103,7 +102,7 @@ class FiveMinuteSignalScannerV2100_0
             ."HAVING rough_range_pct >= ?\n"
             ."ORDER BY rough_range_pct DESC, day_volume DESC, symbol ASC\n"
             ."LIMIT {$safeUniverseLimit}",
-            [ $tradeDate, $this->target5Pct]
+            [$tradeDate, $this->target5Pct]
         );
 
         if (empty($roughRows)) {
@@ -468,7 +467,7 @@ class FiveMinuteSignalScannerV2100_0
         ";
 
         $bindings = array_merge(
-            [ $tradeDate, $asOfTsEst, $asOfTsEst],
+            [$tradeDate, $asOfTsEst, $asOfTsEst],
             $symbols,
             [$minMovePct, $volMult]
         );
@@ -507,7 +506,6 @@ class FiveMinuteSignalScannerV2100_0
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $row->,
                 'signal_type' => 'FORWARD_5PCT_RUNNER_5M',
                 'signal_ts_est' => (string) $row->signal_ts_est,
                 'score' => $score,
@@ -593,14 +591,14 @@ class FiveMinuteSignalScannerV2100_0
             FROM five_minute_prices
 
               AND trading_date_est = ?
-              AND symbol IN ({$symbolPlaceholders})
+              WHERE symbol IN ({$symbolPlaceholders})
               AND trading_time_est BETWEEN '09:30:00' AND '16:00:00'
               AND high IS NOT NULL
               AND high > 0
               AND low IS NOT NULL
               AND low > 0
             ORDER BY symbol ASC, ts_est ASC
-        ", array_merge([ $tradeDate], $symbols));
+        ", array_merge([$tradeDate], $symbols));
 
         $contexts = [];
         $currentSymbol = null;

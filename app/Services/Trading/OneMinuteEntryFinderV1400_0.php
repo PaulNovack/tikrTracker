@@ -338,7 +338,7 @@ class OneMinuteEntryFinderV1400_0
         return $bestEntry;
     }
 
-    private function getAvgVolume(string $symbol, string $assetType, string $asOfTsEst, int $lookback): float
+    private function getAvgVolume(string $symbol, string $asOfTsEst, int $lookback): float
     {
         $result = DB::selectOne(
             'SELECT AVG(volume) as avg_vol
@@ -358,7 +358,7 @@ class OneMinuteEntryFinderV1400_0
      * Estimate ATR from recent 5-minute bars
      * Simple approximation: average of (high - low) over last 14 bars
      */
-    private function estimateATR(string $symbol, string $assetType, string $asOfTsEst, int $lookback = 14): float
+    private function estimateATR(string $symbol, string $asOfTsEst, int $lookback = 14): float
     {
         $result = DB::selectOne(
             'SELECT AVG(high - low) as avg_range

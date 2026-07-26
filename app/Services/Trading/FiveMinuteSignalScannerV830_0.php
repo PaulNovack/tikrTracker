@@ -38,7 +38,6 @@ class FiveMinuteSignalScannerV830_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -295,7 +294,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->,
                 'signal_type' => 'multi_day_trend',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

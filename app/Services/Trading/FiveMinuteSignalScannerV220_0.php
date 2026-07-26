@@ -67,7 +67,6 @@ class FiveMinuteSignalScannerV220_0 extends AbstractSignalScanner
         foreach ($patternHits as $hit) {
             $out[] = [
                 'symbol' => (string) $hit['symbol'],
-                'asset_type' => $assetType,
                 'signal_type' => 'CDL3WHITESOLDIERS',
                 'signal_ts_est' => $asOfTsEst,
                 'score' => (float) ($hit['signal_value'] ?? 100),

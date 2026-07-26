@@ -45,7 +45,6 @@ class FiveMinuteSignalScannerV70_0
      * @return array Signals sorted by EntryScore desc
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.2,
@@ -153,7 +152,7 @@ GROUP BY symbol
 ";
 
         $params1mScore = array_merge(
-            [ $asOfTsEst, $asOfTsEst, $lookbackMinutes],
+            [$asOfTsEst, $asOfTsEst, $lookbackMinutes],
             $symbols
         );
 
@@ -176,7 +175,6 @@ GROUP BY symbol
 
             $ranked[] = [
                 'symbol' => (string) $sr->symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => (string) $sr->signal_ts_est,
                 'entry_score' => $entryScore,
                 'current_price' => $currentPrice,
@@ -199,7 +197,6 @@ GROUP BY symbol
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'VOLATILITY_HYBRID_ENTRY',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => round((float) $r['entry_score'], 3),
@@ -228,7 +225,7 @@ GROUP BY symbol
      * @param  int  $minVolume  Minimum volume threshold per bar
      * @return array Symbol list
      */
-    private function getMostVolatileStocks(string $assetType, string $asOfTsEst, int $limit, int $minVolume): array
+    private function getMostVolatileStocks(string $asOfTsEst, int $limit, int $minVolume): array
     {
         $tradeDate = substr($asOfTsEst, 0, 10);
 

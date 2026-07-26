@@ -283,7 +283,7 @@ class OneMinuteEntryFinderV1500_0
         return $bestEntry;
     }
 
-    private function getAvgVolume(string $symbol, string $assetType, string $asOfTsEst, int $lookback): float
+    private function getAvgVolume(string $symbol, string $asOfTsEst, int $lookback): float
     {
         $result = DB::selectOne(
             'SELECT AVG(volume) as avg_vol

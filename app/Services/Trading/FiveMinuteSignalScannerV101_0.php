@@ -209,8 +209,7 @@ WITH universe AS (
   CROSS JOIN (
     SELECT DISTINCT symbol
     FROM {$this->fiveMinuteTable}
-
-      AND symbol IN ($placeholders)
+    WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
@@ -304,7 +303,7 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
         );
 
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v101_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v101_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -440,7 +439,6 @@ JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity 
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->,
                 'signal_type' => 'MOMENTUM_ACCELERATION_SURGE_5M_V101',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),

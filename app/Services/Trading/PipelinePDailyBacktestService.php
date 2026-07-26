@@ -57,7 +57,6 @@ class PipelinePDailyBacktestService
      * @return array<int, array{signal: array, entry: array}>
      */
     public function backtestDay(
-        string $assetType,
         string $tradingDate,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
@@ -106,7 +105,7 @@ class PipelinePDailyBacktestService
                   AND trading_date_est < ?
                 GROUP BY symbol
             )
-        ', [$assetType, $tradingDate]);
+        ', [$tradingDate]);
 
         // ═══════════════════════════════════════════════════
         // Step 2: Build temp table of today's first bar + gap check
@@ -144,7 +143,7 @@ class PipelinePDailyBacktestService
               AND f.open IS NOT NULL AND f.open > 0
               AND pc.prev_close > 0
               AND ((f.open - pc.prev_close) / pc.prev_close) * 100 >= {$this->minGapOpenPct}
-        ", [$assetType, $tradingDate, $assetType, $tradingDate]);
+        ", [$tradingDate, $tradingDate]);
 
         // ═══════════════════════════════════════════════════
         // Step 3: Build temp table of VWAP-stable symbols
@@ -172,11 +171,11 @@ class PipelinePDailyBacktestService
             WHERE asset_type = ?
               AND trading_date_est = ?
               AND trading_time_est <= '11:00:00'
-              AND symbol IN (SELECT symbol FROM tmp_p_gap_check)
+              WHERE symbol IN (SELECT symbol FROM tmp_p_gap_check)
             GROUP BY symbol
             HAVING bars_above = total_bars
                AND vwap_stability_score >= {$this->minVwapStability}
-        ", [$assetType, $tradingDate]);
+        ", [$tradingDate]);
 
         // ═══════════════════════════════════════════════════
         // Step 4: Populate tmp_p_signals (only vwap-stable gap symbols)
@@ -225,10 +224,10 @@ class PipelinePDailyBacktestService
                 FROM five_minute_prices
                 WHERE asset_type = ?
                   AND trading_date_est = ?
-                  AND symbol IN (SELECT symbol FROM tmp_p_vwap_stable)
+                  WHERE symbol IN (SELECT symbol FROM tmp_p_vwap_stable)
             ) ranked
             WHERE rn = 7
-        ', [$assetType, $tradingDate]);
+        ', [$tradingDate]);
 
         // Insert signals — simple join on temp tables
         DB::insert("
@@ -270,7 +269,7 @@ class PipelinePDailyBacktestService
               f.volume DESC,
               f.symbol ASC
             LIMIT {$safeTop}
-        ", [$assetType, $tradingDate, $minMovePct]);
+        ", [$tradingDate, $minMovePct]);
 
         $signalCount = DB::select('SELECT COUNT(*) as c FROM tmp_p_signals')[0]->c ?? 0;
 
@@ -381,7 +380,7 @@ class PipelinePDailyBacktestService
                   ORDER BY (e2.price * e2.volume) DESC
                   LIMIT 1
               )
-        ", [$assetType, $tradingDate, $assetType, $tradingDate]);
+        ", [$tradingDate, $tradingDate]);
 
         $signalCount = DB::select('SELECT COUNT(*) as c FROM tmp_p_signals')[0]->c ?? 0;
         $entryCount = DB::select('SELECT COUNT(*) as c FROM tmp_p_entries')[0]->c ?? 0;
@@ -433,7 +432,7 @@ class PipelinePDailyBacktestService
              AND fp.ts_est <= DATE_ADD(pe.entry_ts_est, INTERVAL 300 MINUTE)
             WHERE fp.price IS NOT NULL AND fp.high IS NOT NULL AND fp.low IS NOT NULL
             GROUP BY pe.symbol, pe.entry_ts_est, pe.stop_price, pe.target4_price, pe.target5_price, pe.entry_price
-        ', [$assetType, $tradingDate]);
+        ', [$tradingDate]);
 
         DB::statement('
             CREATE TEMPORARY TABLE tmp_p_outcomes (
@@ -545,7 +544,7 @@ class PipelinePDailyBacktestService
         foreach ($rows as $r) {
             $finalSymbols[] = (string) $r->symbol;
         }
-        $runContextBySymbol = $this->queryRunContexts(array_values(array_unique($finalSymbols)), $assetType, $tradingDate);
+        $runContextBySymbol = $this->queryRunContexts(array_values(array_unique($finalSymbols)), $tradingDate);
 
         $results = [];
         foreach ($rows as $rank => $r) {
@@ -572,7 +571,7 @@ class PipelinePDailyBacktestService
             $entryVolume = (float) ($r->entry_volume ?? 0);
             $entryVwap = (float) ($r->entry_vwap ?? 0);
 
-            $hod = $this->queryHod($symbol, $assetType, $tradingDate);
+            $hod = $this->queryHod($symbol, $tradingDate);
             $roomToHodPct = ($hod !== null && $entryPrice > 0) ? round((($hod - $entryPrice) / $entryPrice) * 100, 4) : null;
             $roomToHodAtr = ($roomToHodPct !== null && $r->entry_atr > 0)
                 ? round(($hod - $entryPrice) / (float) $r->entry_atr, 4) : null;
@@ -588,7 +587,6 @@ class PipelinePDailyBacktestService
             $results[] = [
                 'signal' => [
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_type' => 'MOMO_5M_V3000',
                     'signal_ts_est' => (string) $r->signal_ts_est,
                     'score' => $score,
@@ -706,12 +704,12 @@ class PipelinePDailyBacktestService
             FROM five_minute_prices
             WHERE asset_type = ?
               AND trading_date_est = ?
-              AND symbol IN ({$symbolPlaceholders})
+              WHERE symbol IN ({$symbolPlaceholders})
               AND trading_time_est BETWEEN '09:30:00' AND '16:00:00'
               AND high IS NOT NULL AND high > 0
               AND low IS NOT NULL AND low > 0
             ORDER BY symbol ASC, ts_est ASC
-        ", array_merge([$assetType, $tradeDate], $symbols));
+        ", array_merge([$tradeDate], $symbols));
 
         $contexts = [];
         $currentSymbol = null;
@@ -750,7 +748,7 @@ class PipelinePDailyBacktestService
         return $contexts;
     }
 
-    private function queryHod(string $symbol, string $assetType, string $tradingDate): ?float
+    private function queryHod(string $symbol, string $tradingDate): ?float
     {
         $result = $this->dbSelect('
             SELECT MAX(high) as hod
@@ -758,7 +756,7 @@ class PipelinePDailyBacktestService
             WHERE symbol = ?
               AND asset_type = ?
               AND trading_date_est = ?
-        ', [$symbol, $assetType, $tradingDate]);
+        ', [$symbol, $tradingDate]);
 
         if (empty($result) || $result[0]->hod === null) {
             return null;

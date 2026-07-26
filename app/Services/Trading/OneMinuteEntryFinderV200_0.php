@@ -65,7 +65,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Unsupported/unknown pattern (expected TPB). Got: '.$pattern,
                 'meta' => ['pattern' => $pattern, 'meta' => $meta],
@@ -102,7 +101,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Insufficient 1m bars in analysis window',
                 'meta' => ['analysisStart' => $analysisStart, 'analysisEnd' => $analysisEnd],
@@ -434,7 +432,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No qualifying TPB entries (trend/levels/vol/risk gates)',
                 'meta' => [
@@ -459,7 +456,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -471,7 +467,6 @@ class OneMinuteEntryFinderV200_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,
@@ -482,7 +477,7 @@ class OneMinuteEntryFinderV200_0
         ];
     }
 
-    private function get1mBars(string $symbol, string $assetType, string $tradeDate, string $from, string $to): array
+    private function get1mBars(string $symbol, string $tradeDate, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT
@@ -507,7 +502,7 @@ class OneMinuteEntryFinderV200_0
         ', [$symbol, $tradeDate, $from, $to]);
     }
 
-    private function get5mTrendMap(string $symbol, string $assetType, string $tradeDate, string $from, string $to): array
+    private function get5mTrendMap(string $symbol, string $tradeDate, string $from, string $to): array
     {
         $rows = $this->dbSelect('
             SELECT

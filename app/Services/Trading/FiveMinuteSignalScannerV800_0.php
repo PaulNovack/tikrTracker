@@ -45,7 +45,6 @@ class FiveMinuteSignalScannerV800_0
      * Scan for Higher-Low Breakout Setup candidates (LONG)
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -235,7 +234,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'setup_price' => $setupPrice,
@@ -280,7 +278,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'HIGHER_LOW_BREAKOUT_SETUP',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
