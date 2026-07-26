@@ -4,7 +4,6 @@ namespace App\Services\Trading;
 
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**

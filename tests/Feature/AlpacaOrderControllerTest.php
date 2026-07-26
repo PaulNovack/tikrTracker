@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\AlpacaOrder;
+
 use function Pest\Laravel\get;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);

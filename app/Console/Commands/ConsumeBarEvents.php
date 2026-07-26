@@ -20,7 +20,7 @@ class ConsumeBarEvents extends Command
     public function handle(): int
     {
         $group = $this->option('group');
-        $consumer = $this->option('consumer');
+        $consumerName = $this->option('consumer');
         $batchSize = max(1, (int) $this->option('batch'));
 
         $scanner = new FiveMinuteSignalScannerV25_2Redis(
@@ -31,9 +31,9 @@ class ConsumeBarEvents extends Command
 
         $consumer = new BarEventConsumer($scanner, $finder);
 
-        $this->info("Starting BarEventConsumer (group={$group}, batch={$batchSize})...");
+        $this->info("Starting BarEventConsumer (group={$group}, consumer={$consumerName}, batch={$batchSize})...");
 
-        $consumer->run($group, $consumer->name, $batchSize);
+        $consumer->run($group, $consumerName, $batchSize);
 
         return self::SUCCESS;
     }

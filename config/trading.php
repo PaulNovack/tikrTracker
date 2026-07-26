@@ -161,6 +161,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V25_DEBUG', false),
 
         'scanner' => [
+            'use_redis' => (bool) env('TRADING_V25_SCANNER_USE_REDIS', false),
             'enable_rs_filter' => (bool) env('TRADING_V25_ENABLE_RS_FILTER', false),
             'active_window_minutes' => (int) env('TRADING_V25_ACTIVE_WINDOW_MINUTES', 20),
             'top_days' => (int) env('TRADING_V25_TOP_DAYS', 5),
@@ -201,6 +202,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V27_DEBUG', false),
 
         'scanner' => [
+            'use_redis' => (bool) env('TRADING_V27_SCANNER_USE_REDIS', false),
             'enable_rs_filter' => (bool) env('TRADING_V27_ENABLE_RS_FILTER', false),
             'active_window_minutes' => (int) env('TRADING_V27_ACTIVE_WINDOW_MINUTES', 8),
             'top_days' => (int) env('TRADING_V27_TOP_DAYS', 5),
