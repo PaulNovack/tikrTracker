@@ -86,7 +86,8 @@ class BarEventConsumer
      */
     private function handle5mBar(string $symbol, int $epoch, string $tsEst): void
     {
-        $lockKey = self::LOCK_PREFIX.'v25.2:'.$symbol.':'.$epoch.':5m_scan';
+        $version = $this->scanner->getVersion();
+        $lockKey = self::LOCK_PREFIX.$version.':'.$symbol.':'.$epoch.':5m_scan';
         if (! Redis::set($lockKey, '1', ['NX', 'EX' => 600])) {
             return;
         }
@@ -96,7 +97,7 @@ class BarEventConsumer
             return;
         }
 
-        $candidateKey = self::CANDIDATE_PREFIX.'v25.2:stock:'.$symbol;
+        $candidateKey = self::CANDIDATE_PREFIX.$version.':stock:'.$symbol;
         Redis::setex($candidateKey, 600, json_encode([
             'symbol' => $symbol,
             'signal_ts_est' => $tsEst,
@@ -113,7 +114,8 @@ class BarEventConsumer
      */
     private function handle1mBar(string $symbol, int $epoch, string $tsEst): void
     {
-        $candidateKey = self::CANDIDATE_PREFIX.'v25.2:stock:'.$symbol;
+        $version = $this->scanner->getVersion();
+        $candidateKey = self::CANDIDATE_PREFIX.$version.':stock:'.$symbol;
         $candidateJson = Redis::get($candidateKey);
         if (! $candidateJson) {
             return;
@@ -124,7 +126,7 @@ class BarEventConsumer
             return;
         }
 
-        $lockKey = self::LOCK_PREFIX.'v25.2:'.$symbol.':'.$epoch.':1m_entry';
+        $lockKey = self::LOCK_PREFIX.$version.':'.$symbol.':'.$epoch.':1m_entry';
         if (! Redis::set($lockKey, '1', ['NX', 'EX' => 300])) {
             return;
         }
@@ -155,8 +157,8 @@ class BarEventConsumer
                     'entry_meta' => $best['entry_meta'] ?? [],
                 ],
                 asOfTsEst: $tsEst,
-                algorithmVersion: 'v25.2',
-                pipelineRun: 'H',
+                algorithmVersion: $version,
+                pipelineRun: $this->scanner->getPipelineLetter(),
                 isRealtime: true
             );
         }

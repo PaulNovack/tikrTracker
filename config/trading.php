@@ -59,7 +59,7 @@ return [
     */
 
     'scanner' => [
-        'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
+        'use_redis' => (bool) env('TRADING_V140_SCANNER_USE_REDIS', false),
         // Enable/disable the CDL3WHITESOLDIERS candlestick scanner command (scan:three-white-soldiers-live)
         'three_white_soldiers_enabled' => (bool) env('TRADING_SCANNER_THREE_WHITE_SOLDIERS_ENABLED', false),
     ],
@@ -243,6 +243,9 @@ return [
     |
     */
     'v60' => [
+        'scanner' => [
+            'use_redis' => (bool) env('TRADING_V60_SCANNER_USE_REDIS', false),
+        ],
         // 5m scanner signal score range (multi-day momentum scoring system)
         'entry_score_min' => (float) env('V60_ENTRY_SCORE_MIN', 40),
         'entry_score_max' => (float) env('V60_ENTRY_SCORE_MAX', 100),
@@ -477,7 +480,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V140_DEBUG', false),
 
         'scanner' => [
-            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
+            'use_redis' => (bool) env('TRADING_V1600_SCANNER_USE_REDIS', false),
             'top_days' => (int) env('TRADING_V140_TOP_DAYS', 5),
             'top_limit' => (int) env('TRADING_V140_TOP_LIMIT', 600),
             'gainers_limit' => (int) env('TRADING_V140_GAINERS_LIMIT', 100),
@@ -690,6 +693,9 @@ return [
     |
     */
     'v17' => [
+        'scanner' => [
+            'use_redis' => (bool) env('TRADING_V17_SCANNER_USE_REDIS', false),
+        ],
         // Active window: symbol must have bars in last N minutes to be considered
         // Default 30 minutes (was hardcoded to 15, which was too restrictive)
         'active_window_minutes' => (int) env('TRADING_V17_ACTIVE_WINDOW_MINUTES', 30),
@@ -990,7 +996,7 @@ return [
         'debug' => (bool) env('ENTRYFINDER_V1600_DEBUG', false),
 
         'scanner' => [
-            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
+            'use_redis' => (bool) env('TRADING_V1200_SCANNER_USE_REDIS', false),
             'active_window_minutes' => (int) env('TRADING_V1600_ACTIVE_WINDOW_MINUTES', 8),
             'top_days' => (int) env('TRADING_V1600_TOP_DAYS', 5),
             'top_limit' => (int) env('TRADING_V1600_TOP_LIMIT', 650),

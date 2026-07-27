@@ -35,6 +35,25 @@ abstract class AbstractSignalScanner
     abstract public function getVersion(): string;
 
     /**
+     * Get the pipeline letter for this scanner (e.g. 'H').
+     * Defaults to 'H' — overridden when setPipelineLetter() is called.
+     */
+    public function getPipelineLetter(): string
+    {
+        return $this->_pipelineLetter ?? 'H';
+    }
+
+    /**
+     * Set the pipeline letter (called by ConsumeBarEvents).
+     */
+    public function setPipelineLetter(string $letter): void
+    {
+        $this->_pipelineLetter = strtoupper($letter);
+    }
+
+    private ?string $_pipelineLetter = null;
+
+    /**
      * Get the human-readable scanner name (e.g. 'Quality-First').
      */
     abstract public function getName(): string;

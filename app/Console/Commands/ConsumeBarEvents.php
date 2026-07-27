@@ -44,6 +44,12 @@ class ConsumeBarEvents extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // Inject pipeline letter for version-specific Redis keys in BarEventConsumer
+        if (method_exists($scanner, 'setPipelineLetter')) {
+            $scanner->setPipelineLetter(strtoupper($pipelineLetter));
+        }
+
         $barConsumer = new BarEventConsumer($scanner, $finder, $writer);
 
         $this->info("BarEventConsumer pipeline={$pipelineLetter} v={$version} group={$group}");
