@@ -118,14 +118,8 @@ class TradePipelineRunO extends Command
             // Find optimal entry after opening range breakout
             $res = $finder->findBestLong(
                 $sig['symbol'],
-                $sig['asset_type'],
                 $sig['signal_ts_est'],
                 $asOfTsEst,
-                (int) $this->option('before'),
-                (int) $this->option('after'),
-                (int) $this->option('volLookback'),
-                (int) $this->option('pivotLookback'),
-                (string) $this->option('fill')
             );
 
             if (empty($res['ok']) || empty($res['best_entry'])) {
@@ -237,14 +231,8 @@ class TradePipelineRunO extends Command
                 foreach ($signals as $sig) {
                     $res = $finder->findBestLong(
                         $sig['symbol'],
-                        $sig['asset_type'],
                         $sig['signal_ts_est'],
                         $asOfTsEst,
-                        (int) $this->option('before'),
-                        (int) $this->option('after'),
-                        (int) $this->option('volLookback'),
-                        (int) $this->option('pivotLookback'),
-                        (string) $this->option('fill')
                     );
 
                     if (! empty($res['ok']) && ! empty($res['best_entry'])) {
@@ -310,14 +298,8 @@ class TradePipelineRunO extends Command
 
             $res = $finder->findBestLong(
                 $sig['symbol'],
-                $sig['asset_type'],
                 $sig['signal_ts_est'],
                 $asOfTsEst,
-                (int) $this->option('before'),
-                (int) $this->option('after'),
-                (int) $this->option('volLookback'),
-                (int) $this->option('pivotLookback'),
-                (string) $this->option('fill')
             );
 
             if (! empty($res['ok']) && ! empty($res['best_entry'])) {

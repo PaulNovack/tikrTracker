@@ -14,20 +14,43 @@ use Illuminate\Support\Facades\DB;
  * - ORB_PULLBACK: Wait for pullback to OR high (now support) then enter
  * - ORB_CONTINUATION: Enter on continued strength after initial breakout
  */
-class OneMinuteEntryFinderV1500_0
+class OneMinuteEntryFinderV1500_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
 
-    public function findBestLong(
+    private string $version = 'v1500.0';
+
+    private string $name = 'Opening Range Breakout Entry';
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [
+            'min_vol_ratio' => 1.5,
+            'min_breakout_confirmation' => 0.01,
+        ];
+    }
+
+    public function getVersion(): string
+    {
+        return $this->version;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    protected function doFindBestLong(
         string $symbol,
         string $signalTsEst,
         string $asOfTsEst,
-        int $beforeMinutes = 5,
-        int $afterMinutes = 15,
-        int $volLookback = 20,
-        int $pivotLookback = 15,
-        string $fillMethod = 'next_open'
     ): ?array {
+        $beforeMinutes = 6;
+        $afterMinutes = 15;
+        $volLookback = 20;
+        $pivotLookback = 15;
+        $fillMethod = 'next_open';
+
         // Get the signal bar and opening range context
         $signalBar = DB::selectOne(
             'SELECT price, high, low, open, volume, atr, atr_pct
@@ -68,19 +91,17 @@ class OneMinuteEntryFinderV1500_0
 
         // Get 1-minute bars after the signal
         $searchStart = $signalTsEst;
-        $searchEnd = $asOfTsEst;
+        $marketOpen = $tradeDate . ' 09:30:00';
 
-        $bars = $this->dbSelect(
-            'SELECT ts_est, price, open, high, low, volume
-             FROM one_minute_prices
-             WHERE symbol = ? 
-               AND trading_date_est = ?
-               AND ts_est > ?
-               AND ts_est <= ?
-             ORDER BY ts_est ASC
-             LIMIT 20',
-            [$symbol, $tradeDate, $searchStart, $searchEnd]
-        );
+        $bars = $this->fetchOneMinuteBars($symbol, $marketOpen, $asOfTsEst);
+
+        // Filter bars to those after the signal
+        $bars = array_values(array_filter($bars, function ($bar) use ($searchStart) {
+            return $bar->ts_est > $searchStart;
+        }));
+
+        // Limit to 20 bars
+        $bars = array_slice($bars, 0, 20);
 
         if (empty($bars)) {
             return null;
@@ -120,10 +141,12 @@ class OneMinuteEntryFinderV1500_0
 
         $bestEntry = [
             'type' => $entry['type'],
+            'entry_type' => $entry['type'],
             'entry_ts_est' => $entry['ts_est'],
             'entry_price' => round($entryPrice, 4),
             'entry' => round($entryPrice, 4), // Alias for compatibility
             'stop_price' => round($stopPrice, 4),
+            'stop_loss' => round($stopPrice, 4),
             'stop' => round($stopPrice, 4), // Alias
             'target_price' => round($targetPrice, 4),
             'risk_pct' => round($riskPct, 2),
@@ -139,6 +162,7 @@ class OneMinuteEntryFinderV1500_0
             'or_high' => round($orHigh, 4),
             'or_low' => round($orLow, 4),
             'or_range' => round($orRange, 4),
+            'entry_meta' => [],
         ];
 
         return [
@@ -153,7 +177,7 @@ class OneMinuteEntryFinderV1500_0
         $highestScore = 0;
 
         foreach ($bars as $i => $bar) {
-            $barPrice = (float) $bar->price;
+            $barPrice = (float) ($bar->close ?? $bar->price ?? 0);
             $barHigh = (float) $bar->high;
             $barLow = (float) $bar->low;
             $barOpen = (float) $bar->open;

@@ -568,90 +568,113 @@ return [
     */
     'pipelines' => [
         'a' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_A_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_A_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_A_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_A_ENABLE_RS_FILTER', false),
         ],
         'b' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_B_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_B_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_B_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_B_ENABLE_RS_FILTER', false),
         ],
         'c' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_C_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_C_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_C_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_C_ENABLE_RS_FILTER', false),
         ],
         'd' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_D_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_D_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_D_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_D_ENABLE_RS_FILTER', false),
         ],
         'e' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_E_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_E_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_E_NO_FILTER_FINDER', false),
             'ml_prefilter' => (bool) env('ALERT_E_ML_PREFILTER', false),
             'enable_rs_filter' => (bool) env('ALERT_E_ENABLE_RS_FILTER', false),
         ],
         'f' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_F_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_F_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_F_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_F_ENABLE_RS_FILTER', false),
         ],
         'g' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_G_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_G_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_G_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_G_ENABLE_RS_FILTER', false),
         ],
         'h' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_H_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_H_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_H_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_H_ENABLE_RS_FILTER', false),
         ],
         'i' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_I_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_I_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_I_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_I_ENABLE_RS_FILTER', false),
         ],
         'j' => [
-            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_J_IGNORE_TYPES') ?? ''))),
-            'no_filter_finder' => (bool) env('ALERT_J_NO_FILTER_FINDER', false),
-            'enable_rs_filter' => (bool) env('ALERT_J_ENABLE_RS_FILTER', false),
-        ],
-        'q' => [
-            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_Q_IGNORE_TYPES') ?? ''))),
-            'no_filter_finder' => (bool) env('ALERT_Q_NO_FILTER_FINDER', false),
-            'enable_rs_filter' => (bool) env('ALERT_Q_ENABLE_RS_FILTER', false),
-        ],
-        'r' => [
-            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_R_IGNORE_TYPES') ?? ''))),
-            'no_filter_finder' => (bool) env('ALERT_R_NO_FILTER_FINDER', false),
-            'enable_rs_filter' => (bool) env('ALERT_R_ENABLE_RS_FILTER', false),
-        ],
-        'j' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_J_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_J_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_J_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_J_ENABLE_RS_FILTER', false),
         ],
         'k' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_K_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_K_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_K_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_K_ENABLE_RS_FILTER', false),
         ],
+        'l' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_L_USE_REDIS', false),
+            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_L_IGNORE_TYPES') ?? ''))),
+            'no_filter_finder' => (bool) env('ALERT_L_NO_FILTER_FINDER', false),
+            'enable_rs_filter' => (bool) env('ALERT_L_ENABLE_RS_FILTER', false),
+        ],
         'm' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_M_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_M_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_M_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_M_ENABLE_RS_FILTER', false),
         ],
         'n' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_N_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_N_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_N_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_N_ENABLE_RS_FILTER', false),
         ],
+        'o' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_O_USE_REDIS', false),
+        ],
         'p' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_P_USE_REDIS', false),
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_P_IGNORE_TYPES') ?? ''))),
             'no_filter_finder' => (bool) env('ALERT_P_NO_FILTER_FINDER', false),
             'enable_rs_filter' => (bool) env('ALERT_P_ENABLE_RS_FILTER', false),
+        ],
+        'q' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_Q_USE_REDIS', false),
+            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_Q_IGNORE_TYPES') ?? ''))),
+            'no_filter_finder' => (bool) env('ALERT_Q_NO_FILTER_FINDER', false),
+            'enable_rs_filter' => (bool) env('ALERT_Q_ENABLE_RS_FILTER', false),
+        ],
+        'r' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_R_USE_REDIS', false),
+            'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_R_IGNORE_TYPES') ?? ''))),
+            'no_filter_finder' => (bool) env('ALERT_R_NO_FILTER_FINDER', false),
+            'enable_rs_filter' => (bool) env('ALERT_R_ENABLE_RS_FILTER', false),
+        ],
+        's' => [
+            'use_redis' => (bool) env('TRADING_PIPELINE_S_USE_REDIS', false),
         ],
         'biased1' => [
             'ignore_types' => array_filter(array_map('trim', explode(',', env('ALERT_BIASED1_IGNORE_TYPES') ?? ''))),
@@ -975,6 +998,9 @@ return [
     'v1500' => [
         // Pipeline O: Opening Range Breakout (ORB)
         // Universe: Market movers from market_movers table
+        'scanner' => [
+            'use_redis' => (bool) env('TRADING_V1500_SCANNER_USE_REDIS', false),
+        ],
         'top_movers' => (int) env('TRADING_V1500_TOP_MOVERS', 25),
         'min_gain_pct' => (float) env('TRADING_V1500_MIN_GAIN_PCT', 2.0),
 

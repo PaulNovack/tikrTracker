@@ -17,10 +17,8 @@ namespace App\Services\Trading;
  *
  * This captures institutional positioning revealed in first 30min of trading.
  */
-class FiveMinuteSignalScannerV1500_0
+class FiveMinuteSignalScannerV1500_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v1500.0';
 
     private string $name = 'Opening Range Breakout';
@@ -79,8 +77,14 @@ class FiveMinuteSignalScannerV1500_0
         return $this->name;
     }
 
-    public function scan(
-        string $asOfTsEst
+    protected function doScan(
+        string $asOfTsEst,
+        int $lookbackMinutes = 60,
+        float $minMovePct = 1.2,
+        float $volMult = 3.5,
+        int $limit = 60,
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         // Load all config from trading.v1500
         $topMovers = $this->topMovers;

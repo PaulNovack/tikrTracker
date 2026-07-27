@@ -30,15 +30,28 @@ trait UsesRedisForScanning
     /**
      * Check whether Redis scanning is enabled for this pipeline.
      *
-     * Reads config: trading.{version}.scanner.use_redis
+     * Reads config: trading.{version}.scanner.use_redis first, then falls
+     * back to trading.pipelines.{letter}.use_redis for pipeline-letter
+     * env vars (TRADING_PIPELINE_X_USE_REDIS).
+     *
      * e.g. trading.v25.scanner.use_redis → env TRADING_V25_SCANNER_USE_REDIS
+     *      trading.pipelines.h.use_redis → env TRADING_PIPELINE_H_USE_REDIS
      */
     protected function shouldUseRedis(): bool
     {
         $version = $this->getVersion();
         $pipeline = explode('.', $version)[0];
 
-        return (bool) config("trading.{$pipeline}.scanner.use_redis", false);
+        $result = config("trading.{$pipeline}.scanner.use_redis");
+
+        if ($result !== null) {
+            return (bool) $result;
+        }
+
+        // Fallback: check pipeline-letter env var (TRADING_PIPELINE_X_USE_REDIS)
+        $letter = strtolower($this->getPipelineLetter());
+
+        return (bool) config("trading.pipelines.{$letter}.use_redis", false);
     }
 
     protected function doScan(
