@@ -33,26 +33,47 @@ class BarEventConsumer
 
     /**
      * Run the consumer loop — blocks on XREADGROUP for new bar events.
+     *
+     * Uses raw XREADGROUP command for Predis compatibility since the
+     * Laravel Redis facade's xreadgroup() method doesn't properly
+     * serialize the streams array with Predis.
      */
     public function run(string $group, string $consumer, int $batchSize = 100): void
     {
         $this->ensureGroup($group);
 
         while (true) {
-            $messages = Redis::xreadgroup(
-                $group,
-                $consumer,
-                [self::STREAM_KEY => self::MSG_ID_KEY],
-                $batchSize,
-                5000
-            );
+            $messages = Redis::command('XREADGROUP', [
+                'GROUP', $group, $consumer,
+                'COUNT', $batchSize,
+                'BLOCK', 5000,
+                'STREAMS', self::STREAM_KEY, self::MSG_ID_KEY,
+            ]);
 
             if (! $messages) {
                 continue;
             }
 
+            // Predis returns stream data as: [streamKey => [[id, [field, value, ...]]]]
             foreach ($messages as $stream => $entries) {
-                foreach ($entries as $id => $fields) {
+                if (! is_array($entries)) {
+                    continue;
+                }
+                foreach ($entries as $entry) {
+                    $id = $entry[0] ?? null;
+                    $rawFields = $entry[1] ?? [];
+
+                    if ($id === null) {
+                        continue;
+                    }
+
+                    // Convert [field1, val1, field2, val2, ...] to assoc array
+                    $fields = [];
+                    $rawCount = count($rawFields);
+                    for ($i = 0; $i + 1 < $rawCount; $i += 2) {
+                        $fields[$rawFields[$i]] = $rawFields[$i + 1];
+                    }
+
                     $this->handleMessage($id, $fields);
                     Redis::xack(self::STREAM_KEY, $group, [$id]);
                 }
@@ -166,13 +187,17 @@ class BarEventConsumer
 
     /**
      * Ensure the consumer group exists on the stream.
+     * Uses raw XGROUP CREATE for Predis compatibility.
      */
     private function ensureGroup(string $group): void
     {
         try {
-            Redis::xgroup('CREATE', self::STREAM_KEY, $group, '0', true);
+            Redis::command('XGROUP', [
+                'CREATE', self::STREAM_KEY, $group,
+                '$', 'MKSTREAM',
+            ]);
         } catch (\Throwable) {
-            // MKSTREAM + group already exists
+            // Group already exists
         }
     }
 }

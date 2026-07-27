@@ -33,7 +33,7 @@ The parent's `doFindBestLong()` runs unchanged — same entry types ML models ex
 | C | v101.0 | ✅ V101_0Redis | ✅ V101_0Redis | true | Prod-ready |
 | D | v60.3 | ✅ V60_3Redis | ✅ V60_3Redis | true | Prod-ready |
 | E | v400.0 | ✅ V400_0Redis | ✅ V400_0Redis | true | Prod-ready |
-| F | v900.1 | ✅ V900_1Redis | ✅ V900_1Redis | **false** | Disabled — gate helpers added 2026-07-26 |
+| F | v900.1 | ✅ V900_1Redis | ✅ V900_1Redis | **true** | Enabled 2026-07-26 — gate helpers completed |
 | G | v35.0 | ✅ V35_0Redis | ✅ V35_0Redis | true | Prod-ready |
 | H | v25.2 | ✅ V25_2Redis | ✅ V25_2Redis | true | Prod-ready (tested) |
 | I | v17.0 | ✅ V17_0Redis | ✅ V17_0Redis | true | Prod-ready |
@@ -51,9 +51,8 @@ The parent's `doFindBestLong()` runs unchanged — same entry types ML models ex
 |---|---|---|
 | R | rt-v2.0 | Different stack — Realtime Watch (not applicable) |
 | S | rt-v1.0 | Different stack — VWAP Reversal (not applicable) |
-| F | v900.1 | `TRADING_PIPELINE_F_USE_REDIS=false` — gate helpers completed, ready to enable |
 
-**Overall: 17/19 pipelines have Redis classes, 16 enabled (R, S excluded).**
+**Overall: 17/19 pipelines have Redis classes, 17 enabled (R, S excluded).**
 
 ## Known Issues
 
@@ -65,7 +64,7 @@ The parent's `doFindBestLong()` runs unchanged — same entry types ML models ex
 
 3. **Supervisor entries added** ✅ — Both `docker/supervisord.conf` and
    `laravel-invest-worker.conf` now contain bar-events entries for pipelines
-   A through Q (F and O commented out pending completion/testing).
+   A through Q (O commented out pending testing).
    Pipelines R and S are excluded (different stacks).
 
 4. **Pipeline O (v1500.0)** ✅ — Redis scanner and finder classes created:
@@ -84,6 +83,11 @@ The parent's `doFindBestLong()` runs unchanged — same entry types ML models ex
 7. **Pipelines R and S excluded** — Different architecture stacks:
    - R (rt-v2.0): Realtime watch — separate realtime stack
    - S (rt-v1.0): VWAP reversal — separate realtime stack
+
+8. **Predis XREADGROUP compatibility** — Fixed by using `Redis::command('XREADGROUP', [...])`
+   with flat argument arrays compatible with Predis. Both `ensureGroup()` and
+   `run()` updated. Supervisor workers require Docker environment (Redis at
+   hostname `redis`) or local Redis at `127.0.0.1:6379`.
 
 ## What's Left
 

@@ -1,3 +1,4 @@
 alpaca-py
+pymysql
 redis
 python-dotenv

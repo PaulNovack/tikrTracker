@@ -37,7 +37,7 @@ trait UsesRedisForScanning
      * e.g. trading.v25.scanner.use_redis → env TRADING_V25_SCANNER_USE_REDIS
      *      trading.pipelines.h.use_redis → env TRADING_PIPELINE_H_USE_REDIS
      */
-    protected function shouldUseRedis(): bool
+    public function shouldUseRedis(): bool
     {
         $version = $this->getVersion();
         $pipeline = explode('.', $version)[0];
@@ -56,11 +56,11 @@ trait UsesRedisForScanning
 
     protected function doScan(
         string $asOfTsEst,
-        int $lookbackMinutes,
-        float $minMovePct,
-        float $volMult,
-        int $limit,
-        bool $skipCache,
+        int $lookbackMinutes = 60,
+        float $minMovePct = 1.2,
+        float $volMult = 3.5,
+        int $limit = 60,
+        bool $skipCache = false,
         ?string $symbol = null
     ): array {
         if (! $this->shouldUseRedis()) {
