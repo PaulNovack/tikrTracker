@@ -275,22 +275,31 @@ LIMIT ?
         foreach ($results as $row) {
             $signals[] = [
                 'symbol' => $row->symbol,
-                'trading_date_est' => $row->trading_date_est,
+                'asset_type' => 'stock',
                 'signal_ts_est' => $row->signal_ts_est,
                 'signal_type' => 'ORB_BREAKOUT',
-                'setup_price' => (float) $row->setup_price,
+                'score' => (float) $row->score,
                 'atr' => (float) $row->atr,
                 'atr_pct' => (float) $row->atr_pct,
-                'score' => (float) $row->score,
-                'context' => [
+                'meta' => [
+                    'move_30m_pct' => 0.0,
+                    'rvol_5m' => (float) $row->vol_ratio,
+                    'atr_pct_5m' => (float) $row->atr_pct,
+                    'notional_last5m' => (float) $row->setup_price * 1000.0,
+                    'pct_nd' => null,
+                    'spy_move_30m_pct' => 0.0,
+                    'universe_size' => count($moverSymbols),
+                    'signal_age_seconds' => 0,
+                    'version' => $this->getVersion(),
+                    'current_price' => (float) $row->setup_price,
                     'or_high' => (float) $row->or_high,
                     'or_low' => (float) $row->or_low,
                     'or_range' => (float) $row->or_range,
                     'range_pct' => (float) $row->range_pct,
                     'vol_ratio' => (float) $row->vol_ratio,
                     'breakout_pct' => (float) $row->breakout_pct,
+                    'strategy_name' => 'ORB_V1500',
                 ],
-                'strategy_name' => 'ORB_V1500',
             ];
         }
 

@@ -100,6 +100,15 @@ class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
             'min_volume_mult' => $this->minVolumeMult,
             'time_window_start' => $this->timeWindowStart,
             'time_window_end' => $this->timeWindowEnd,
+            // Standard Redis gate keys for UsesRedisForScanning::scanSymbol()
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
+            'move_bars_5m' => 6,
+            'active_window_minutes' => 8,
+            'min_notional_5m' => 75000.0,
+            'min_atr_pct_5m' => 0.35,
+            'min_rvol_5m' => 1.5,
+            'min_move_30m_pct' => 0.8,
         ];
     }
 
