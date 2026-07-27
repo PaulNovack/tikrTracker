@@ -13,6 +13,8 @@
 - [Getting Started](#getting-started)
 - [Application Sitemap](#application-sitemap)
 - [Risk Notice](#risk-notice)
+  
+-  **[Installation Guide (INSTALLATION.md)](INSTALLATION.md)** ←
 
 ## Overview
 
