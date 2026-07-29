@@ -21,11 +21,11 @@ class BarEventConsumer
 
     public function run(string $group, string $consumer, int $batchSize = 200): void
     {
-        $client = Redis::connection()->client();
-        $this->ensureGroup($group, $client);
-
         while (true) {
             try {
+                $client = Redis::connection()->client();
+                $this->ensureGroup($group, $client);
+
                 $error = false;
                 $messages = $client->executeRaw([
                     'XREADGROUP', 'GROUP', $group, $consumer,
@@ -60,16 +60,29 @@ class BarEventConsumer
                             $fields[$rawFields[$i]] = $rawFields[$i + 1];
                         }
 
-                        $this->handleMessage($id, $fields);
-                        Redis::xack(self::STREAM_KEY, $group, $id);
+                        try {
+                            $this->handleMessage($id, $fields);
+                        } catch (\Throwable $e) {
+                            \Log::channel('bar-events')->error('[BarConsumer] Message error', [
+                                'symbol' => $fields['symbol'] ?? 'unknown',
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+
+                        try {
+                            Redis::xack(self::STREAM_KEY, $group, $id);
+                        } catch (\Throwable $e) {
+                            \Log::channel('bar-events')->error('[BarConsumer] ACK error', [
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
                     }
                 }
             } catch (\Throwable $e) {
-                \Log::channel('bar-events')->error('[BarConsumer] Connection error, reconnecting in 1s', [
+                \Log::channel('bar-events')->error('[BarConsumer] Reconnecting after error', [
                     'error' => $e->getMessage(),
                 ]);
                 sleep(1);
-                $client = Redis::connection()->client();
             }
         }
     }
