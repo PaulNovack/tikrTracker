@@ -132,7 +132,6 @@ class FiveMinuteSignalScannerV3000_0
      * @return array<int, array>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.2,
@@ -170,7 +169,6 @@ class FiveMinuteSignalScannerV3000_0
         $sql = '
 SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est AS signal_ts_est,
     f.price AS last_close,
     f.volume AS last_vol,
@@ -185,7 +183,7 @@ SELECT
     (f.price * f.volume) AS notional_last5m,
     ((f.price - f.open) / NULLIF(f.open, 0)) * 100 AS bar_move_pct
 FROM five_minute_prices f
-WHERE f.asset_type = ?
+
   AND f.trading_date_est = ?
   AND f.ts_est <= ?
   AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -197,12 +195,12 @@ ORDER BY f.symbol, f.ts_est DESC
 ';
 
         $params = array_merge(
-            [$assetType, $tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
+            [$tradeDate, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             $symbols
         );
 
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v3000_0_s3:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v3000_0_s3:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -218,7 +216,7 @@ ORDER BY f.symbol, f.ts_est DESC
             }
         }
 
-        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $assetType, $moveBars);
+        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $moveBars);
 
         $asOfEpochRaw = strtotime($asOfTsEst);
         $asOfEpoch = $asOfEpochRaw !== false
@@ -254,15 +252,15 @@ FROM (
     SELECT symbol, volume,
         ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
-      AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
+      WHERE symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
 ) sub
 WHERE rn <= 20
 GROUP BY symbol
 ';
-            $rvolParams = array_merge([$assetType, $tradeDate, $asOfTsEst], array_keys($seen));
+            $rvolParams = array_merge([$tradeDate, $asOfTsEst], array_keys($seen));
             $rvolRows = $this->dbSelect($rvolSql, $rvolParams);
             foreach ($rvolRows as $rv) {
                 $rvolData[(string) $rv->symbol] = (float) ($rv->avg_vol ?? 0);
@@ -277,15 +275,15 @@ FROM (
     SELECT symbol, price,
         ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
     FROM five_minute_prices
-    WHERE asset_type = ?
+
       AND trading_date_est = ?
       AND ts_est <= ?
-      AND symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
+      WHERE symbol IN ('.implode(',', array_fill(0, count($latest), '?')).')
 ) sub
 WHERE rn <= 7
 GROUP BY symbol
 ';
-            $moveParams = array_merge([$assetType, $tradeDate, $asOfTsEst], array_keys($seen));
+            $moveParams = array_merge([$tradeDate, $asOfTsEst], array_keys($seen));
             $moveRows = $this->dbSelect($moveSql, $moveParams);
             foreach ($moveRows as $mv) {
                 $lastP = (float) ($mv->last_p ?? 0);
@@ -343,7 +341,6 @@ GROUP BY symbol
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'EMA_ALIGNMENT_V3000',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -373,11 +370,10 @@ GROUP BY symbol
     }
 
     /** @return array<int, string> */
-    private function buildUniverseSymbols(string $assetType, string $asOfTsEst): array
+    private function buildUniverseSymbols(string $asOfTsEst): array
     {
         $tradeDate = substr($asOfTsEst, 0, 10);
         $cacheKey = 'scan_v3000_0_s3_universe:'.implode(':', [
-            $assetType,
             $this->fiveMinuteTable,
             $tradeDate,
             $this->topDays,
@@ -385,9 +381,9 @@ GROUP BY symbol
             $this->losersLimit,
         ]);
 
-        $symbols = Cache::remember($cacheKey, 60, function () use ($assetType, $asOfTsEst, $tradeDate) {
+        $symbols = Cache::remember($cacheKey, 60, function () use ($asOfTsEst, $tradeDate) {
             $topPerformers = $this->bestPerformersService->getBestPerformers([
-                'assetType' => $assetType,
+                'assetType' => 'stock',
                 'testDateTime' => $asOfTsEst,
                 'days' => $this->topDays,
                 'minBars' => 200,
@@ -401,13 +397,12 @@ GROUP BY symbol
 
             try {
                 $prevTradingDay = DB::table($this->fiveMinuteTable)
-                    ->where('asset_type', $assetType)
                     ->where('trading_date_est', '<', $tradeDate)
                     ->orderBy('trading_date_est', 'desc')
                     ->value('trading_date_est');
 
                 if ($prevTradingDay) {
-                    $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $assetType, $this->losersLimit);
+                    $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $this->losersLimit);
                     $baseSymbols = array_merge($baseSymbols, array_column($losersData['losers'] ?? [], 'symbol'));
                 }
             } catch (\Throwable $e) {
@@ -434,24 +429,20 @@ GROUP BY symbol
         return array_keys($clean);
     }
 
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    private function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
-
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
+
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
         if (! $rows) {
             return 0.0;

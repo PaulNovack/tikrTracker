@@ -40,10 +40,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Output: 40-60 high-quality institutional continuation candidates
  */
-class FiveMinuteSignalScannerV140_0
+class FiveMinuteSignalScannerV140_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v140.0';
 
     private string $name = 'Institutional Follow-Through';
@@ -100,11 +98,12 @@ class FiveMinuteSignalScannerV140_0
             'top_limit' => $this->topLimit,
             'gainers_limit' => $this->gainersLimit,
             'min_price' => $this->minPrice,
-            'min_notional_5m' => $this->minNotional5m,
-            'min_atr_pct_5m' => $this->minAtrPct5m,
+            'min_notional_5m' => 0,
+            'min_atr_pct_5m' => 0,
+            'min_rvol_5m' => $this->minRvol ?? 0,
             'min_sustained_vol' => $this->minSustainedVol,
             'max_rvol_spike' => $this->maxRvolSpike,
-            'min_move_30m_pct' => $this->minMove30m,
+            'min_move_30m_pct' => 0,
             'min_green_days' => $this->minGreenDays,
             'active_window_minutes' => $this->activeWindowMinutes,
             'analysis_lookback_minutes' => $this->analysisLookbackMinutes,
@@ -143,14 +142,13 @@ class FiveMinuteSignalScannerV140_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.5,
         float $volMult = 1.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;
         $gainersLimit = $this->gainersLimit;
@@ -174,7 +172,7 @@ class FiveMinuteSignalScannerV140_0
 
         // ---------- 1) Universe: Top performers + Yesterday's strong gainers ----------
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => $topDays,
             'minBars' => 200,
@@ -190,13 +188,12 @@ class FiveMinuteSignalScannerV140_0
         try {
             $currentDate = substr($asOfTsEst, 0, 10);
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');
 
             if ($prevTradingDay) {
-                $gainersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $assetType, $gainersLimit);
+                $gainersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $gainersLimit);
                 $gainerSymbols = array_column($gainersData['gainers'] ?? [], 'symbol');
                 $symbols = array_values(array_unique(array_merge($symbols, $gainerSymbols)));
             }
@@ -220,30 +217,28 @@ class FiveMinuteSignalScannerV140_0
         // ---------- 2) Build SQL query for institutional signals ----------
         $sql = "
 WITH universe AS (
-  SELECT ? AS asset_type, symbol
+  SELECT symbol
   FROM (SELECT 1) t
   CROSS JOIN (
     SELECT DISTINCT symbol
     FROM five_minute_prices
-    WHERE asset_type = ?
-      AND symbol IN ($placeholders)
+
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
     f.low,
     f.volume,
-    LAG(f.price, 1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_close,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn_desc
+    LAG(f.price, 1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_close,
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn_desc
   FROM five_minute_prices f
   JOIN universe u
-    ON u.symbol = f.symbol AND u.asset_type = f.asset_type
-  WHERE f.ts_est <= ?
+    ON u.symbol = f.symbol WHERE f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 recent AS (
@@ -254,27 +249,24 @@ recent AS (
 agg_last AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn_desc = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn_desc = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn_desc = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn_desc = 1 + ? THEN close END) AS close_nback
   FROM base
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 rvol AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(b.volume) AS avg_vol
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 atr AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(
       GREATEST(
         (b.high - b.low),
@@ -284,16 +276,15 @@ atr AS (
     ) AS atr_val
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 activity AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_seen_ts
+  SELECT symbol, MAX(ts_est) AS last_seen_ts
   FROM recent
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   a.symbol,
-  a.asset_type,
   a.signal_ts_est,
   a.last_close,
   a.last_vol,
@@ -305,15 +296,12 @@ SELECT
   (a.last_close * a.last_vol) AS notional_last5m,
   act.last_seen_ts
 FROM agg_last a
-JOIN rvol r ON r.symbol=a.symbol AND r.asset_type=a.asset_type
-JOIN atr  t ON t.symbol=a.symbol AND t.asset_type=a.asset_type
-JOIN activity act ON act.symbol=a.symbol AND act.asset_type=a.asset_type
-WHERE a.close_nback IS NOT NULL
+JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity act ON act.symbol=a.symbol WHERE a.close_nback IS NOT NULL
   AND a.last_close >= ?
 ";
 
         $params = array_merge(
-            [$assetType, $assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $asOfTsEst, $activeWindowMinutes],
             [$moveBars, $rvolLookback, $atrPeriod],
@@ -322,7 +310,7 @@ WHERE a.close_nback IS NOT NULL
 
         // Cache for 4 minutes
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v140_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v140_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -347,7 +335,7 @@ WHERE a.close_nback IS NOT NULL
         }
         $maxSignalAgeSeconds = max(1, $activeWindowMinutes) * 60;
 
-        $debugEnabled = ((string) env('SCANNER_V140_DEBUG', '0') === '1')
+        $debugEnabled = ((string) env('SCANNER_DEBUG', '0') === '1')
           || (bool) config('trading.v140.debug', false);
         $dropCounts = [
             'rows_total' => count($rows),
@@ -420,7 +408,7 @@ WHERE a.close_nback IS NOT NULL
             }
 
             // Gate 6: Multi-day consistency check (institutions accumulate over days)
-            $greenDays = $this->countRecentGreenDays((string) $r->symbol, $assetType, $asOfTsEst);
+            $greenDays = $this->countRecentGreenDays((string) $r->symbol, $asOfTsEst);
             if ($greenDays < $minGreenDays) {
                 $dropCounts['multi_day_check']++;
 
@@ -441,7 +429,7 @@ WHERE a.close_nback IS NOT NULL
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => 'INSTITUTIONAL_V140',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -452,13 +440,14 @@ WHERE a.close_nback IS NOT NULL
                     'rvol_5m' => round($rvolRatio, 3),
                     'atr_pct_5m' => round($atrPct, 3),
                     'notional_last5m' => round($notional, 2),
-                    'avg_vol_5m' => round($avgVol, 2),
-                    'green_days_5d' => $greenDays,
-                    'pct_nd' => $pctNd !== null ? round((float) $pctNd, 2) : null,
+                    'spy_move_30m_pct' => 0.0,
                     'universe_size' => count($symbols),
                     'signal_age_seconds' => $signalAgeSeconds,
                     'version' => $this->version,
                     'current_price' => $lastClose,
+                    'avg_vol_5m' => round($avgVol, 2),
+                    'green_days_5d' => $greenDays,
+                    'pct_nd' => $pctNd !== null ? round((float) $pctNd, 2) : null,
                 ],
             ];
         }
@@ -466,9 +455,8 @@ WHERE a.close_nback IS NOT NULL
         usort($out, fn ($a, $b) => ($b['score'] <=> $a['score']));
 
         if ($debugEnabled) {
-            Log::info('[ScannerV140_0] gate summary', [
+            Log::channel('redis-scan')->info('[ScannerV140_0] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),
@@ -482,13 +470,12 @@ WHERE a.close_nback IS NOT NULL
      * Count how many of the last 5 trading days closed green (close > open)
      * Institutions accumulate in stocks with multi-day consistency
      */
-    private function countRecentGreenDays(string $symbol, string $assetType, string $asOfTsEst): int
+    private function countRecentGreenDays(string $symbol, string $asOfTsEst): int
     {
         $currentDate = substr($asOfTsEst, 0, 10);
 
         $days = DB::table('daily_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('date', '<=', $currentDate)
             ->orderBy('date', 'desc')
             ->limit(5)

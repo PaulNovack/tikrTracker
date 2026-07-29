@@ -2,6 +2,7 @@
 
 namespace App\Services\Trading;
 
+use App\Contracts\Trading\OneMinuteEntryFinderContract;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -14,13 +15,23 @@ use Illuminate\Support\Facades\DB;
  * - BREAKOUT_HIGH: Enter on break of 5-minute bar high
  * - IMMEDIATE: Enter immediately if strong volume spike
  */
-class OneMinuteEntryFinderV1200_0
+class OneMinuteEntryFinderV1200_0 implements OneMinuteEntryFinderContract
 {
     use HasPriceTables;
 
+    /**
+     * {@inheritdoc}
+     */
     public function findBestLong(
         string $symbol,
-        string $assetType,
+        string $signalTsEst,
+        string $asOfTsEst,
+    ): ?array {
+        return $this->doFindBestLong($symbol, $signalTsEst, $asOfTsEst);
+    }
+
+    protected function doFindBestLong(
+        string $symbol,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 5,
@@ -33,8 +44,8 @@ class OneMinuteEntryFinderV1200_0
         $signalBar = DB::selectOne(
             'SELECT price, high, low, open, volume, atr, atr_pct
              FROM five_minute_prices
-             WHERE symbol = ? AND asset_type = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+             WHERE symbol = ? AND ts_est = ?',
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -55,13 +66,12 @@ class OneMinuteEntryFinderV1200_0
             'SELECT ts_est, price, open, high, low, volume
              FROM one_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est > ?
                AND ts_est <= ?
              ORDER BY ts_est ASC
              LIMIT 20',
-            [$symbol, $assetType, $signalTsEst, $searchStart, $searchEnd]
+            [$symbol, $signalTsEst, $searchStart, $searchEnd]
         );
 
         if (empty($bars)) {
@@ -69,7 +79,7 @@ class OneMinuteEntryFinderV1200_0
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for entry patterns
         $entry = $this->findMomentumEntry($bars, $signalHigh, $signalLow, $signalClose, $avgVol, $atr);
@@ -197,18 +207,17 @@ class OneMinuteEntryFinderV1200_0
         return $bestEntry;
     }
 
-    private function getAvgVolume(string $symbol, string $assetType, string $asOfTsEst, int $lookback): float
+    private function getAvgVolume(string $symbol, string $asOfTsEst, int $lookback): float
     {
         $result = DB::selectOne(
             'SELECT AVG(volume) as avg_vol
              FROM one_minute_prices
              WHERE symbol = ?
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;

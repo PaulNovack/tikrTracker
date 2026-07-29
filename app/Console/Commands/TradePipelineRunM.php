@@ -62,6 +62,16 @@ class TradePipelineRunM extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate: if event-driven scanning is active, the SQL pipeline must not run ──
+        if (config('trading.pipelines.m.use_redis', false)) {
+            $msg = 'Pipeline M: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            // \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 
@@ -92,7 +102,7 @@ class TradePipelineRunM extends Command
         $tracer = $this->startTrace('M', $asOfTsEst);
 
         // Scan for clean 2-hour trends
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {
@@ -280,7 +290,7 @@ class TradePipelineRunM extends Command
                     }
                 }
 
-                $signals = $scanner->scan($assetType, $currentTs);
+                $signals = $scanner->scan($currentTs);
 
                 if ($signals) {
                     foreach ($signals as $sig) {

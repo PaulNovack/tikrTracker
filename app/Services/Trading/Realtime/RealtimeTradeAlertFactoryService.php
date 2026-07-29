@@ -155,7 +155,6 @@ class RealtimeTradeAlertFactoryService
         $record = [
             'realtime_candidate_id' => $candidate->id,
             'symbol' => $candidate->symbol,
-            'asset_type' => $candidate->asset_type,
             'trading_date_est' => $nowEst->toDateString(),
             'as_of_ts_est' => $nowEst->format('Y-m-d H:i:s'),
             'signal_type' => $entry['signal_type'] ?? 'REALTIME_MOMENTUM',

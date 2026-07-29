@@ -127,8 +127,8 @@ class AssetInfoController extends Controller
         // Get custom date from request or default to today
         $customDate = $request->query('date');
 
-        // Get today's market open time (9:30 AM ET) in UTC for filtering today's data
-        $todayMarketOpenET = now('America/New_York')->setTime(9, 30, 0);
+        // Get today's pre-market open time (4:00 AM ET) in UTC for filtering today's data
+        $todayMarketOpenET = now('America/New_York')->setTime(4, 0, 0);
         $todayStart = $todayMarketOpenET->clone()->utc();
 
         // Get the latest 5-minute price (more current during trading hours)
@@ -221,7 +221,7 @@ class AssetInfoController extends Controller
         // Determine cache TTL based on market hours
         $currentTimeUTC = now('UTC');
         // Convert market hours from ET to UTC dynamically (handles EST/EDT)
-        $marketOpenET = now('America/New_York')->setTime(9, 30, 0);
+        $marketOpenET = now('America/New_York')->setTime(4, 0, 0);
         $marketCloseET = now('America/New_York')->setTime(16, 30, 0);
         $marketOpenUTC = $marketOpenET->clone()->utc();
         $marketCloseUTC = $marketCloseET->clone()->utc();
@@ -238,7 +238,7 @@ class AssetInfoController extends Controller
             // Get 1D data (today's trading)
             // Check today's market schedule for actual closing time
             // Convert market hours from ET to UTC dynamically (handles EST/EDT)
-            $marketOpenET = now('America/New_York')->setTime(9, 30, 0);
+            $marketOpenET = now('America/New_York')->setTime(4, 0, 0);
             $marketCloseET = now('America/New_York')->setTime(16, 0, 0);
             $marketOpenUTC = $marketOpenET->clone()->utc();
             $marketCloseUTC = $marketCloseET->clone()->utc();
@@ -735,10 +735,11 @@ class AssetInfoController extends Controller
             $endTime = $targetDate->copy()->endOfDay()->utc();
         } else {
             $now = now('UTC');
+            $todayOpenUtc = now('America/New_York')->setTime(4, 0, 0)->utc();
             $oldestFiveMinutePrice = $assetInfo->fiveMinutePrices()->orderBy('ts', 'asc')->first();
 
             $startTime = match ($range) {
-                '1D' => $now->copy()->startOfDay(),
+                '1D' => $todayOpenUtc,
                 'Last Open Day' => $now->copy()->subDay()->startOfDay(),
                 '5D' => $now->copy()->subDays(5)->startOfDay(),
                 '1M' => $now->copy()->subMonth(),

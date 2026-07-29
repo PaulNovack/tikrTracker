@@ -5,7 +5,6 @@ namespace App\Services\Trading;
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -156,7 +155,6 @@ class FiveMinuteSignalScannerV45
      * @return array<int, array<string, mixed>>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.30,
@@ -208,7 +206,7 @@ class FiveMinuteSignalScannerV45
 
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
         $table = $this->fiveMinuteTable;
-        $cacheKey = "scan_v45:{$table}:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v45:{$table}:{$bucketTs}:{$lookbackMinutes}";
 
         $rows = null;
         if (! $skipCache) {
@@ -218,15 +216,15 @@ class FiveMinuteSignalScannerV45
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
-                WHERE asset_type = ?
-                  AND symbol IN ({$placeholders})
+
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
-            $params = array_merge([$assetType], $symbols, [$analysisStart, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$analysisStart, $asOfTsEst]);
 
             if ($skipCache) {
                 $rows = $this->dbSelect($sql, $params);
@@ -403,7 +401,6 @@ class FiveMinuteSignalScannerV45
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'VWAP_HIGHER_LOW_SETUP_5M_V45',
                 'signal_ts_est' => $metrics['signal_ts_est'],
                 'score' => $scoreParts['score'],
@@ -449,9 +446,8 @@ class FiveMinuteSignalScannerV45
         $out = array_slice($out, 0, max(1, $limit));
 
         if ($debugEnabled) {
-            Log::info('[ScannerV45] gate summary', [
+            Log::channel('redis-scan')->info('[ScannerV45] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $drops,
                 'returned' => count($out),
@@ -480,30 +476,9 @@ class FiveMinuteSignalScannerV45
     }
 
     /** @return array<int, string> */
-    private function loadUniverse(string $assetType, bool $skipCache): array
+    private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = "scan_v45:universe_symbols:{$assetType}";
-        $symbols = $skipCache ? null : Cache::get($cacheKey);
-
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->map(static fn ($symbol): string => (string) $symbol)
-                ->all();
-
-            $moversLimit = (int) config('trading.market_movers.pipeline_h', 0);
-            if ($moversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)
-                    ->getTodaysTopMoversFromCache(null, $moversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            if (! $skipCache) {
-                Cache::put($cacheKey, $symbols, 28800);
-            }
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v45:universe_symbols', 'trading.market_movers.pipeline_h', $asOfTsEst, $skipCache);
 
         return array_values(array_filter(
             array_map(static fn ($symbol): string => trim((string) $symbol), $symbols),
@@ -753,7 +728,7 @@ class FiveMinuteSignalScannerV45
             SELECT ts_est, price AS close
             FROM {$table}
             WHERE symbol = ?
-              AND asset_type = 'stock'
+
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC

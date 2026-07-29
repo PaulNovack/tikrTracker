@@ -70,7 +70,7 @@ class FiveMinuteSignalScannerV26_1
      *   ['symbol'=>'TQQQ','asset_type'=>'stock','signal_type'=>'MOMO_5M','signal_ts_est'=>'YYYY-mm-dd HH:MM:SS', 'score'=>...],
      * ]
      */
-    public function scan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.5, float $volMult = 3.0, int $limit = 10): array
+    public function scan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 0.5, float $volMult = 3.0, int $limit = 10): array
     {
         // V26.0: Get stocks that closed above open at least 4 out of last 5 trading days
         // This filters for consistent daily winners (allows 1 red day)
@@ -78,7 +78,6 @@ class FiveMinuteSignalScannerV26_1
 
         // Get last 5 trading days
         $tradingDays = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<=', $currentDate)
             ->select('trading_date_est')
             ->distinct()
@@ -99,21 +98,16 @@ class FiveMinuteSignalScannerV26_1
                     symbol,
                     trading_date_est,
                     (SELECT price FROM five_minute_prices fp1 
-                     WHERE fp1.symbol = fp.symbol 
-                       AND fp1.asset_type = fp.asset_type 
-                       AND fp1.trading_date_est = fp.trading_date_est
+                     WHERE fp1.symbol = fp.symbol AND fp1.trading_date_est = fp.trading_date_est
                        AND TIME(fp1.ts_est) >= '09:30:00'
                      ORDER BY fp1.ts_est ASC LIMIT 1) as day_open,
                     (SELECT price FROM five_minute_prices fp2 
-                     WHERE fp2.symbol = fp.symbol 
-                       AND fp2.asset_type = fp.asset_type 
-                       AND fp2.trading_date_est = fp.trading_date_est
+                     WHERE fp2.symbol = fp.symbol AND fp2.trading_date_est = fp.trading_date_est
                        AND TIME(fp2.ts_est) <= '16:00:00'
                      ORDER BY fp2.ts_est DESC LIMIT 1) as day_close
-                FROM (SELECT DISTINCT symbol, asset_type, trading_date_est 
+                FROM (SELECT DISTINCT symbol, trading_date_est 
                       FROM five_minute_prices 
-                      WHERE asset_type = ?
-                        AND trading_date_est IN (?, ?, ?, ?, ?)) fp
+    WHERE trading_date_est IN (?, ?, ?, ?, ?)) fp
             ),
             positive_days AS (
                 SELECT 
@@ -134,7 +128,7 @@ class FiveMinuteSignalScannerV26_1
         ";
 
         $positiveStocks = $this->dbSelect($sql, array_merge(
-            [$assetType],
+            [],
             $tradingDays
         ));
 
@@ -157,46 +151,40 @@ class FiveMinuteSignalScannerV26_1
 WITH last_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
-  WHERE asset_type = ?
-    AND symbol IN ($placeholders)
+
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.volume,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
   INNER JOIN last_bar lb
-    ON lb.symbol = f.symbol AND lb.asset_type = f.asset_type
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    ON lb.symbol = f.symbol AND f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   last_close,
   prev_close,
@@ -219,12 +207,12 @@ LIMIT ?
 
         // Build parameter array: symbols twice (for two IN clauses) + other params
         $params = array_merge(
-            [$assetType],           // asset_type (first occurrence)
+            [],           // asset_type (first occurrence)
             $symbols,               // symbols (first IN clause)
             [$asOfTsEst],          // as_of (first occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
             [15],                  // active_window
-            [$assetType],          // asset_type (second occurrence)
+            [],          // asset_type (second occurrence)
             $symbols,              // symbols (second IN clause)
             [$asOfTsEst],          // as_of (second occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
@@ -264,7 +252,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -295,18 +282,18 @@ LIMIT ?
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
         $nback = max(2, (int) floor($lookbackMinutes / 5));
 
-        $sql = "
+        $sql = '
             SELECT 
                 price AS last_close,
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = ?
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
             LIMIT 1
-        ";
+        ';
 
         $result = DB::selectOne($sql, [$nback, $benchmarkSymbol, $asOfTsEst, $asOfTsEst, $lookbackMinutes]);
 

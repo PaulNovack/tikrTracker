@@ -18,9 +18,68 @@ class OneMinuteEntryFinderV1400_0
 {
     use HasPriceTables;
 
+    // ── Entry Finder Configuration (public so pipeline can read) ──
+    public float $entryMinVolRatio;
+
+    public float $entryMinTrendPct;
+
+    public float $entryMaxDrawdownPct;
+
+    public bool $requireAboveVwap;
+
+    public bool $requireEma9AboveEma21;
+
+    public float $maxAtrPct;
+
+    public float $minEntryScore;
+
+    public float $entryMinVolRatioFilter;
+
+    public float $maxPctBelowIntradayHigh;
+
+    public int $maxMinutesSinceHigh;
+
+    public string $excludedEntryTypes;
+
+    public string $preferredEntryTypes;
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [
+            'entry_min_vol_ratio' => $this->entryMinVolRatio,
+            'entry_min_trend_pct' => $this->entryMinTrendPct,
+            'entry_max_drawdown_pct' => $this->entryMaxDrawdownPct,
+            'require_above_vwap' => $this->requireAboveVwap,
+            'require_ema9_above_ema21' => $this->requireEma9AboveEma21,
+            'max_atr_pct' => $this->maxAtrPct,
+            'min_entry_score' => $this->minEntryScore,
+            'entry_min_vol_ratio_filter' => $this->entryMinVolRatioFilter,
+            'max_pct_below_intraday_high' => $this->maxPctBelowIntradayHigh,
+            'max_minutes_since_high' => $this->maxMinutesSinceHigh,
+            'excluded_entry_types' => $this->excludedEntryTypes,
+            'preferred_entry_types' => $this->preferredEntryTypes,
+        ];
+    }
+
+    public function __construct()
+    {
+        $this->entryMinVolRatio = (float) env('TRADING_V1400_ENTRY_MIN_VOL_RATIO', 1.5);
+        $this->entryMinTrendPct = (float) env('TRADING_V1400_ENTRY_MIN_TREND_PCT', 0.25);
+        $this->entryMaxDrawdownPct = (float) env('TRADING_V1400_ENTRY_MAX_DRAWDOWN_PCT', 0.50);
+        $this->requireAboveVwap = (bool) env('TRADING_V1400_REQUIRE_ABOVE_VWAP', true);
+        $this->requireEma9AboveEma21 = (bool) env('TRADING_V1400_REQUIRE_EMA9_ABOVE_EMA21', true);
+        $this->maxAtrPct = (float) env('TRADING_V1400_MAX_ATR_PCT', 0.20);
+        $this->minEntryScore = (float) env('TRADING_V1400_MIN_ENTRY_SCORE', 85);
+        $this->entryMinVolRatioFilter = (float) env('TRADING_V1400_ENTRY_MIN_VOL_RATIO_FILTER', 2.0);
+        $this->maxPctBelowIntradayHigh = (float) env('TRADING_V1400_MAX_PCT_BELOW_INTRADAY_HIGH', 0.15);
+        $this->maxMinutesSinceHigh = (int) env('TRADING_V1400_MAX_MINUTES_SINCE_HIGH', 5);
+        $this->excludedEntryTypes = env('TRADING_V1400_EXCLUDED_ENTRY_TYPES', 'MICRO_PULLBACK_HOLD');
+        $this->preferredEntryTypes = env('TRADING_V1400_PREFERRED_ENTRY_TYPES', 'TIGHT_CONSOLIDATION_BREAK');
+    }
+
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 5,
@@ -30,31 +89,31 @@ class OneMinuteEntryFinderV1400_0
         string $fillMethod = 'next_open'
     ): ?array {
         // Load config
-        $entryMinVolRatio = (float) config('trading.v1400.entry_min_vol_ratio', 1.5);
-        $entryMinTrendPct = (float) config('trading.v1400.entry_min_trend_pct', 0.25);
-        $entryMaxDrawdownPct = (float) config('trading.v1400.entry_max_drawdown_pct', 0.50);
+        $entryMinVolRatio = $this->entryMinVolRatio;
+        $entryMinTrendPct = $this->entryMinTrendPct;
+        $entryMaxDrawdownPct = $this->entryMaxDrawdownPct;
 
         // Quality filters
-        $requireAboveVwap = (bool) config('trading.v1400.require_above_vwap', true);
-        $requireEma9AboveEma21 = (bool) config('trading.v1400.require_ema9_above_ema21', true);
-        $maxAtrPct = (float) config('trading.v1400.max_atr_pct', 0.20);
-        $minEntryScore = (float) config('trading.v1400.min_entry_score', 85);
-        $minVolRatioFilter = (float) config('trading.v1400.entry_min_vol_ratio_filter', 2.0);
-        $maxPctBelowIntradayHigh = (float) config('trading.v1400.max_pct_below_intraday_high', 0.15);
-        $maxMinutesSinceHigh = (int) config('trading.v1400.max_minutes_since_high', 5);
+        $requireAboveVwap = $this->requireAboveVwap;
+        $requireEma9AboveEma21 = $this->requireEma9AboveEma21;
+        $maxAtrPct = $this->maxAtrPct;
+        $minEntryScore = $this->minEntryScore;
+        $minVolRatioFilter = $this->entryMinVolRatioFilter;
+        $maxPctBelowIntradayHigh = $this->maxPctBelowIntradayHigh;
+        $maxMinutesSinceHigh = $this->maxMinutesSinceHigh;
 
-        $excludedEntryTypes = config('trading.v1400.excluded_entry_types', 'MICRO_PULLBACK_HOLD');
+        $excludedEntryTypes = $this->excludedEntryTypes;
         $excludedTypes = is_string($excludedEntryTypes) ? array_map('trim', explode(',', $excludedEntryTypes)) : [];
 
-        $preferredEntryTypes = config('trading.v1400.preferred_entry_types', 'TIGHT_CONSOLIDATION_BREAK');
+        $preferredEntryTypes = $this->preferredEntryTypes;
         $preferredTypes = is_string($preferredEntryTypes) ? array_map('trim', explode(',', $preferredEntryTypes)) : [];
 
         // Get the signal bar to establish context
         $signalBar = DB::selectOne(
             'SELECT price, high, low, open, volume
              FROM five_minute_prices
-             WHERE symbol = ? AND asset_type = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+             WHERE symbol = ? AND ts_est = ?',
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -66,7 +125,7 @@ class OneMinuteEntryFinderV1400_0
         $signalClose = (float) $signalBar->price;
 
         // Calculate simple ATR approximation from recent bars if needed
-        $atrApprox = $this->estimateATR($symbol, $assetType, $signalTsEst);
+        $atrApprox = $this->estimateATR($symbol, $signalTsEst);
         $atr = $atrApprox;
         $atrPct = $atr ? ($atr / $signalClose) * 100 : null;
 
@@ -80,13 +139,12 @@ class OneMinuteEntryFinderV1400_0
             'SELECT ts_est, price, open, high, low, volume, vwap, above_vwap, atr_pct, ema9, ema21, ema9_above_ema21
              FROM one_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est > ?
                AND ts_est <= ?
              ORDER BY ts_est ASC
              LIMIT 20',
-            [$symbol, $assetType, $signalTsEst, $searchStart, $searchEnd]
+            [$symbol, $signalTsEst, $searchStart, $searchEnd]
         );
 
         if (empty($bars)) {
@@ -94,7 +152,7 @@ class OneMinuteEntryFinderV1400_0
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for clean continuation entries with minimal risk
         $entry = $this->findCleanContinuationEntry(
@@ -339,18 +397,17 @@ class OneMinuteEntryFinderV1400_0
         return $bestEntry;
     }
 
-    private function getAvgVolume(string $symbol, string $assetType, string $asOfTsEst, int $lookback): float
+    private function getAvgVolume(string $symbol, string $asOfTsEst, int $lookback): float
     {
         $result = DB::selectOne(
             'SELECT AVG(volume) as avg_vol
              FROM one_minute_prices
              WHERE symbol = ?
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;
@@ -360,18 +417,17 @@ class OneMinuteEntryFinderV1400_0
      * Estimate ATR from recent 5-minute bars
      * Simple approximation: average of (high - low) over last 14 bars
      */
-    private function estimateATR(string $symbol, string $assetType, string $asOfTsEst, int $lookback = 14): float
+    private function estimateATR(string $symbol, string $asOfTsEst, int $lookback = 14): float
     {
         $result = DB::selectOne(
             'SELECT AVG(high - low) as avg_range
              FROM five_minute_prices
              WHERE symbol = ?
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est <= ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_range ? (float) $result->avg_range : 0.10;

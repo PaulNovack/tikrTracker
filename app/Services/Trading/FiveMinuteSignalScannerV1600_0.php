@@ -21,10 +21,8 @@ use Illuminate\Support\Facades\Log;
  * - Gate: 5m ATR% (volatility) + notional (liquidity) + RVOL (activity) + 30m move
  * - Score: combines move, rvol, atr% (favor names that can run)
  */
-class FiveMinuteSignalScannerV1600_0
+class FiveMinuteSignalScannerV1600_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v1600.0';
 
     private string $name = 'Early Momentum Pre-Breakout';
@@ -70,14 +68,17 @@ class FiveMinuteSignalScannerV1600_0
             'top_days' => $this->topDays,
             'top_limit' => $this->topLimit,
             'losers_limit' => $this->losersLimit,
-            'min_notional_5m' => $this->minNotional5m,
-            'min_atr_pct_5m' => $this->minAtrPct5m,
-            'min_rvol_5m' => $this->minRvol5m,
-            'min_move_30m_pct' => $this->minMove30m,
+            'min_notional_5m' => 0,
+            'min_atr_pct_5m' => 0,
+            'min_rvol_5m' => 0,
+            'min_move_30m_pct' => 0,
             'active_window_minutes' => $this->activeWindowMinutes,
             'priority_symbols' => $this->prioritySymbols,
             'priority_boost' => $this->priorityBoost,
             'pre_breakout_rvol_mult' => $this->preBreakoutRvolMult,
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
+            'move_bars_5m' => 6,
         ];
     }
 
@@ -104,13 +105,14 @@ class FiveMinuteSignalScannerV1600_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
         float $volMult = 1.5,
-        int $limit = 60              // how many to return to the pipeline for refinement
+        int $limit = 60,              // how many to return to the pipeline for refinement
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         $topDays = $this->topDays;
         $topLimit = $this->topLimit;
@@ -122,6 +124,7 @@ class FiveMinuteSignalScannerV1600_0
         $minMove30m = $this->minMove30m;
 
         $activeWindowMinutes = $this->activeWindowMinutes;
+        $cfg = $this->scanConfig();
         $atrPeriod = (int) ($cfg['atr_period_5m'] ?? 14);
         $rvolLookback = (int) ($cfg['rvol_lookback_5m'] ?? 20);
         $moveBars = (int) ($cfg['move_bars_5m'] ?? 6); // 6*5m = 30m
@@ -144,7 +147,7 @@ class FiveMinuteSignalScannerV1600_0
 
         // ---------- 1) Universe: top performers + prior-day losers ----------
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => $topDays,
             'minBars' => 200,
@@ -159,13 +162,12 @@ class FiveMinuteSignalScannerV1600_0
         try {
             $currentDate = substr($asOfTsEst, 0, 10);
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');
 
             if ($prevTradingDay) {
-                $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $assetType, $losersLimit);
+                $losersData = $this->gainersLosersService->getGainersAndLosers($prevTradingDay, $losersLimit);
                 $loserSymbols = array_column($losersData['losers'] ?? [], 'symbol');
                 $symbols = array_values(array_unique(array_merge($symbols, $loserSymbols)));
             }
@@ -202,30 +204,27 @@ class FiveMinuteSignalScannerV1600_0
         // - If your table doesn't have high/low columns, replace TR with abs(close - prev_close) proxy.
         $sql = "
 WITH universe AS (
-  SELECT ? AS asset_type, symbol
-  FROM (SELECT 1) t
-  CROSS JOIN (
+  SELECT symbol
+  FROM (
     SELECT DISTINCT symbol
     FROM five_minute_prices
-    WHERE asset_type = ?
-      AND symbol IN ($placeholders)
+
+      WHERE symbol IN ($placeholders)
   ) s
 ),
 base AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
     f.low,
     f.volume,
-    LAG(f.price, 1) OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est) AS prev_close,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn_desc
+    LAG(f.price, 1) OVER (PARTITION BY f.symbol ORDER BY f.ts_est) AS prev_close,
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn_desc
   FROM five_minute_prices f
   JOIN universe u
-    ON u.symbol = f.symbol AND u.asset_type = f.asset_type
-  WHERE f.ts_est <= ?
+    ON u.symbol = f.symbol WHERE f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 recent AS (
@@ -236,27 +235,24 @@ recent AS (
 agg_last AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn_desc = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn_desc = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn_desc = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn_desc = 1 + ? THEN close END) AS close_nback
   FROM base
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 rvol AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(b.volume) AS avg_vol
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 atr AS (
   SELECT
     b.symbol,
-    b.asset_type,
     AVG(
       GREATEST(
         (b.high - b.low),
@@ -266,16 +262,15 @@ atr AS (
     ) AS atr_val
   FROM base b
   WHERE b.rn_desc <= ?
-  GROUP BY b.symbol, b.asset_type
+  GROUP BY b.symbol
 ),
 activity AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_seen_ts
+  SELECT symbol, MAX(ts_est) AS last_seen_ts
   FROM recent
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   a.symbol,
-  a.asset_type,
   a.signal_ts_est,
   a.last_close,
   a.last_vol,
@@ -287,14 +282,11 @@ SELECT
   (a.last_close * a.last_vol) AS notional_last5m,
   act.last_seen_ts
 FROM agg_last a
-JOIN rvol r ON r.symbol=a.symbol AND r.asset_type=a.asset_type
-JOIN atr  t ON t.symbol=a.symbol AND t.asset_type=a.asset_type
-JOIN activity act ON act.symbol=a.symbol AND act.asset_type=a.asset_type
-WHERE a.close_nback IS NOT NULL
+JOIN rvol r ON r.symbol=a.symbol JOIN atr  t ON t.symbol=a.symbol JOIN activity act ON act.symbol=a.symbol WHERE a.close_nback IS NOT NULL
 ";
 
         $params = array_merge(
-            [$assetType, $assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $asOfTsEst, $activeWindowMinutes],
             [$moveBars, $rvolLookback, $atrPeriod]
@@ -305,7 +297,7 @@ WHERE a.close_nback IS NOT NULL
         // which is deterministic for a given asOfTsEst, so all concurrent callers share one entry.
         // Lock prevents stampede on cold cache.
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "scan_v1600_0:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v1600_0:{$bucketTs}:{$lookbackMinutes}";
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $lock = Cache::lock("lock:{$cacheKey}", 60);
@@ -324,7 +316,7 @@ WHERE a.close_nback IS NOT NULL
         }
 
         // SPY relative strength (optional gate)
-        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $assetType, $moveBars);
+        $spyMove30m = $this->getSpyMovement30m($asOfTsEst, $moveBars);
 
         $asOfEpochRaw = strtotime($asOfTsEst);
         $asOfEpoch = $asOfEpochRaw !== false
@@ -427,7 +419,7 @@ WHERE a.close_nback IS NOT NULL
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => 'MOMO_5M_V1600',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -451,9 +443,8 @@ WHERE a.close_nback IS NOT NULL
         usort($out, fn ($a, $b) => ($b['score'] <=> $a['score']));
 
         if ($debugEnabled) {
-            Log::info('[ScannerV25_2] gate summary', [
+            Log::channel('redis-scan')->info('[ScannerV1600_0] gate summary', [
                 'as_of' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'universe_size' => count($symbols),
                 'gates' => $dropCounts,
                 'returned' => min(max(1, $limit), count($out)),
@@ -463,24 +454,20 @@ WHERE a.close_nback IS NOT NULL
         return array_slice($out, 0, max(1, $limit));
     }
 
-    private function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
-
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
+
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
         if (! $rows) {
             return 0.0;

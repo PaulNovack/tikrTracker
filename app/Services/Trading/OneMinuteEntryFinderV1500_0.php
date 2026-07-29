@@ -14,27 +14,48 @@ use Illuminate\Support\Facades\DB;
  * - ORB_PULLBACK: Wait for pullback to OR high (now support) then enter
  * - ORB_CONTINUATION: Enter on continued strength after initial breakout
  */
-class OneMinuteEntryFinderV1500_0
+class OneMinuteEntryFinderV1500_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
+    protected string $version = 'v1500.0';
 
-    public function findBestLong(
+    private string $name = 'ORB Entry Fider';
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [
+            'min_vol_ratio' => 1.5,
+            'min_breakout_confirmation' => 0.01,
+        ];
+    }
+
+    public function getVersion(): string
+    {
+        return $this->version;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
-        int $beforeMinutes = 5,
-        int $afterMinutes = 15,
-        int $volLookback = 20,
-        int $pivotLookback = 15,
-        string $fillMethod = 'next_open'
     ): ?array {
+        $beforeMinutes = 6;
+        $afterMinutes = 15;
+        $volLookback = 20;
+        $pivotLookback = 15;
+        $fillMethod = 'next_open';
+
         // Get the signal bar and opening range context
         $signalBar = DB::selectOne(
             'SELECT price, high, low, open, volume, atr, atr_pct
              FROM five_minute_prices
-             WHERE symbol = ? AND asset_type = ? AND ts_est = ?',
-            [$symbol, $assetType, $signalTsEst]
+             WHERE symbol = ? AND ts_est = ?',
+            [$symbol, $signalTsEst]
         );
 
         if (! $signalBar) {
@@ -53,14 +74,13 @@ class OneMinuteEntryFinderV1500_0
             "SELECT MAX(high) as or_high, MIN(low) as or_low
              FROM five_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = ?
                AND trading_time_est BETWEEN '09:30:00' AND '10:00:00'",
-            [$symbol, $assetType, $tradeDate]
+            [$symbol, $tradeDate]
         );
 
         if (! $openingRange || ! $openingRange->or_high) {
-            \Log::warning("[V1500 Finder] No opening range found for {$symbol}");
+            \Log::debug("[V1500 Finder] No opening range found for {$symbol}");
 
             return null;
         }
@@ -70,27 +90,24 @@ class OneMinuteEntryFinderV1500_0
 
         // Get 1-minute bars after the signal
         $searchStart = $signalTsEst;
-        $searchEnd = $asOfTsEst;
+        $marketOpen = $tradeDate.' 09:30:00';
 
-        $bars = $this->dbSelect(
-            'SELECT ts_est, price, open, high, low, volume
-             FROM one_minute_prices
-             WHERE symbol = ? 
-               AND asset_type = ?
-               AND trading_date_est = ?
-               AND ts_est > ?
-               AND ts_est <= ?
-             ORDER BY ts_est ASC
-             LIMIT 20',
-            [$symbol, $assetType, $tradeDate, $searchStart, $searchEnd]
-        );
+        $bars = $this->fetchOneMinuteBars($symbol, $marketOpen, $asOfTsEst);
+
+        // Filter bars to those after the signal
+        $bars = array_values(array_filter($bars, function ($bar) use ($searchStart) {
+            return $bar->ts_est > $searchStart;
+        }));
+
+        // Limit to 20 bars
+        $bars = array_slice($bars, 0, 20);
 
         if (empty($bars)) {
             return null;
         }
 
         // Calculate average volume
-        $avgVol = $this->getAvgVolume($symbol, $assetType, $signalTsEst, $volLookback);
+        $avgVol = $this->getAvgVolume($symbol, $signalTsEst, $volLookback);
 
         // Look for entry patterns specific to ORB
         $entry = $this->findOrbEntry($bars, $orHigh, $orLow, $signalClose, $avgVol, $atr);
@@ -123,10 +140,12 @@ class OneMinuteEntryFinderV1500_0
 
         $bestEntry = [
             'type' => $entry['type'],
+            'entry_type' => $entry['type'],
             'entry_ts_est' => $entry['ts_est'],
             'entry_price' => round($entryPrice, 4),
             'entry' => round($entryPrice, 4), // Alias for compatibility
             'stop_price' => round($stopPrice, 4),
+            'stop_loss' => round($stopPrice, 4),
             'stop' => round($stopPrice, 4), // Alias
             'target_price' => round($targetPrice, 4),
             'risk_pct' => round($riskPct, 2),
@@ -142,6 +161,7 @@ class OneMinuteEntryFinderV1500_0
             'or_high' => round($orHigh, 4),
             'or_low' => round($orLow, 4),
             'or_range' => round($orRange, 4),
+            'entry_meta' => [],
         ];
 
         return [
@@ -156,7 +176,7 @@ class OneMinuteEntryFinderV1500_0
         $highestScore = 0;
 
         foreach ($bars as $i => $bar) {
-            $barPrice = (float) $bar->price;
+            $barPrice = (float) ($bar->close ?? $bar->price ?? 0);
             $barHigh = (float) $bar->high;
             $barLow = (float) $bar->low;
             $barOpen = (float) $bar->open;
@@ -183,7 +203,7 @@ class OneMinuteEntryFinderV1500_0
                 // Check if price recently broke above OR high
                 $wasAbove = false;
                 for ($j = max(0, $i - 3); $j < $i; $j++) {
-                    if ((float) $bars[$j]->price > $orHigh * 1.01) {
+                    if ((float) ($bars[$j]->close ?? $bars[$j]->price ?? 0) > $orHigh * 1.01) {
                         $wasAbove = true;
                         break;
                     }
@@ -207,7 +227,7 @@ class OneMinuteEntryFinderV1500_0
             // Pattern 3: Continuation after initial breakout (strong follow-through)
             if ($i >= 1) {
                 $prevBar = $bars[$i - 1];
-                $prevPrice = (float) $prevBar->price;
+                $prevPrice = (float) ($prevBar->close ?? $prevBar->price ?? 0);
                 $prevHigh = (float) $prevBar->high;
 
                 // Both bars above OR high, current bar making higher high
@@ -285,18 +305,17 @@ class OneMinuteEntryFinderV1500_0
         return $bestEntry;
     }
 
-    private function getAvgVolume(string $symbol, string $assetType, string $asOfTsEst, int $lookback): float
+    private function getAvgVolume(string $symbol, string $asOfTsEst, int $lookback): float
     {
         $result = DB::selectOne(
             'SELECT AVG(volume) as avg_vol
              FROM one_minute_prices
              WHERE symbol = ? 
-               AND asset_type = ?
                AND trading_date_est = DATE(?)
                AND ts_est < ?
              ORDER BY ts_est DESC
              LIMIT ?',
-            [$symbol, $assetType, $asOfTsEst, $asOfTsEst, $lookback]
+            [$symbol, $asOfTsEst, $asOfTsEst, $lookback]
         );
 
         return $result && $result->avg_vol ? (float) $result->avg_vol : 1000.0;

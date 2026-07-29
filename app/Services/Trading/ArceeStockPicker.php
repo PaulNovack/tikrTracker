@@ -19,7 +19,6 @@ class ArceeStockPicker
         // Step 2: Query database with conditions
         $stocks = DB::table('five_minute_prices')
             ->select('symbol', 'asset_type', 'ts', 'price', 'ema9', 'ema21', 'rsi_14', 'volume', 'vwap')
-            ->where('asset_type', '=', 'stock')
             ->where('above_vwap', '=', 1)
             ->where('ema9_above_ema21', '=', 1)
             ->whereBetween('rsi_14', [40, 60])
@@ -33,7 +32,6 @@ class ArceeStockPicker
         foreach ($stocks as $stock) {
             $results[] = [
                 'symbol' => $stock->symbol,
-                'asset_type' => $stock->asset_type,
                 'price' => $stock->price,
                 'ema9' => $stock->ema9,
                 'ema21' => $stock->ema21,

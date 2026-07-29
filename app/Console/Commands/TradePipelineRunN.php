@@ -64,6 +64,16 @@ class TradePipelineRunN extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate ──
+        if (config('trading.pipelines.n.use_redis', false)) {
+            $msg = 'Pipeline N: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            // \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 
@@ -93,9 +103,7 @@ class TradePipelineRunN extends Command
         $asOfTsEst = $this->resolveAsOfTsEst((string) $this->option('asOf'));
         $tracer = $this->startTrace('N', $asOfTsEst);
 
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst
+        $signals = $scanner->scan($asOfTsEst
         );
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
@@ -279,9 +287,7 @@ class TradePipelineRunN extends Command
             for ($t = $tStart; $t <= $tEnd; $t += ($step * 60)) {
                 $asOfTsEst = date('Y-m-d H:i:s', $t);
 
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst
+                $signals = $scanner->scan($asOfTsEst
                 );
 
                 $totalSignals += count($signals);

@@ -11,12 +11,8 @@ use Illuminate\Support\Facades\Log;
  * accept more realistic pullbacks, and add a breakout-continuation
  * fallback when the day never produces a true retest.
  */
-class OneMinuteEntryFinderV103_0
+class OneMinuteEntryFinderV103_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v103.0';
-
     public bool $debug = false;
 
     public int $marketOpenMinute = 570;
@@ -113,7 +109,12 @@ class OneMinuteEntryFinderV103_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v103.0';
+    }
+
+    public function getName(): string
+    {
+        return 'v103.0';
     }
 
     /**
@@ -153,16 +154,15 @@ class OneMinuteEntryFinderV103_0
     /**
      * @return array<string, mixed>
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
     ): array {
         $fillMethod = isset($rest[4]) ? (string) $rest[4] : 'next_open';
 
-        [$entry, $reason] = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst, $fillMethod);
+        [$entry, $reason] = $this->findEntry($symbol, $signalTsEst, $asOfTsEst, $fillMethod);
 
         if ($entry === null) {
             return [
@@ -170,7 +170,7 @@ class OneMinuteEntryFinderV103_0
                 'best_entry' => null,
                 'reason' => $reason,
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'as_of_ts_est' => $asOfTsEst,
                 ],
             ];
@@ -180,7 +180,7 @@ class OneMinuteEntryFinderV103_0
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'pattern' => $entry['pattern'] ?? 'OPENING_RANGE_BREAKOUT_RETEST',
                 'as_of_ts_est' => $asOfTsEst,
             ],
@@ -192,7 +192,6 @@ class OneMinuteEntryFinderV103_0
      */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -209,7 +208,6 @@ class OneMinuteEntryFinderV103_0
      */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         string $fillMethod
@@ -235,13 +233,12 @@ class OneMinuteEntryFinderV103_0
         $rows = $this->dbSelect(
             "SELECT ts_est, `open`, high, low, price AS close, volume
              FROM {$this->oneMinuteTable}
-             WHERE asset_type = ?
-               AND symbol = ?
+             WHERE symbol = ?
                AND trading_date_est = ?
                AND ts_est >= ?
                AND ts_est <= ?
              ORDER BY ts_est ASC",
-            [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]
+            [$symbol, $tradeDate, $marketOpen, $asOfTsEst]
         );
 
         $minimumBars = max($this->minimumOpeningRangeBars + 2, 12);
@@ -836,7 +833,7 @@ class OneMinuteEntryFinderV103_0
             'entry_age_seconds' => $entryAgeSeconds,
             'signal_age_seconds' => $asOfEpoch - $signalEpoch,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'trigger' => $type,
                 'family' => $family,
                 'orb_high' => round($orbHigh, 6),

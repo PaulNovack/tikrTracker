@@ -81,8 +81,8 @@ it('filters by score thresholds', function () {
     );
 
     if ($result['ok'] === true && ! empty($result['candidates'])) {
-        $minScore = config('trading.v700.entry_score_min', 80);
-        $maxScore = config('trading.v700.entry_score_max', 100);
+        $minScore = $this->finder->entryScoreMin;
+        $maxScore = $this->finder->entryScoreMax;
 
         foreach ($result['candidates'] as $candidate) {
             $score = $candidate['score'];

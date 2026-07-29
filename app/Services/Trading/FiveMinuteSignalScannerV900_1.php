@@ -37,10 +37,8 @@ use Illuminate\Support\Facades\Log;
  * - v900.time_window_start      (default '09:30:00')
  * - v900.time_window_end        (default '10:30:00')
  */
-class FiveMinuteSignalScannerV900_1
+class FiveMinuteSignalScannerV900_1 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v900.1';
 
     private string $name = 'Risk-Off Winners';
@@ -102,6 +100,15 @@ class FiveMinuteSignalScannerV900_1
             'min_volume_mult' => $this->minVolumeMult,
             'time_window_start' => $this->timeWindowStart,
             'time_window_end' => $this->timeWindowEnd,
+            // Standard Redis gate keys for UsesRedisForScanning::scanSymbol()
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
+            'move_bars_5m' => 6,
+            'active_window_minutes' => 8,
+            'min_notional_5m' => 0,
+            'min_atr_pct_5m' => 0,
+            'min_rvol_5m' => 0,
+            'min_move_30m_pct' => 0,
         ];
     }
 
@@ -118,14 +125,13 @@ class FiveMinuteSignalScannerV900_1
     /**
      * Scan for Momentum Continuation candidates (LONG)
      */
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.0,
         float $volMult = 1.0,
-        int $limit = 20
-    ): array {
+        int $limit = 20, bool $skipCache = false, ?string $symbol = null): array
+    {
         $minScore = $this->entryScoreMin;
         $maxScore = $this->entryScoreMax;
         $topN = $this->entryScoreLimit;
@@ -158,7 +164,6 @@ class FiveMinuteSignalScannerV900_1
 
         // Resolve previous 2 trading days
         $prevTradingDates = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<', $tradeDate)
             ->distinct()
             ->orderBy('trading_date_est', 'desc')
@@ -168,7 +173,6 @@ class FiveMinuteSignalScannerV900_1
 
         if (count($prevTradingDates) < 2) {
             Log::warning('[V900.1 Scanner] Need 2 previous trading days', [
-                'asset_type' => $assetType,
                 'trade_date' => $tradeDate,
                 'found' => count($prevTradingDates),
             ]);
@@ -181,22 +185,20 @@ class FiveMinuteSignalScannerV900_1
 
         // Disabled noisy scanner logs.
         // Log::debug('[V900.1 Scanner] Starting scan', [
-        //     'asset_type' => $assetType,
         //     'as_of' => $asOfTsEst,
         //     'trade_date' => $tradeDate,
         //     'prev_trade_date' => $prevTradingDate,
         // ]);
 
         // ── Step 1: Get yesterday closes (15:55 bar) ─────────────────────────
-        // Uses idx_5m_asset_date_time_ts: (asset_type, trading_date_est, trading_time_est, ts_est)
+        // Uses idx_5m_asset_date_time_ts: (, trading_date_est, trading_time_est, ts_est)
         $yesterdayCloses = $this->dbSelect('
             SELECT symbol, price AS prev_close
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [$assetType, $prevTradingDate, $minPrice, $maxPrice]);
+        ', [$prevTradingDate, $minPrice, $maxPrice]);
 
         if (empty($yesterdayCloses)) {
             Log::debug('[V900.1 Scanner] No yesterday closes found');
@@ -213,11 +215,10 @@ class FiveMinuteSignalScannerV900_1
         $twoDaysAgoCloses = $this->dbSelect('
             SELECT symbol, price AS close_2d
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+    WHERE trading_date_est = ?
               AND trading_time_est = \'15:55:00\'
               AND price BETWEEN ? AND ?
-        ', [$assetType, $prevPrevTradingDate, $minPrice, $maxPrice]);
+        ', [$prevPrevTradingDate, $minPrice, $maxPrice]);
 
         $prevPrevCloseMap = [];
         foreach ($twoDaysAgoCloses as $row) {
@@ -277,14 +278,13 @@ class FiveMinuteSignalScannerV900_1
                 MAX(CASE WHEN trading_time_est = '09:30:00' THEN open ELSE NULL END) AS today_open_price,
                 MAX(CASE WHEN trading_time_est <= '09:45:00' THEN price ELSE NULL END) AS highest_first_15min
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est <= '09:45:00'
               AND symbol IN ({$placeholders})
             GROUP BY symbol
             HAVING today_open_price IS NOT NULL AND highest_first_15min IS NOT NULL
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $qualifyingSymbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $qualifyingSymbols));
 
         if (empty($openingRows)) {
             Log::debug('[V900.1 Scanner] No opening data found for qualifying symbols');
@@ -345,11 +345,10 @@ class FiveMinuteSignalScannerV900_1
         $avgVolumeRows = $this->dbSelect("
             SELECT symbol, AVG(volume) AS avg_volume
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND symbol IN ({$placeholders2})
             GROUP BY symbol
-        ", array_merge([$assetType, $prevTradingDate], $signalSymbols));
+        ", array_merge([$prevTradingDate], $signalSymbols));
 
         $avgVolumeMap = [];
         foreach ($avgVolumeRows as $row) {
@@ -377,8 +376,7 @@ class FiveMinuteSignalScannerV900_1
                     ELSE 0
                 END AS bb_position
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND ts_est <= ?
               AND trading_time_est BETWEEN ? AND ?
               AND ema9_above_ema21 = 1
@@ -386,7 +384,7 @@ class FiveMinuteSignalScannerV900_1
               AND symbol IN ({$placeholders3})
             ORDER BY ts_est DESC
         ", array_merge(
-            [$assetType, $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
+            [$tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minRsi],
             $signalSymbols
         ));
 
@@ -449,14 +447,22 @@ class FiveMinuteSignalScannerV900_1
 
             $signals[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
+                'asset_type' => 'stock',
                 'signal_type' => 'MOMENTUM_CONTINUATION_SETUP',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => round($score, 2),
                 'atr' => round((float) $row->atr, 4),
                 'atr_pct' => round((float) $row->atr_pct, 4),
                 'meta' => [
+                    'move_30m_pct' => round($opening['early_continuation_pct'], 2),
+                    'rvol_5m' => round($volumeRatio, 2),
+                    'atr_pct_5m' => round((float) $row->atr_pct, 4),
+                    'notional_last5m' => 0.0,
+                    'spy_move_30m_pct' => 0.0,
+                    'universe_size' => 0,
+                    'signal_age_seconds' => 0,
                     'version' => $this->version,
+                    'current_price' => round((float) $row->setup_price, 4),
                     'setup_price' => round((float) $row->setup_price, 4),
                     'vwap' => round((float) $row->vwap, 4),
                     'ema9' => round((float) $row->ema9, 4),

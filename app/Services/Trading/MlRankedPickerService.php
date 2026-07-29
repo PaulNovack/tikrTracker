@@ -33,7 +33,6 @@ class MlRankedPickerService
             ->where('trading_date_est', $tradingDateEst)
             ->whereNotNull('ml_win_prob')
             // your hard gates still apply here:
-            ->where('asset_type', 'stock')
             ->where('entry', '>=', 1)
             ->orderByDesc('ml_win_prob')
             ->limit($limit)

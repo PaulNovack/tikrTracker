@@ -38,31 +38,49 @@ class FiveMinuteSignalScannerV600_0
 
     // ── Scanner Configuration (public so entry finders can read) ──
     /** @var float Minimum entry score (0-100) */
-    public float $entryScoreMin = 40;
+    public float $entryScoreMin;
 
     /** @var float Maximum entry score (0-100) */
-    public float $entryScoreMax = 100;
+    public float $entryScoreMax;
 
     /** @var int Max number of signals to return */
-    public int $entryScoreLimit = 25;
+    public int $entryScoreLimit;
+
+    /** @var bool Enable relative strength filter */
+    public bool $enableRsFilter;
 
     /** @var float Minimum yesterday move % */
-    public float $minYesterdayMove = 5.0;
+    public float $minYesterdayMove;
 
     /** @var float Minimum volume multiplier vs average */
-    public float $minVolMult = 1.5;
+    public float $minVolMult;
 
     /** @var float Minimum % move from open for 3-5% big-move feasibility */
-    public float $minMoveFromOpen = 1.8;
+    public float $minMoveFromOpen;
 
     /** @var float Minimum volume ratio vs 20-bar average */
-    public float $minVolRatio = 1.25;
+    public float $minVolRatio;
 
     /** @var float Minimum ATR% for sufficient volatility */
-    public float $minAtrPct = 0.10;
+    public float $minAtrPct;
 
     /** @var float Max % below VWAP allowed */
-    public float $maxVwapBelowPct = 1.0;
+    public float $maxVwapBelowPct;
+
+    /** @var float Entry min ATR% (for entry finder) */
+    public float $entryMinAtrPct;
+
+    /** @var float Entry min volume ratio (for entry finder) */
+    public float $entryMinVolRatio;
+
+    /** @var float Finder entry min volume ratio */
+    public float $finderEntryMinVolRatio;
+
+    /** @var int Max entry hour (reject at this hour and later) */
+    public int $maxEntryHour;
+
+    /** @var float Minimum big-move readiness score (0-1) */
+    public float $minBigMoveScore;
 
     /** @return array<string, mixed> */
     public function scanConfig(): array
@@ -71,19 +89,41 @@ class FiveMinuteSignalScannerV600_0
             'entry_score_min' => $this->entryScoreMin,
             'entry_score_max' => $this->entryScoreMax,
             'entry_score_limit' => $this->entryScoreLimit,
+            'enable_rs_filter' => $this->enableRsFilter,
             'min_yesterday_move' => $this->minYesterdayMove,
             'min_vol_mult' => $this->minVolMult,
             'min_move_from_open' => $this->minMoveFromOpen,
             'min_vol_ratio' => $this->minVolRatio,
             'min_atr_pct' => $this->minAtrPct,
             'max_vwap_below_pct' => $this->maxVwapBelowPct,
+            'entry_min_atr_pct' => $this->entryMinAtrPct,
+            'entry_min_vol_ratio' => $this->entryMinVolRatio,
+            'finder_entry_min_vol_ratio' => $this->finderEntryMinVolRatio,
+            'max_entry_hour' => $this->maxEntryHour,
+            'min_big_move_score' => $this->minBigMoveScore,
         ];
     }
 
     public function __construct(
         private readonly BestPerformers5mService $bestPerformersService,
         private readonly GainersLosersAnalysisService $gainersLosersService
-    ) {}
+    ) {
+        $this->entryScoreMin = (float) env('V600_ENTRY_SCORE_MIN', 40);
+        $this->entryScoreMax = (float) env('V600_ENTRY_SCORE_MAX', 100);
+        $this->entryScoreLimit = (int) env('V600_ENTRY_SCORE_LIMIT', 120);
+        $this->enableRsFilter = (bool) env('V600_ENABLE_RS_FILTER', false);
+        $this->minYesterdayMove = (float) env('V600_MIN_YESTERDAY_MOVE', 3.0);
+        $this->minVolMult = (float) env('V600_MIN_VOL_MULT', 1.25);
+        $this->minMoveFromOpen = (float) env('V600_MIN_MOVE_FROM_OPEN', 0.80);
+        $this->minVolRatio = (float) env('V600_MIN_VOL_RATIO', 1.25);
+        $this->minAtrPct = (float) env('V600_MIN_ATR_PCT', 0.25);
+        $this->maxVwapBelowPct = (float) env('V600_MAX_VWAP_DIST_BELOW', 0.50);
+        $this->entryMinAtrPct = (float) env('V600_ENTRY_MIN_ATR_PCT', 0.10);
+        $this->entryMinVolRatio = (float) env('V600_ENTRY_MIN_VOL_RATIO', 1.25);
+        $this->finderEntryMinVolRatio = (float) env('V600_FINDER_ENTRY_MIN_VOL_RATIO', 2.0);
+        $this->maxEntryHour = (int) env('V600_MAX_ENTRY_HOUR', 15);
+        $this->minBigMoveScore = (float) env('V600_MIN_BIG_MOVE_SCORE', 0.20);
+    }
 
     public function getVersion(): string
     {
@@ -107,7 +147,6 @@ class FiveMinuteSignalScannerV600_0
      * Drop-in compatible signature.
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 1.2,
@@ -177,9 +216,9 @@ class FiveMinuteSignalScannerV600_0
                 SELECT MAX(date) FROM daily_prices 
                 WHERE date < ? AND asset_type = ?
             )
-            AND asset_type = ?
-            AND symbol IN ($placeholders)
-        ", array_merge([$tradeDate, $assetType, $assetType], $symbols));
+
+            WHERE symbol IN ($placeholders)
+        ", array_merge([$tradeDate], $symbols));
 
         $yesterdayHighBySymbol = [];
         foreach ($yesterdayHighs as $row) {
@@ -191,7 +230,6 @@ class FiveMinuteSignalScannerV600_0
 WITH today_data AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -201,20 +239,18 @@ WITH today_data AS (
     f.vwap,
     f.atr_pct
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
 ),
 latest_bar AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_ts_est
+  SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM today_data
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 current_state AS (
   SELECT
     td.symbol,
-    td.asset_type,
     td.ts_est AS signal_ts_est,
     td.close,
     td.high,
@@ -235,7 +271,6 @@ current_state AS (
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -261,7 +296,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -345,7 +380,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $moveFromOpen,
                 'vol_ratio' => $volRatio,
@@ -394,7 +428,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'MOMENTUM_BREAKOUT_3_5PCT',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -432,7 +465,7 @@ LIMIT ?
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = 'SPYG'
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
@@ -449,7 +482,6 @@ LIMIT ?
     }
 
     private function getYesterdaysBigMovers(
-        string $assetType,
         string $tradeDate,
         float $minMovePct,
         float $minVolMult
@@ -458,8 +490,8 @@ LIMIT ?
             SELECT MAX(date) as prev_date
             FROM daily_prices
             WHERE date < ?
-                AND asset_type = ?
-        ', [$tradeDate, $assetType]);
+
+        ', [$tradeDate]);
 
         if (! $yesterday || ! $yesterday->prev_date) {
             return [];
@@ -480,20 +512,18 @@ LIMIT ?
                 (
                     SELECT AVG(d2.volume)
                     FROM daily_prices d2
-                    WHERE d2.symbol = dp.symbol
-                        AND d2.asset_type = dp.asset_type
-                        AND d2.date < dp.date
+                    WHERE d2.symbol = dp.symbol AND d2.date < dp.date
                         AND d2.date >= DATE_SUB(dp.date, INTERVAL 5 DAY)
                 ) as avg_volume_5d
             FROM daily_prices dp
             WHERE dp.date = ?
-                AND dp.asset_type = ?
+
                 AND (dp.price - dp.open) / dp.open * 100 >= ?
             HAVING avg_volume_5d > 0
                 AND dp.volume / avg_volume_5d >= ?
             ORDER BY move_pct DESC
             LIMIT 120
-        ', [$yesterdayDate, $assetType, $minMovePct, $minVolMult]);
+        ', [$yesterdayDate, $minMovePct, $minVolMult]);
 
         return array_map(fn ($m) => (array) $m, $movers);
     }

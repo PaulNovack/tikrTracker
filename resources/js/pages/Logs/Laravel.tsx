@@ -23,7 +23,7 @@ interface SearchResult {
     filename: string;
 }
 
-type LogType = 'app' | 'testing' | 'realtime';
+type LogType = 'app' | 'testing' | 'realtime' | 'redis-scan';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Logs', href: '/logs/laravel' },
@@ -170,10 +170,18 @@ export default function LaravelLog() {
                         >
                             Realtime Log
                         </Button>
+                        <Button
+                            type="button"
+                            variant={activeTab === 'redis-scan' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => switchTab('redis-scan')}
+                        >
+                            Redis Scan
+                        </Button>
                     </div>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle>{activeTab === 'app' ? 'Laravel Log' : activeTab === 'testing' ? 'Laravel Testing Log' : 'Realtime Log'}</CardTitle>
+                            <CardTitle>{activeTab === 'app' ? 'Laravel Log' : activeTab === 'testing' ? 'Laravel Testing Log' : activeTab === 'realtime' ? 'Realtime Log' : 'Redis Scan Log'}</CardTitle>
                             <CardDescription>
                                 {filename || 'Loading...'} — {autoRefresh && 'Auto-refreshing every 5s'}
                                 {searchResult && (

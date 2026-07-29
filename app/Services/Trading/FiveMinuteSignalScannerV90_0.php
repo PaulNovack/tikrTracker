@@ -60,7 +60,6 @@ class FiveMinuteSignalScannerV90_0
      * - $volMult: 2.0–4.0
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.2,
@@ -120,9 +119,9 @@ class FiveMinuteSignalScannerV90_0
                 SELECT MAX(date) FROM daily_prices 
                 WHERE date < ? AND asset_type = ?
             )
-            AND asset_type = ?
-            AND symbol IN ($placeholders)
-        ", array_merge([$tradeDate, $assetType, $assetType], $symbols));
+
+            WHERE symbol IN ($placeholders)
+        ", array_merge([$tradeDate], $symbols));
 
         $yesterdayHighBySymbol = [];
         foreach ($yesterdayHighs as $row) {
@@ -136,7 +135,6 @@ class FiveMinuteSignalScannerV90_0
 WITH today_data AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -146,23 +144,20 @@ WITH today_data AS (
     f.vwap,
     f.atr_pct
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
 ),
 latest_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM today_data
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 current_state AS (
   SELECT
     td.symbol,
-    td.asset_type,
     td.ts_est AS signal_ts_est,
     td.close,
     td.high,
@@ -190,7 +185,6 @@ with_metrics AS (
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -211,7 +205,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -274,7 +268,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $moveFromOpen,
                 'vol_ratio' => $volRatio,
@@ -320,7 +313,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'MOMENTUM_BREAKOUT',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -352,7 +344,7 @@ LIMIT ?
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = 'SPYG'
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
@@ -372,7 +364,6 @@ LIMIT ?
      * Get yesterday's big movers (5%+ with volume) as momentum candidates
      */
     private function getYesterdaysBigMovers(
-        string $assetType,
         string $tradeDate,
         float $minMovePct,
         float $minVolMult
@@ -382,8 +373,8 @@ LIMIT ?
             SELECT MAX(date) as prev_date
             FROM daily_prices
             WHERE date < ?
-                AND asset_type = ?
-        ', [$tradeDate, $assetType]);
+
+        ', [$tradeDate]);
 
         if (! $yesterday || ! $yesterday->prev_date) {
             return [];
@@ -405,20 +396,18 @@ LIMIT ?
                 (
                     SELECT AVG(d2.volume)
                     FROM daily_prices d2
-                    WHERE d2.symbol = dp.symbol
-                        AND d2.asset_type = dp.asset_type
-                        AND d2.date < dp.date
+                    WHERE d2.symbol = dp.symbol AND d2.date < dp.date
                         AND d2.date >= DATE_SUB(dp.date, INTERVAL 5 DAY)
                 ) as avg_volume_5d
             FROM daily_prices dp
             WHERE dp.date = ?
-                AND dp.asset_type = ?
+
                 AND (dp.price - dp.open) / dp.open * 100 >= ?
             HAVING avg_volume_5d > 0
                 AND dp.volume / avg_volume_5d >= ?
             ORDER BY move_pct DESC
             LIMIT 100
-        ', [$yesterdayDate, $assetType, $minMovePct, $minVolMult]);
+        ', [$yesterdayDate, $minMovePct, $minVolMult]);
 
         return array_map(fn ($m) => (array) $m, $movers);
     }

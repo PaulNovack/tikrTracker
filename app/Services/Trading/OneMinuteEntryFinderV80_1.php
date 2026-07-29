@@ -30,7 +30,6 @@ class OneMinuteEntryFinderV80_1
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -62,7 +61,7 @@ class OneMinuteEntryFinderV80_1
         $to = $analysisEnd;
 
         // Detect which strategy fired (from your scanner output)
-        $signalType = $this->inferSignalType($symbol, $assetType, $signalTsEst);
+        $signalType = $this->inferSignalType($symbol, $signalTsEst);
 
         $bars = $this->dbSelect('
             SELECT
@@ -82,25 +81,23 @@ class OneMinuteEntryFinderV80_1
               atr,
               atr_pct,
               AVG(COALESCE(volume,0)) OVER (
-                PARTITION BY symbol, asset_type
+                PARTITION BY symbol
                 ORDER BY ts_est
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         if (! $bars || count($bars) < 25) {
             return [
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -119,13 +116,12 @@ class OneMinuteEntryFinderV80_1
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // Build simple lookup: last 5m trend at/before each 1m ts
         $fiveMinTrendSeries = [];
@@ -158,7 +154,6 @@ class OneMinuteEntryFinderV80_1
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Excessive 5-minute choppiness (directional_changes >= 8)',
@@ -526,7 +521,6 @@ class OneMinuteEntryFinderV80_1
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -536,7 +530,7 @@ class OneMinuteEntryFinderV80_1
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'signal_type' => $signalType,
                 ],
             ];
@@ -572,7 +566,6 @@ class OneMinuteEntryFinderV80_1
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -582,7 +575,7 @@ class OneMinuteEntryFinderV80_1
             'meta' => [
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
                 'signal_type' => $signalType,
             ],
@@ -593,7 +586,7 @@ class OneMinuteEntryFinderV80_1
      * Attempts to infer the v80 scanner's signal type from the five_minute_prices timeframe.
      * If you already store signal_type in a signals table, swap this to read from there.
      */
-    private function inferSignalType(string $symbol, string $assetType, string $signalTsEst): string
+    private function inferSignalType(string $symbol, string $signalTsEst): string
     {
         // If you have a signals table, replace this whole method.
         // For now: treat all as unknown and use default pattern order.

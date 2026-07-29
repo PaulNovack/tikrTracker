@@ -64,6 +64,16 @@ class TradePipelineRunO extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate ──
+        if (config('trading.pipelines.o.use_redis', false)) {
+            $msg = 'Pipeline O: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            // \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 
@@ -95,7 +105,7 @@ class TradePipelineRunO extends Command
         $tracer = $this->startTrace('O', $asOfTsEst);
 
         // Scan for opening range breakouts
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {
@@ -118,14 +128,8 @@ class TradePipelineRunO extends Command
             // Find optimal entry after opening range breakout
             $res = $finder->findBestLong(
                 $sig['symbol'],
-                $sig['asset_type'],
                 $sig['signal_ts_est'],
                 $asOfTsEst,
-                (int) $this->option('before'),
-                (int) $this->option('after'),
-                (int) $this->option('volLookback'),
-                (int) $this->option('pivotLookback'),
-                (string) $this->option('fill')
             );
 
             if (empty($res['ok']) || empty($res['best_entry'])) {
@@ -229,7 +233,7 @@ class TradePipelineRunO extends Command
             }
 
             // Scan for signals
-            $signals = $scanner->scan($assetType, $asOfTsEst);
+            $signals = $scanner->scan($asOfTsEst);
 
             if ($signals) {
                 $totalSignals += count($signals);
@@ -237,14 +241,8 @@ class TradePipelineRunO extends Command
                 foreach ($signals as $sig) {
                     $res = $finder->findBestLong(
                         $sig['symbol'],
-                        $sig['asset_type'],
                         $sig['signal_ts_est'],
                         $asOfTsEst,
-                        (int) $this->option('before'),
-                        (int) $this->option('after'),
-                        (int) $this->option('volLookback'),
-                        (int) $this->option('pivotLookback'),
-                        (string) $this->option('fill')
                     );
 
                     if (! empty($res['ok']) && ! empty($res['best_entry'])) {
@@ -273,7 +271,7 @@ class TradePipelineRunO extends Command
 
         $this->line("Pipeline O ({$version}): Rolling window backtest asOf={$asOfTsEst}");
 
-        $signals = $scanner->scan($assetType, $asOfTsEst);
+        $signals = $scanner->scan($asOfTsEst);
         $tracer?->checkpoint('SCANNER_DONE', ['signals_found' => count($signals ?? [])]);
 
         if (! $signals) {
@@ -310,14 +308,8 @@ class TradePipelineRunO extends Command
 
             $res = $finder->findBestLong(
                 $sig['symbol'],
-                $sig['asset_type'],
                 $sig['signal_ts_est'],
                 $asOfTsEst,
-                (int) $this->option('before'),
-                (int) $this->option('after'),
-                (int) $this->option('volLookback'),
-                (int) $this->option('pivotLookback'),
-                (string) $this->option('fill')
             );
 
             if (! empty($res['ok']) && ! empty($res['best_entry'])) {

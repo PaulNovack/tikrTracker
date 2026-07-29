@@ -15,10 +15,8 @@ use Illuminate\Support\Facades\DB;
  * - require a clean 5m breakout above the opening range high
  * - require trend, volume, and extension quality before emitting a signal
  */
-class FiveMinuteSignalScannerV103_0
+class FiveMinuteSignalScannerV103_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v103.0';
 
     private string $name = 'ORB Retest';
@@ -118,6 +116,14 @@ class FiveMinuteSignalScannerV103_0
             'min_breakout_close_location' => $this->minBreakoutCloseLocation,
             'min_breakout_body_range_fraction' => $this->minBreakoutBodyRangeFraction,
             'min_scanner_score' => $this->minScannerScore,
+
+            'min_notional_5m' => 0,
+            'min_atr_pct_5m' => 0,
+            'min_rvol_5m' => 0,
+            'min_move_30m_pct' => 0,
+            'move_bars_5m' => 6,
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
         ];
     }
 
@@ -143,14 +149,13 @@ class FiveMinuteSignalScannerV103_0
      *
      * @return array<int, array<string, mixed>>
      */
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.35,
         float $volMult = 1.0,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $asOfEpoch = strtotime($asOfTsEst);
         if ($asOfEpoch === false) {
             return [];
@@ -161,7 +166,7 @@ class FiveMinuteSignalScannerV103_0
             return [];
         }
 
-        $symbols = $this->loadUniverse($assetType);
+        $symbols = $this->loadUniverse('stock');
         if ($symbols === []) {
             return [];
         }
@@ -169,22 +174,22 @@ class FiveMinuteSignalScannerV103_0
         $tradeDate = substr($asOfTsEst, 0, 10);
         $marketOpen = $tradeDate.' 09:30:00';
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
-        $cacheKey = "scan_v103_0:{$assetType}:{$bucketTs}:{$limit}";
+        $cacheKey = "scan_v103_0:{$bucketTs}:{$limit}";
 
         $rows = Cache::get($cacheKey);
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$this->fiveMinuteTable}
-                WHERE asset_type = ?
-                  AND symbol IN ({$placeholders})
+
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
 
-            $params = array_merge([$assetType], $symbols, [$marketOpen, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$marketOpen, $asOfTsEst]);
             $lock = Cache::lock("lock:{$cacheKey}", $this->cacheLockSeconds);
             if ($lock->get()) {
                 try {
@@ -335,7 +340,7 @@ class FiveMinuteSignalScannerV103_0
             $drops['passed']++;
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
+                'asset_type' => 'stock',
                 'signal_type' => 'ORB_RETEST_SETUP_5M_V103_0',
                 'signal_ts_est' => $metrics['breakout_ts_est'],
                 'score' => $scores['score'],
@@ -384,12 +389,12 @@ class FiveMinuteSignalScannerV103_0
     /** @return array<int, string> */
     private function loadUniverse(string $assetType): array
     {
-        $cacheKey = "scan_v103_0:universe_symbols:{$assetType}";
+        $cacheKey = 'scan_v103_0:universe_symbols';
         $symbols = Cache::get($cacheKey);
 
         if ($symbols === null) {
             $topPerformers = $this->bestPerformersService->getBestPerformers([
-                'assetType' => $assetType,
+                'assetType' => 'stock',
                 'testDateTime' => now('America/New_York')->format('Y-m-d H:i:s'),
                 'days' => 5,
                 'minBars' => 200,
@@ -402,7 +407,6 @@ class FiveMinuteSignalScannerV103_0
             $symbols = array_column($topPerformers, 'symbol');
 
             $intradayUniverse = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
                 ->orderBy('symbol')
                 ->pluck('symbol')
                 ->map(static fn ($symbol): string => (string) $symbol)

@@ -40,7 +40,7 @@ class OneMinuteEntryFinderV22_0
      * Used by v21 path only (batch).
      * Kept for compatibility if you ever route v22 into the v21 batch path.
      */
-    public function findEntries(array $signals, string $assetType, string $asOfTsEst): array
+    public function findEntries(array $signals, string $asOfTsEst): array
     {
         if (empty($signals)) {
             return [];
@@ -53,14 +53,14 @@ class OneMinuteEntryFinderV22_0
                 continue;
             }
 
-            $entry = $this->checkAlligatorWakeOrEat((string) $symbol, $assetType, $asOfTsEst);
+            $entry = $this->checkAlligatorWakeOrEat((string) $symbol, $asOfTsEst);
 
             if ($entry !== null) {
                 // For the v21 batch writer path, the entry array must contain writer keys.
                 $entries[] = array_merge($signal, $entry, [
                     'signal_ts_est' => $signal['signal_ts_est'] ?? $asOfTsEst,
                     'entry_type' => $entry['type'] ?? 'ALLIGATOR_WAKE_UP',
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                 ]);
             }
         }
@@ -74,11 +74,11 @@ class OneMinuteEntryFinderV22_0
      * REQUIRED by TradePipelineRunB non-v21 path:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
-        $entry = $this->checkAlligatorWakeOrEat($symbol, $assetType, $asOfTsEst);
+        $entry = $this->checkAlligatorWakeOrEat($symbol, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -101,14 +101,13 @@ class OneMinuteEntryFinderV22_0
 
         // Some pipelines like extra context in entry_meta; safe to keep.
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'as_of_ts_est' => $asOfTsEst,
             ],
         ];
@@ -117,7 +116,7 @@ class OneMinuteEntryFinderV22_0
     /**
      * Safe stub (not used in your current Pipeline B).
      */
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return [
             'ok' => 0,
@@ -156,7 +155,7 @@ class OneMinuteEntryFinderV22_0
      * - entry
      * - stop
      */
-    private function checkAlligatorWakeOrEat(string $symbol, string $assetType, string $asOfTsEst): ?array
+    private function checkAlligatorWakeOrEat(string $symbol, string $asOfTsEst): ?array
     {
         // ========= Tunables =========
         $minPrice = 1.0;
@@ -177,7 +176,6 @@ class OneMinuteEntryFinderV22_0
 
         $bars = DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $asOfTsEst)
             ->orderBy('ts_est', 'desc')
             ->limit(160)

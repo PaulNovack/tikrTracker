@@ -33,10 +33,8 @@ namespace App\Services\Trading;
  * - min_impulse_bars: Minimum green 5m bars in impulse (default 2)
  * - lookback_bars: How many 5m bars to analyze (default 18 = 90min)
  */
-class FiveMinuteSignalScannerV400_0
+class FiveMinuteSignalScannerV400_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v400.0';
 
     private string $name = 'Multi-Day Pattern Continuation';
@@ -61,6 +59,14 @@ class FiveMinuteSignalScannerV400_0
             'max_pullback_pct' => $this->maxPullbackPct,
             'min_impulse_bars' => $this->minImpulseBars,
             'lookback_bars' => $this->lookbackBars,
+
+            'min_notional_5m' => 0,
+            'min_atr_pct_5m' => 0,
+            'min_rvol_5m' => 0,
+            'min_move_30m_pct' => 0,
+            'move_bars_5m' => 6,
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
         ];
     }
 
@@ -74,14 +80,13 @@ class FiveMinuteSignalScannerV400_0
         return $this->name;
     }
 
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 90,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
-        int $limit = 50
-    ): array {
+        int $limit = 50, bool $skipCache = false, ?string $symbol = null): array
+    {
         // Configuration - institutional quality
         $minAtrPct = $this->minAtrPct;
         $minVolRatio = $this->minVolRatio;
@@ -117,7 +122,6 @@ class FiveMinuteSignalScannerV400_0
 WITH recent_bars AS (
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.price AS close,
         f.open,
@@ -133,10 +137,9 @@ WITH recent_bars AS (
         f.ema9_above_ema21,
         f.atr_pct,
         f.rsi_14,
-        ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) as rn
+        ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as rn
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
-      AND f.ts_est <= ?
+    WHERE f.ts_est <= ?
       AND f.ts_est >= ?
       AND f.trading_date_est >= ?  -- Changed from = to >= for multi-day patterns
       AND f.trading_date_est <= ?  -- Current day constraint
@@ -152,20 +155,19 @@ bar_sequence AS (
     SELECT *
     FROM recent_bars
     WHERE rn <= ?
-    ORDER BY symbol, asset_type, ts_est ASC
+    ORDER BY symbol, ts_est ASC
 ),
 -- Calculate lagged values for higher low detection
 bar_sequence_with_lag AS (
     SELECT
         bs.*,
-        LAG(bs.low, 1) OVER (PARTITION BY bs.symbol, bs.asset_type ORDER BY bs.ts_est) as prev_low
+        LAG(bs.low, 1) OVER (PARTITION BY bs.symbol ORDER BY bs.ts_est) as prev_low
     FROM bar_sequence bs
 ),
 -- Identify pullback characteristics
 pullback_analysis AS (
     SELECT
         bs.symbol,
-        bs.asset_type,
         COUNT(CASE WHEN bs.close < bs.open THEN 1 END) as red_bars,
         COUNT(CASE WHEN bs.close > bs.open THEN 1 END) as green_bars,
         COUNT(CASE WHEN bs.close >= (bs.high - (bs.high - bs.low) * 0.3) THEN 1 END) as closes_near_high,
@@ -183,24 +185,22 @@ pullback_analysis AS (
         -- Check for VWAP violations
         COUNT(CASE WHEN bs.close < bs.vwap AND bs.above_vwap = 0 THEN 1 END) as vwap_violations
     FROM bar_sequence_with_lag bs
-    GROUP BY bs.symbol, bs.asset_type
+    GROUP BY bs.symbol
 ),
 -- Volume profile analysis
 volume_analysis AS (
     SELECT
         bs.symbol,
-        bs.asset_type,
         AVG(CASE WHEN bs.close > bs.open THEN bs.volume ELSE NULL END) as avg_green_vol,
         AVG(CASE WHEN bs.close < bs.open THEN bs.volume ELSE NULL END) as avg_red_vol,
         AVG(bs.volume) as avg_total_vol
     FROM bar_sequence bs
-    GROUP BY bs.symbol, bs.asset_type
+    GROUP BY bs.symbol
 ),
 -- Final scoring
 scored_signals AS (
     SELECT
         lb.symbol,
-        lb.asset_type,
         lb.ts_est as signal_ts_est,
         lb.close as signal_price,
         lb.vwap,
@@ -253,10 +253,8 @@ scored_signals AS (
         
     FROM latest_bar lb
     INNER JOIN pullback_analysis pa 
-        ON lb.symbol = pa.symbol AND lb.asset_type = pa.asset_type
-    INNER JOIN volume_analysis va
-        ON lb.symbol = va.symbol AND lb.asset_type = va.asset_type
-    WHERE lb.above_vwap = 1  -- Must be above VWAP
+        ON lb.symbol = pa.symbol INNER JOIN volume_analysis va
+        ON lb.symbol = va.symbol WHERE lb.above_vwap = 1  -- Must be above VWAP
       AND lb.ema9_above_ema21 = 1  -- Must have bullish EMA alignment
       AND lb.atr_pct >= ?  -- Must have meaningful movement potential
       AND lb.atr_pct <= 6  -- Filter out overly volatile stocks
@@ -271,7 +269,6 @@ scored_signals AS (
 )
 SELECT
     symbol,
-    asset_type,
     signal_ts_est,
     signal_price,
     vwap,
@@ -306,8 +303,7 @@ ORDER BY continuation_score DESC, latest_volume DESC
 LIMIT ?
 ';
 
-        $bindings = [
-            $assetType,          // f.asset_type = ?
+        $bindings = [          // f.asset_type = ?
             $asOfTsEst,          // f.ts_est <= ?
             $lookbackStart,      // f.ts_est >= ?
             $priorTradeDate,     // f.trading_date_est >= ? (multi-day lookback for patterns)
@@ -336,18 +332,27 @@ LIMIT ?
 
             $signals[] = [
                 'symbol' => $r->symbol,
-                'asset_type' => $r->asset_type,
+                'asset_type' => 'stock',
                 'signal_ts_est' => $barCloseTsEst,
                 'signal_type' => 'TREND_CONTINUATION',
                 'price' => (float) $r->signal_price,
                 'score' => (float) ($r->continuation_score ?? 0), // Scanner score (expected by pipeline)
+                'atr' => (float) ($r->atr_pct ?? 0) * (float) $r->signal_price / 100.0,
                 'vwap' => (float) ($r->vwap ?? 0),
                 'ema9' => (float) ($r->ema9 ?? 0),
                 'ema21' => (float) ($r->ema21 ?? 0),
                 'atr_pct' => (float) ($r->atr_pct ?? 0),
                 'rsi_14' => (float) ($r->rsi_14 ?? 0),
                 'meta' => [
+                    'move_30m_pct' => 0.0,
+                    'rvol_5m' => (float) ($r->latest_volume ?? 0) / max(1, (float) ($r->avg_volume ?? 1)),
+                    'atr_pct_5m' => (float) ($r->atr_pct ?? 0),
+                    'notional_last5m' => 0.0,
+                    'spy_move_30m_pct' => 0.0,
+                    'universe_size' => 0,
+                    'signal_age_seconds' => 0,
                     'version' => $this->version,
+                    'current_price' => (float) $r->signal_price,
                     'continuation_score' => (float) ($r->continuation_score ?? 0),
                     'period_high' => (float) ($r->period_high ?? 0),
                     'period_low' => (float) ($r->period_low ?? 0),

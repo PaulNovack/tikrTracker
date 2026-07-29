@@ -17,10 +17,8 @@ namespace App\Services\Trading;
  *
  * This captures institutional positioning revealed in first 30min of trading.
  */
-class FiveMinuteSignalScannerV1500_0
+class FiveMinuteSignalScannerV1500_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v1500.0';
 
     private string $name = 'Opening Range Breakout';
@@ -66,7 +64,15 @@ class FiveMinuteSignalScannerV1500_0
             'max_range_pct' => $this->maxRangePct,
             'time_window_start' => $this->timeWindowStart,
             'time_window_end' => $this->timeWindowEnd,
-        ];
+        
+        'min_notional_5m' => 0,
+        'min_atr_pct_5m' => 0,
+        'min_rvol_5m' => 0,
+        'min_move_30m_pct' => 0,
+        'move_bars_5m' => 6,
+        'atr_period_5m' => 14,
+        'rvol_lookback_5m' => 20,
+];
     }
 
     public function getVersion(): string
@@ -79,9 +85,14 @@ class FiveMinuteSignalScannerV1500_0
         return $this->name;
     }
 
-    public function scan(
-        string $assetType,
-        string $asOfTsEst
+    protected function doScan(
+        string $asOfTsEst,
+        int $lookbackMinutes = 60,
+        float $minMovePct = 1.2,
+        float $volMult = 3.5,
+        int $limit = 60,
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         // Load all config from trading.v1500
         $topMovers = $this->topMovers;
@@ -147,25 +158,22 @@ class FiveMinuteSignalScannerV1500_0
 WITH opening_range AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         MAX(f.high) as or_high,
         MIN(f.low) as or_low,
         AVG(f.volume) as or_avg_volume,
         COUNT(*) as or_bar_count
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN '09:30:00' AND '10:00:00'
         AND f.open > 0
-    GROUP BY f.symbol, f.asset_type, f.trading_date_est
+    GROUP BY f.symbol, f.trading_date_est
     HAVING COUNT(*) >= 5  -- Need at least 5 bars for 30min range (some might be missing)
 ),
 range_quality AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         or_high,
         or_low,
@@ -179,7 +187,6 @@ range_quality AS (
 current_bar AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         f.ts_est as signal_ts_est,
         f.trading_time_est,
@@ -189,8 +196,7 @@ current_bar AS (
         f.atr,
         f.atr_pct
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN ? AND ?
@@ -198,16 +204,13 @@ current_bar AS (
     AND EXISTS (
         SELECT 1 
         FROM five_minute_prices sub
-        WHERE sub.symbol = f.symbol 
-            AND sub.asset_type = f.asset_type
-            AND sub.trading_date_est = f.trading_date_est
+        WHERE sub.symbol = f.symbol AND sub.trading_date_est = f.trading_date_est
             AND sub.ts_est = f.ts_est
     )
 ),
 breakout_candidates AS (
     SELECT 
         c.symbol,
-        c.asset_type,
         c.trading_date_est,
         c.signal_ts_est,
         c.current_close as setup_price,
@@ -229,15 +232,12 @@ breakout_candidates AS (
         ROW_NUMBER() OVER (PARTITION BY c.symbol ORDER BY c.signal_ts_est DESC) as recency_rank
     FROM current_bar c
     INNER JOIN range_quality r 
-        ON c.symbol = r.symbol 
-        AND c.asset_type = r.asset_type
-        AND c.trading_date_est = r.trading_date_est
+        ON c.symbol = r.symbol AND c.trading_date_est = r.trading_date_est
     WHERE c.current_high > r.or_high  -- Must break above OR high
         AND (c.current_volume / NULLIF(r.or_avg_volume, 0)) >= ?  -- Volume confirmation
 )
 SELECT 
     symbol,
-    asset_type,
     trading_date_est,
     signal_ts_est,
     setup_price,
@@ -260,10 +260,10 @@ LIMIT ?
 
         // Build parameter array
         $params = array_merge(
-            [$assetType, $tradeDate], // opening_range CTE
+            [$tradeDate], // opening_range CTE
             $moverSymbols,
             [$minRangePct, $maxRangePct, $minPrice, $maxPrice], // range_quality CTE
-            [$assetType, $tradeDate, $asOfTsEst], // current_bar CTE
+            [$tradeDate, $asOfTsEst], // current_bar CTE
             $moverSymbols,
             [$timeWindowStart, $timeWindowEnd],
             [$minVolRatio], // breakout_candidates WHERE
@@ -283,23 +283,31 @@ LIMIT ?
         foreach ($results as $row) {
             $signals[] = [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
-                'trading_date_est' => $row->trading_date_est,
+                'asset_type' => 'stock',
                 'signal_ts_est' => $row->signal_ts_est,
                 'signal_type' => 'ORB_BREAKOUT',
-                'setup_price' => (float) $row->setup_price,
+                'score' => (float) $row->score,
                 'atr' => (float) $row->atr,
                 'atr_pct' => (float) $row->atr_pct,
-                'score' => (float) $row->score,
-                'context' => [
+                'meta' => [
+                    'move_30m_pct' => 0.0,
+                    'rvol_5m' => (float) $row->vol_ratio,
+                    'atr_pct_5m' => (float) $row->atr_pct,
+                    'notional_last5m' => (float) $row->setup_price * 1000.0,
+                    'pct_nd' => null,
+                    'spy_move_30m_pct' => 0.0,
+                    'universe_size' => count($moverSymbols),
+                    'signal_age_seconds' => 0,
+                    'version' => $this->getVersion(),
+                    'current_price' => (float) $row->setup_price,
                     'or_high' => (float) $row->or_high,
                     'or_low' => (float) $row->or_low,
                     'or_range' => (float) $row->or_range,
                     'range_pct' => (float) $row->range_pct,
                     'vol_ratio' => (float) $row->vol_ratio,
                     'breakout_pct' => (float) $row->breakout_pct,
+                    'strategy_name' => 'ORB_V1500',
                 ],
-                'strategy_name' => 'ORB_V1500',
             ];
         }
 

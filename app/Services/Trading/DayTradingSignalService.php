@@ -14,7 +14,6 @@ class DayTradingSignalService
         // 5-minute trend check
         $trendCandidates = DB::table('five_minute_prices')
             ->select('symbol', 'ema9', 'ema21', 'rsi_14', 'atr', 'volume', 'price', 'ts_est')
-            ->where('asset_type', $assetType)
             ->where('ts_est', $datetime)
             ->where('ema9_above_ema21', 1)
             ->where('rsi_14', '>', 55)
@@ -27,7 +26,6 @@ class DayTradingSignalService
             $latest1m = DB::table('one_minute_prices')
                 ->select('ema9', 'ema21', 'vwap', 'rsi_14', 'macd', 'macd_histogram', 'price', 'volume', 'ts_est')
                 ->where('symbol', $candidate->symbol)
-                ->where('asset_type', $assetType)
                 ->where('ts_est', $datetime)
                 ->orderBy('ts_est', 'desc')
                 ->first();

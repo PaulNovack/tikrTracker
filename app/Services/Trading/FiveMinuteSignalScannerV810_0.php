@@ -25,6 +25,46 @@ class FiveMinuteSignalScannerV810_0
 
     private string $name = 'Market Scan Daily Upswing';
 
+    // ── Scanner Configuration (public so entry finders can read) ──
+    public float $entryScoreMin;
+
+    public float $entryScoreMax;
+
+    public int $entryScoreLimit;
+
+    public float $minPrice;
+
+    public float $maxPrice;
+
+    public string $timeWindowStart;
+
+    public string $timeWindowEnd;
+
+    /** @return array<string, mixed> */
+    public function scanConfig(): array
+    {
+        return [
+            'entry_score_min' => $this->entryScoreMin,
+            'entry_score_max' => $this->entryScoreMax,
+            'entry_score_limit' => $this->entryScoreLimit,
+            'min_price' => $this->minPrice,
+            'max_price' => $this->maxPrice,
+            'time_window_start' => $this->timeWindowStart,
+            'time_window_end' => $this->timeWindowEnd,
+        ];
+    }
+
+    public function __construct()
+    {
+        $this->entryScoreMin = (float) env('TRADING_V810_ENTRY_SCORE_MIN', 50);
+        $this->entryScoreMax = (float) env('TRADING_V810_ENTRY_SCORE_MAX', 100);
+        $this->entryScoreLimit = (int) env('TRADING_V810_ENTRY_SCORE_LIMIT', 25);
+        $this->minPrice = (float) env('TRADING_V810_MIN_PRICE', 5.0);
+        $this->maxPrice = (float) env('TRADING_V810_MAX_PRICE', 300.0);
+        $this->timeWindowStart = env('TRADING_V810_TIME_WINDOW_START', '09:50:00');
+        $this->timeWindowEnd = env('TRADING_V810_TIME_WINDOW_END', '14:30:00');
+    }
+
     public function getVersion(): string
     {
         return $this->version;
@@ -36,20 +76,19 @@ class FiveMinuteSignalScannerV810_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
         float $volMult = 1.0,
         int $limit = 50
     ): array {
-        $minScore = (float) config('trading.v810.entry_score_min', 50);
-        $maxScore = (float) config('trading.v810.entry_score_max', 100);
-        $topN = (int) config('trading.v810.entry_score_limit', 25);
-        $minPrice = (float) config('trading.v810.min_price', 5.0);
-        $maxPrice = (float) config('trading.v810.max_price', 300.0);
-        $timeWindowStart = (string) config('trading.v810.time_window_start', '09:50:00');
-        $timeWindowEnd = (string) config('trading.v810.time_window_end', '14:30:00');
+        $minScore = $this->entryScoreMin;
+        $maxScore = $this->entryScoreMax;
+        $topN = $this->entryScoreLimit;
+        $minPrice = $this->minPrice;
+        $maxPrice = $this->maxPrice;
+        $timeWindowStart = $this->timeWindowStart;
+        $timeWindowEnd = $this->timeWindowEnd;
 
         \Log::info("[V810 Scanner] minScore={$minScore}, maxScore={$maxScore}, topN={$topN}, asOf={$asOfTsEst}");
 
@@ -70,7 +109,6 @@ class FiveMinuteSignalScannerV810_0
 WITH f AS (
     SELECT
         symbol,
-        asset_type,
         ts_est,
         trading_date_est,
         trading_time_est,
@@ -91,27 +129,25 @@ WITH f AS (
         rsi_14,
 
         FIRST_VALUE(open) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
         ) AS day_open,
 
         AVG(volume) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
         ) AS avg_volume_20
 
     FROM five_minute_prices
-    WHERE asset_type = ?
-      AND trading_date_est = ?
+    WHERE trading_date_est = ?
       AND ts_est <= ?
       AND trading_time_est BETWEEN ? AND ?
       AND price BETWEEN ? AND ?
 )
 SELECT
     symbol,
-    asset_type,
     trading_date_est,
     ts_est AS signal_ts_est,
     trading_time_est,
@@ -153,7 +189,7 @@ ORDER BY
 LIMIT ?
 ';
 
-        $params = [$assetType, $tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
+        $params = [$tradeDate, $asOfTsEst, $timeWindowStart, $timeWindowEnd, $minPrice, $maxPrice, $limit * 2];
         $rows = $this->dbSelect($sql, $params);
 
         if (empty($rows)) {
@@ -226,7 +262,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->asset_type,
                 'signal_type' => 'ema_pullback',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

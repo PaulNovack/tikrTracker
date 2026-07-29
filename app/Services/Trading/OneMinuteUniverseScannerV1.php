@@ -24,7 +24,6 @@ class OneMinuteUniverseScannerV1
      * - only symbols marked with 1_min=1 (top 1500 most liquid stocks)
      */
     public function activeSymbols(
-        string $assetType,
         string $asOfTsEst,
         int $activeMinutes = 3,
         int $minVolume = 100000,
@@ -40,8 +39,8 @@ class OneMinuteUniverseScannerV1
               MAX(omp.ts_est) AS last_ts_est
             FROM one_minute_prices omp FORCE INDEX (idx_omp_buy_signals_batch_covering)
             INNER JOIN asset_info ai ON omp.symbol = ai.symbol
-            WHERE omp.asset_type = ?
-              AND ai.asset_type = ?
+
+
               AND ai.1_min = 1
               AND ai.deleted_at IS NULL
               AND ai.1_min = 1
@@ -55,9 +54,7 @@ class OneMinuteUniverseScannerV1
         ';
 
         // IMPORTANT: LIMIT binding must be integer; Laravel PDO handles it fine in MySQL.
-        $rows = DB::select($sql, [
-            $assetType,
-            $assetType,  // For asset_info filter
+        $rows = DB::select($sql, [  // For asset_info filter
             $asOfTsEst,
             $asOfTsEst,
             $activeMinutes,

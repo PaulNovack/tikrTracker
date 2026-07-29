@@ -2,6 +2,10 @@
 
 namespace App\Services\Trading;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
+
 /**
  * Abstract base class for all signal scanners.
  *
@@ -18,10 +22,36 @@ abstract class AbstractSignalScanner
 {
     use HasPriceTables;
 
+    // ── Universe configuration (overridable per scanner) ──
+    public int $marketMoversLimit = 0;
+
+    public bool $includeStreakSymbols = true;
+
+    public int $universeCacheTtl = 28800;
+
     /**
      * Get the scanner version string (e.g. 'v25.2').
      */
     abstract public function getVersion(): string;
+
+    /**
+     * Get the pipeline letter for this scanner (e.g. 'H').
+     * Defaults to 'H' — overridden when setPipelineLetter() is called.
+     */
+    public function getPipelineLetter(): string
+    {
+        return $this->_pipelineLetter ?? 'H';
+    }
+
+    /**
+     * Set the pipeline letter (called by ConsumeBarEvents).
+     */
+    public function setPipelineLetter(string $letter): void
+    {
+        $this->_pipelineLetter = strtoupper($letter);
+    }
+
+    private ?string $_pipelineLetter = null;
 
     /**
      * Get the human-readable scanner name (e.g. 'Quality-First').
@@ -41,7 +71,6 @@ abstract class AbstractSignalScanner
      * This is a TEMPLATE METHOD — subclasses implement doScan(), and this method
      * validates that every returned row has the required keys before returning.
      *
-     * @param  string  $assetType  'stock' or 'crypto'
      * @param  string  $asOfTsEst  Timestamp to scan as-of (e.g. '2026-07-17 10:30:00')
      * @param  int  $lookbackMinutes  How far back to look for data
      * @param  float  $minMovePct  Minimum percentage move threshold
@@ -50,7 +79,6 @@ abstract class AbstractSignalScanner
      * @param  bool  $skipCache  If true, bypass Redis caching (for backtest mode)
      * @return array<int, array{
      *     symbol: string,
-     *     asset_type: string,
      *     signal_type: string,
      *     signal_ts_est: string,
      *     score: float,
@@ -71,15 +99,22 @@ abstract class AbstractSignalScanner
      * }>
      */
     final public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
         int $limit = 60,
-        bool $skipCache = false
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
-        $rows = $this->doScan($assetType, $asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache);
+        $rows = $this->doScan($asOfTsEst, $lookbackMinutes, $minMovePct, $volMult, $limit, $skipCache, $symbol);
+
+        // If this pipeline has Redis scanning enabled, skip the batch SQL scan.
+        // The event-driven path (bar-events:consume) handles alerts instead.
+        // Backtest mode ($skipCache=true) still uses SQL for reproducibility.
+        if (! $skipCache && method_exists($this, 'shouldUseRedis') && $this->shouldUseRedis()) {
+            return [];
+        }
 
         foreach ($rows as $i => $row) {
             $this->validateSignalRow($row, $i);
@@ -97,14 +132,115 @@ abstract class AbstractSignalScanner
      * @return array<int, array<string, mixed>>
      */
     abstract protected function doScan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes,
         float $minMovePct,
         float $volMult,
         int $limit,
-        bool $skipCache
+        bool $skipCache,
+        ?string $symbol = null
     ): array;
+
+    /**
+     * Event-driven per-symbol scan — reads a single symbol's bars from Redis
+     * and evaluates it against scanner gates. Returns a signal array or null.
+     *
+     * Default implementation returns null; Redis scanners override via trait.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function scanSymbol(string $symbol, string $asOfTsEst): ?array
+    {
+        return null;
+    }
+
+    /**
+     * Add market movers to the symbol universe if the limit is configured.
+     *
+     * Each scanner can override $this->marketMoversLimit or pass a config key
+     * that resolves to the limit via config().
+     *
+     * @param  string[]  $symbols  Existing universe symbols
+     * @param  string  $asOfTsEst  As-of timestamp for date extraction
+     * @param  string|null  $configKey  Config key for the mover limit (e.g. 'trading.market_movers.pipeline_c')
+     * @return string[]
+     */
+    protected function addMarketMovers(array $symbols, string $asOfTsEst, ?string $configKey = null): array
+    {
+        $limit = $this->marketMoversLimit;
+
+        if ($limit <= 0 && $configKey !== null) {
+            $limit = (int) config($configKey, 0);
+        }
+
+        if ($limit <= 0) {
+            return $symbols;
+        }
+
+        $tradeDate = substr($asOfTsEst, 0, 10);
+        $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $limit);
+
+        return array_values(array_unique(array_merge($symbols, $movers)));
+    }
+
+    /**
+     * Build the intraday symbol universe from the `intraday_universe` table,
+     * optionally enriched with market movers and 4-bar 1-min up-streak Redis symbols.
+     *
+     * Result is cached with the configured TTL (default 8h) to avoid expensive
+     * DB queries on every scan.
+     *
+     * @param  string  $cacheKey  Unique cache key for this scanner (e.g. 'scan_v25_2:universe_symbols')
+     * @param  string|null  $moversConfigKey  Config key for market mover limit (e.g. 'trading.market_movers.pipeline_h'), or null to use $this->marketMoversLimit
+     * @param  string  $asOfTsEst  As-of timestamp for date extraction
+     * @param  bool  $skipCache  If true, bypass cache read/write (backtest mode)
+     * @return string[]
+     */
+    protected function buildIntradayUniverse(string $cacheKey, ?string $moversConfigKey = null, string $asOfTsEst = '', bool $skipCache = false): array
+    {
+        $symbols = $skipCache ? null : Cache::get($cacheKey);
+
+        if ($symbols !== null) {
+            return $symbols;
+        }
+
+        $symbols = DB::table('intraday_universe')
+            ->orderBy('symbol')
+            ->pluck('symbol')
+            ->map(static fn ($symbol): string => (string) $symbol)
+            ->all();
+
+        // Add market movers if a config key is provided and limit > 0
+        if ($moversConfigKey !== null) {
+            $moversLimit = (int) config($moversConfigKey, 0);
+            if ($moversLimit > 0) {
+                $tradeDate = $asOfTsEst !== '' ? substr($asOfTsEst, 0, 10) : null;
+                $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $moversLimit);
+                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
+            }
+        } elseif ($this->marketMoversLimit > 0) {
+            $tradeDate = $asOfTsEst !== '' ? substr($asOfTsEst, 0, 10) : null;
+            $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache($tradeDate, $this->marketMoversLimit);
+            $symbols = array_values(array_unique(array_merge($symbols, $movers)));
+        }
+
+        // Add 4-bar 1-min up streak symbols from Redis (if enabled)
+        if ($this->includeStreakSymbols) {
+            $redisSymbols = Redis::get('last_4_1min_up:symbols');
+            if ($redisSymbols) {
+                $streakSymbols = json_decode($redisSymbols, true);
+                if (is_array($streakSymbols) && $streakSymbols !== []) {
+                    $symbols = array_values(array_unique(array_merge($symbols, $streakSymbols)));
+                }
+            }
+        }
+
+        if (! $skipCache) {
+            Cache::put($cacheKey, $symbols, $this->universeCacheTtl);
+        }
+
+        return $symbols;
+    }
 
     /**
      * Validate that a single signal row contains all required keys.
@@ -147,24 +283,19 @@ abstract class AbstractSignalScanner
      * Used for relative-strength filtering — if the benchmark rips +2% and a candidate
      * is only up +1.5%, the candidate is merely riding the tide, not showing true strength.
      */
-    protected function getSpyMovement30m(string $asOfTsEst, string $assetType, int $moveBars): float
+    protected function getSpyMovement30m(string $asOfTsEst, int $moveBars): float
     {
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
-
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
 
-        $sql = "
+        $sql = '
 SELECT
   price AS last_close,
   LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
 FROM five_minute_prices
 WHERE symbol = ?
-  AND asset_type = 'stock'
   AND ts_est <= ?
 ORDER BY ts_est ASC
-";
+';
         $rows = $this->dbSelect($sql, [$moveBars, $benchmarkSymbol, $asOfTsEst]);
 
         if (! $rows) {

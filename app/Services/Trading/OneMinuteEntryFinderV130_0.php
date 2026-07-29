@@ -28,7 +28,6 @@ class OneMinuteEntryFinderV130_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 10,
@@ -69,18 +68,16 @@ class OneMinuteEntryFinderV130_0
               atr_pct
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $from, $to]);
+        ', [$symbol, $from, $to]);
 
         if (count($bars) < 10) {
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Insufficient 1-minute bars',
             ];
@@ -90,13 +87,12 @@ class OneMinuteEntryFinderV130_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, ema9_above_ema21
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         $fiveMinTrend = [];
         foreach ($fiveMinBars as $bar) {
@@ -227,7 +223,6 @@ class OneMinuteEntryFinderV130_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'filter_reason' => 'Unknown pattern type: '.$patternType,
                 ];
@@ -237,7 +232,6 @@ class OneMinuteEntryFinderV130_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No qualifying entries for pattern: '.$patternType,
             ];
@@ -256,7 +250,6 @@ class OneMinuteEntryFinderV130_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -269,7 +262,6 @@ class OneMinuteEntryFinderV130_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,

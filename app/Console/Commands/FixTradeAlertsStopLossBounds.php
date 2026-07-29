@@ -32,7 +32,7 @@ class FixTradeAlertsStopLossBounds extends Command
     {
         // v700.x uses its own config (now 2.0 to match standard)
         if (str_starts_with($version, 'v700')) {
-            return (float) config('trading.v700.stop_loss_atr_multiplier', 2.0);
+            return (float) env('V700_STOP_LOSS_ATR_MULTIPLIER', 1.2);
         }
 
         // All others use the DB-backed trading setting

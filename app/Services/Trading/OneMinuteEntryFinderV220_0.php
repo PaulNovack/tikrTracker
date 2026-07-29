@@ -35,7 +35,7 @@ class OneMinuteEntryFinderV220_0 extends AbstractOneMinuteEntryFinder
     public function entryConfig(): array
     {
         return [
-            'version' => $this->version,
+            'version' => $this->getVersion(),
             'min_notional_1m' => (int) config('trading.v220.min_notional_1m', 50000),
             'min_vol_ratio_1m' => (float) config('trading.v220.min_vol_ratio_1m', 1.2),
             'max_above_vwap_entry_pct' => (float) config('trading.v220.max_above_vwap_entry_pct', 0.80),
@@ -50,7 +50,6 @@ class OneMinuteEntryFinderV220_0 extends AbstractOneMinuteEntryFinder
 
     protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array {
@@ -64,7 +63,7 @@ class OneMinuteEntryFinderV220_0 extends AbstractOneMinuteEntryFinder
         $tradeDate = substr($signalTsEst, 0, 10);
         $marketOpen = $tradeDate.' 09:30:00';
 
-        $bars = $this->fetchOneMinuteBars($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $bars = $this->fetchOneMinuteBars($symbol, $marketOpen, $asOfTsEst);
         if (! $bars || count($bars) < $cfg['min_bars']) {
             return null;
         }
@@ -170,7 +169,7 @@ class OneMinuteEntryFinderV220_0 extends AbstractOneMinuteEntryFinder
         $score = ($volRatio * 1.0) + max(0.0, 1.5 - abs($aboveVwapPct)) + ($bodyPct * 40.0);
 
         $choppiness = [];
-        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $marketOpen, $asOfTsEst);
         if (count($fiveMinBars) >= 6) {
             $recent5Min = array_slice($fiveMinBars, -12);
             $choppiness = $this->calculate5MinChoppiness($recent5Min);

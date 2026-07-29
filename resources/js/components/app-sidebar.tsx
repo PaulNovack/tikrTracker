@@ -13,7 +13,7 @@ import { dashboard } from '@/routes';
 import { edit as editTradingSettings } from '@/actions/App/Http/Controllers/TradingSettingsController';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, Bell, BarChart, BarChart3, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
+import { Activity, Bell, BarChart, BarChart3, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GitBranch, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -584,6 +584,11 @@ export function AppSidebar() {
                               href: '/settings-snapshots',
                               icon: Camera,
                           },
+                          {
+                              title: 'TA Gate Versions',
+                              href: '/generic-ta-gate-versions',
+                              icon: Database,
+                          },
                       ],
                   },
                   {
@@ -591,6 +596,11 @@ export function AppSidebar() {
                       href: '/logs/laravel',
                       icon: FileText,
                       items: [
+                          {
+                              title: 'Bar Events',
+                              href: '/logs/bar-events',
+                              icon: FileText,
+                          },
                           {
                               title: 'Continuous BT',
                               href: '/logs/continuous-bt',

@@ -9,39 +9,40 @@ namespace App\Services\Trading;
  * introduced. It turns each scanner signal into a simple, pipeline-safe long
  * entry without adding any additional filter logic yet.
  */
-class OneMinuteEntryFinderV2000_0
+class OneMinuteEntryFinderV2000_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v2000.0';
-
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v2000.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return 'v2000.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
-    ): array {
+    ): ?array {
         $signalBar = $this->dbSelect('
             SELECT ts_est, price, open, high, low, volume, atr, atr_pct
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND ts_est = ?
             LIMIT 1
-        ', [$symbol, $assetType, $signalTsEst]);
+        ', [$symbol, $signalTsEst]);
 
         if (empty($signalBar)) {
-            return [
-                'ok' => 0,
-                'best_entry' => null,
-                'reason' => 'signal_not_found',
-            ];
+            return null;
         }
 
         $signalBar = $signalBar[0];
@@ -53,12 +54,11 @@ class OneMinuteEntryFinderV2000_0
             SELECT ts_est, price, open, high, low, volume
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = DATE(?)
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 20
-        ', [$symbol, $assetType, $asOfTsEst, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst, $asOfTsEst]);
 
         $entryTsEst = $signalTsEst;
         $volRatio = null;
@@ -83,11 +83,7 @@ class OneMinuteEntryFinderV2000_0
         }
 
         if ($entryPrice <= 0) {
-            return [
-                'ok' => 0,
-                'best_entry' => null,
-                'reason' => 'invalid_entry_price',
-            ];
+            return null;
         }
 
         $riskBuffer = max($entryPrice * 0.02, $atr !== null ? $atr * 1.25 : 0.0);
@@ -105,10 +101,10 @@ class OneMinuteEntryFinderV2000_0
         );
 
         $bestEntry = [
-            'type' => 'UNIVERSE_ALERT_1M',
+            'entry_type' => 'UNIVERSE_ALERT_1M',
             'entry_ts_est' => $entryTsEst,
-            'entry' => round($entryPrice, 4),
-            'stop' => $stopPrice,
+            'entry_price' => round($entryPrice, 4),
+            'stop_loss' => $stopPrice,
             'risk_pct' => $riskPct,
             'risk_per_share' => $riskPerShare,
             'score' => $score,
@@ -119,7 +115,7 @@ class OneMinuteEntryFinderV2000_0
             'suggested_trailing_stop_pct' => $suggestedTrailingStopPct,
             'targets' => $targets,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'signal_ts_est' => $signalTsEst,
                 'as_of_ts_est' => $asOfTsEst,
                 'days_appeared' => $universeStats['days_appeared'] ?? null,
@@ -127,19 +123,11 @@ class OneMinuteEntryFinderV2000_0
             ],
         ];
 
-        return [
-            'ok' => 1,
-            'best_entry' => $bestEntry,
-            'meta' => [
-                'version' => $this->version,
-                'as_of_ts_est' => $asOfTsEst,
-            ],
-        ];
+        return $bestEntry;
     }
 
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest

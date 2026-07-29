@@ -44,7 +44,7 @@ class OneMinuteEntryFinderV21_0
      * @param  string  $asOfTsEst  EST timestamp
      * @return array Entry opportunities with Alligator WAKE_UP confirmation
      */
-    public function findEntries(array $signals, string $assetType, string $asOfTsEst): array
+    public function findEntries(array $signals, string $asOfTsEst): array
     {
         if (empty($signals)) {
             return [];
@@ -56,13 +56,13 @@ class OneMinuteEntryFinderV21_0
             $symbol = $signal['symbol'];
 
             // Get Alligator WAKE_UP confirmation for this symbol
-            $alligatorEntry = $this->checkAlligatorWakeUp($symbol, $assetType, $asOfTsEst);
+            $alligatorEntry = $this->checkAlligatorWakeUp($symbol, $asOfTsEst);
 
             if ($alligatorEntry !== null) {
                 $entries[] = array_merge($signal, $alligatorEntry, [
                     'signal_ts_est' => $asOfTsEst,
                     'entry_type' => 'ALLIGATOR_WAKE_UP',
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                 ]);
             }
         }
@@ -85,7 +85,7 @@ class OneMinuteEntryFinderV21_0
      * @param  string  $asOfTsEst  Current EST timestamp
      * @return array|null Entry data or null if no WAKE_UP pattern
      */
-    private function checkAlligatorWakeUp(string $symbol, string $assetType, string $asOfTsEst): ?array
+    private function checkAlligatorWakeUp(string $symbol, string $asOfTsEst): ?array
     {
         $minPrice = 1.0;
         $minVol5 = 30000;
@@ -96,7 +96,6 @@ class OneMinuteEntryFinderV21_0
         // Get last 100 1-minute bars for calculation (need history for SMMA and shifts)
         $bars = DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $asOfTsEst)
             ->orderBy('ts_est', 'desc')
             ->limit(100)

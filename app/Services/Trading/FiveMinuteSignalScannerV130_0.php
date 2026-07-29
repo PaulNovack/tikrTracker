@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\DB;
  * 2. Bull Flag Breakout - Consolidation after surge, breaks with volume (70%+ WR)
  * 3. Failed Breakdown Reversal - Breaks support, immediately reclaims (75%+ WR)
  *
- * ENV / config('trading.v130.*'):
+ * ENV vars:
+ * - V130_MIN_VWAP_BOUNCE_VOL_MULT: volume spike on bounce (default 2.0)
  * - min_vwap_bounce_vol_mult: volume spike on bounce (default 2.0)
  * - min_flag_consolidation_bars: bars in flag (default 5)
  * - max_flag_range_pct: flag range max (default 0.3%)
@@ -28,10 +29,99 @@ class FiveMinuteSignalScannerV130_0
 
     private string $name = 'Elite Momentum Extended';
 
+    // ── Scanner Configuration (public so entry finders can read) ──
+    /** @var float Minimum score (0-100) */
+    public float $minScore;
+
+    /** @var float Maximum score (0-100) */
+    public float $maxScore;
+
+    /** @var int Max number of signals to return */
+    public int $topN;
+
+    /** @var float VWAP bounce volume multiplier */
+    public float $minVwapBounceVolMult;
+
+    /** @var float Max VWAP distance % for bounce */
+    public float $maxVwapDistancePct;
+
+    /** @var int Min flag consolidation bars */
+    public int $minFlagConsolidationBars;
+
+    /** @var int Max flag consolidation bars */
+    public int $maxFlagConsolidationBars;
+
+    /** @var float Max flag range % */
+    public float $maxFlagRangePct;
+
+    /** @var float Min flag breakout volume multiple */
+    public float $minFlagBreakoutVolMult;
+
+    /** @var float Min pole move % */
+    public float $minPoleMovePct;
+
+    /** @var float Min breakdown reclaim volume multiple */
+    public float $minBreakdownReclaimVol;
+
+    /** @var int Minutes before signal for entry finder */
+    public int $beforeMinutes;
+
+    /** @var int Minutes after signal for entry finder */
+    public int $afterMinutes;
+
+    /** @var int Volume lookback for entry finder */
+    public int $volLookback;
+
+    /** @var float ATR stop multiplier */
+    public float $atrStopMult;
+
+    /** @var float Min trail % */
+    public float $minTrailPct;
+
+    /** @return array<string, mixed> */
+    public function scanConfig(): array
+    {
+        return [
+            'min_score' => $this->minScore,
+            'max_score' => $this->maxScore,
+            'top_n' => $this->topN,
+            'min_vwap_bounce_vol_mult' => $this->minVwapBounceVolMult,
+            'max_vwap_distance_pct' => $this->maxVwapDistancePct,
+            'min_flag_consolidation_bars' => $this->minFlagConsolidationBars,
+            'max_flag_consolidation_bars' => $this->maxFlagConsolidationBars,
+            'max_flag_range_pct' => $this->maxFlagRangePct,
+            'min_flag_breakout_vol_mult' => $this->minFlagBreakoutVolMult,
+            'min_pole_move_pct' => $this->minPoleMovePct,
+            'min_breakdown_reclaim_vol' => $this->minBreakdownReclaimVol,
+            'before_minutes' => $this->beforeMinutes,
+            'after_minutes' => $this->afterMinutes,
+            'vol_lookback' => $this->volLookback,
+            'atr_stop_mult' => $this->atrStopMult,
+            'min_trail_pct' => $this->minTrailPct,
+        ];
+    }
+
     public function __construct(
         private readonly BestPerformers5mService $bestPerformersService,
         private readonly GainersLosersAnalysisService $gainersLosersService
-    ) {}
+    ) {
+        $this->minScore = (float) env('V130_MIN_SCORE', 45.0);
+        $this->maxScore = (float) env('V130_MAX_SCORE', 100.0);
+        $this->topN = (int) env('V130_TOP_N', 50);
+        $this->minVwapBounceVolMult = (float) env('V130_MIN_VWAP_BOUNCE_VOL_MULT', 2.0);
+        $this->maxVwapDistancePct = (float) env('V130_MAX_VWAP_DISTANCE_PCT', 0.2);
+        $this->minFlagConsolidationBars = (int) env('V130_MIN_FLAG_CONSOLIDATION_BARS', 5);
+        $this->maxFlagConsolidationBars = (int) env('V130_MAX_FLAG_CONSOLIDATION_BARS', 10);
+        $this->maxFlagRangePct = (float) env('V130_MAX_FLAG_RANGE_PCT', 0.3);
+        $this->minFlagBreakoutVolMult = (float) env('V130_MIN_FLAG_BREAKOUT_VOL_MULT', 2.5);
+        $this->minPoleMovePct = (float) env('V130_MIN_POLE_MOVE_PCT', 3.0);
+        $this->minBreakdownReclaimVol = (float) env('V130_MIN_BREAKDOWN_RECLAIM_VOL', 3.0);
+        $this->beforeMinutes = (int) env('V130_BEFORE_MINUTES', 10);
+        $this->afterMinutes = (int) env('V130_AFTER_MINUTES', 0);
+        $this->volLookback = (int) env('V130_VOL_LOOKBACK', 20);
+        $this->atrStopMult = (float) env('V130_ATR_STOP_MULT', 2.5);
+        $this->minTrailPct = (float) env('V130_MIN_TRAIL_PCT', 0.60);
+    }
 
     public function getVersion(): string
     {
@@ -52,7 +142,6 @@ class FiveMinuteSignalScannerV130_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 30,
         float $minMovePct = 0.5,
@@ -61,7 +150,7 @@ class FiveMinuteSignalScannerV130_0
     ): array {
         // Get movers with basic volume/movement criteria
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => 5,
             'minBars' => 200,
@@ -76,7 +165,6 @@ class FiveMinuteSignalScannerV130_0
         try {
             $currentDate = substr($asOfTsEst, 0, 10);
             $prevTradingDay = DB::table($this->fiveMinuteTable)
-                ->where('asset_type', $assetType)
                 ->where('trading_date_est', '<', $currentDate)
                 ->orderBy('trading_date_est', 'desc')
                 ->value('trading_date_est');
@@ -84,7 +172,6 @@ class FiveMinuteSignalScannerV130_0
             if ($prevTradingDay) {
                 $losersData = $this->gainersLosersService->getGainersAndLosers(
                     $prevTradingDay,
-                    $assetType,
                     75
                 );
                 $losers = $losersData['losers'] ?? [];
@@ -106,7 +193,7 @@ class FiveMinuteSignalScannerV130_0
             $lookbackStart = date('Y-m-d H:i:s', strtotime($asOf.' -'.$lookbackMinutes.' minutes'));
 
             // Get 5-minute bars for pattern detection
-            $bars = $this->get5MinBars($symbol, $assetType, $lookbackStart, $asOf);
+            $bars = $this->get5MinBars($symbol, $lookbackStart, $asOf);
             if (count($bars) < 8) {
                 continue;
             }
@@ -154,7 +241,7 @@ class FiveMinuteSignalScannerV130_0
         return array_slice($candidates, 0, $limit);
     }
 
-    private function get5MinBars(string $symbol, string $assetType, string $from, string $to): array
+    private function get5MinBars(string $symbol, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT 
@@ -170,11 +257,11 @@ class FiveMinuteSignalScannerV130_0
                 ema9_above_ema21
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
+
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $from, $to]);
+        ', [$symbol, $from, $to]);
     }
 
     /**
@@ -185,7 +272,7 @@ class FiveMinuteSignalScannerV130_0
      */
     private function detectVwapBounce(array $bars, string $symbol): ?array
     {
-        $minBounceVol = (float) config('trading.v130.min_vwap_bounce_vol_mult', 2.0);
+        $minBounceVol = $this->minVwapBounceVolMult;
         $count = count($bars);
 
         for ($i = 3; $i < $count; $i++) {
@@ -224,7 +311,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'VWAP_BOUNCE',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $price,
@@ -251,10 +337,10 @@ class FiveMinuteSignalScannerV130_0
      */
     private function detectBullFlag(array $bars, string $symbol): ?array
     {
-        $minFlagBars = (int) config('trading.v130.min_flag_consolidation_bars', 4);
-        $maxFlagBars = (int) config('trading.v130.max_flag_consolidation_bars', 8);
-        $maxFlagRange = (float) config('trading.v130.max_flag_range_pct', 0.4);
-        $minPoleMove = (float) config('trading.v130.min_pole_move_pct', 2.5);
+        $minFlagBars = $this->minFlagConsolidationBars;
+        $maxFlagBars = $this->maxFlagConsolidationBars;
+        $maxFlagRange = $this->maxFlagRangePct;
+        $minPoleMove = $this->minPoleMovePct;
         $count = count($bars);
 
         // Need enough bars for pole + flag + breakout
@@ -331,7 +417,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'BULL_FLAG_BREAKOUT',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $currentPrice,
@@ -359,7 +444,7 @@ class FiveMinuteSignalScannerV130_0
      */
     private function detectFailedBreakdown(array $bars, string $symbol): ?array
     {
-        $minReclaimVol = (float) config('trading.v130.min_breakdown_reclaim_vol', 3.0);
+        $minReclaimVol = $this->minBreakdownReclaimVol;
         $count = count($bars);
 
         for ($i = 2; $i < $count; $i++) {
@@ -400,7 +485,6 @@ class FiveMinuteSignalScannerV130_0
 
             return [
                 'symbol' => $symbol,
-                'asset_type' => 'stock',
                 'signal_type' => 'FAILED_BREAKDOWN',
                 'signal_ts_est' => (string) $current->ts_est,
                 'price' => $currentPrice,

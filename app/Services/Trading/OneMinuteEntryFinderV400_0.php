@@ -31,20 +31,26 @@ use Illuminate\Support\Facades\Log;
  * - Lower highs stacking and VWAP reclaim keeps failing
  * - Big red candles on high volume (5m rolling over)
  */
-class OneMinuteEntryFinderV400_0
+class OneMinuteEntryFinderV400_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v400.0';
-
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v400.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return 'v400.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int|array $beforeMinutesOrOptions = 10,
@@ -102,8 +108,8 @@ class OneMinuteEntryFinderV400_0
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
         // Get 1-minute bars
-        $cacheKey1m = "1m_bars:v400_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey1m = "1m_bars:v400_0:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                                     symbol,
@@ -123,18 +129,17 @@ class OneMinuteEntryFinderV400_0
                   atr,
                   atr_pct,
                   AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $from, $to]);
+            ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 15) {
@@ -142,7 +147,6 @@ class OneMinuteEntryFinderV400_0
                 'ok' => false,
                 'error' => 'Not enough 1m data for continuation analysis',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -159,7 +163,6 @@ class OneMinuteEntryFinderV400_0
                         'ok' => false,
                         'error' => 'Bad data detected - extreme price drop (reverse split or data error)',
                         'symbol' => $symbol,
-                        'asset_type' => $assetType,
                         'drop_pct' => round($dropPct, 2),
                     ];
                 }
@@ -528,7 +531,6 @@ class OneMinuteEntryFinderV400_0
                 'ok' => false,
                 'error' => 'No continuation entry patterns found in analysis window',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'candidates_checked' => 0,
             ];
         }
@@ -540,7 +542,6 @@ class OneMinuteEntryFinderV400_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'best_entry' => $best,
             'candidates' => $candidates,
         ];
@@ -660,7 +661,7 @@ class OneMinuteEntryFinderV400_0
             'above_vwap' => (int) ($bar->above_vwap ?? 0),
             'ema9_above_ema21' => (int) ($bar->ema9_above_ema21 ?? 0),
             'reason' => $reason,
-            'version' => $this->version,
+            'version' => $this->getVersion(),
         ];
     }
 

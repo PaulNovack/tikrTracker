@@ -66,6 +66,16 @@ class TradePipelineRunK extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate ──
+        if (config('trading.pipelines.k.use_redis', false)) {
+            $msg = 'Pipeline K: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            /// \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 

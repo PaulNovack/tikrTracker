@@ -34,7 +34,6 @@ class TradeAlertsController extends Controller
 
         // Fetch all alerts from both pipelines combined, sorted by entry time (newest first)
         $alerts = $this->fetchAllAlerts('trade_alerts', $mlMinThreshold, $dateFilter, $symbolFilter, $pipelineFilter);
-        \Log::info('Found '.$alerts->total().' total alerts');
 
         return Inertia::render('trade-alerts/index', [
             'alerts' => $alerts->items(),

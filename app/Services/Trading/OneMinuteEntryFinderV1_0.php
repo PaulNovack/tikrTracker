@@ -48,7 +48,6 @@ class OneMinuteEntryFinderV1_0
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 10,
@@ -62,14 +61,14 @@ class OneMinuteEntryFinderV1_0
         $tradingDate = substr($asOfTsEst, 0, 10);
 
         // Get 1-minute bars from signal time to asOfTsEst
-        $bars = $this->getBars($symbol, $assetType, $tradingDate, $signalTsEst, $asOfTsEst);
+        $bars = $this->getBars($symbol, $tradingDate, $signalTsEst, $asOfTsEst);
 
         if (count($bars) < $consolidationMinBars) {
             return ['ok' => false, 'reason' => 'Insufficient bars for consolidation'];
         }
 
         // Get ATR for stop calculation
-        $atr = $this->getATR($symbol, $assetType, $tradingDate);
+        $atr = $this->getATR($symbol, $tradingDate);
 
         // Detect consolidation patterns
         $consolidations = $this->detectConsolidations($bars, $consolidationMinBars);
@@ -106,11 +105,10 @@ class OneMinuteEntryFinderV1_0
     /**
      * Get 1-minute bars for analysis
      */
-    private function getBars(string $symbol, string $assetType, string $tradingDate, string $startTs, string $endTs): array
+    private function getBars(string $symbol, string $tradingDate, string $startTs, string $endTs): array
     {
         return DB::table($this->oneMinuteTable)
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '>=', $startTs)
             ->where('ts_est', '<=', $endTs)
@@ -123,11 +121,10 @@ class OneMinuteEntryFinderV1_0
     /**
      * Get average ATR for stop calculation
      */
-    private function getATR(string $symbol, string $assetType, string $tradingDate): ?float
+    private function getATR(string $symbol, string $tradingDate): ?float
     {
         return DB::table('daily_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('date', '>=', DB::raw("DATE_SUB('$tradingDate', INTERVAL 14 DAY)"))
             ->where('date', '<', $tradingDate)
             ->avg(DB::raw('high - low'));

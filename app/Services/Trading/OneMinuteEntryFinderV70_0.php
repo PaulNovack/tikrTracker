@@ -24,7 +24,6 @@ class OneMinuteEntryFinderV70_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -75,25 +74,23 @@ class OneMinuteEntryFinderV70_0
               atr,
               atr_pct,
               AVG(volume) OVER (
-                PARTITION BY symbol, asset_type
+                PARTITION BY symbol
                 ORDER BY ts_est
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         if (! $bars || count($bars) < 25) {
             return [
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -112,13 +109,12 @@ class OneMinuteEntryFinderV70_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // Build a lookup for 5-minute trend at any given time
         $fiveMinTrend = [];
@@ -202,7 +198,6 @@ class OneMinuteEntryFinderV70_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Excessive 5-minute choppiness (directional_changes >= 8)',
@@ -535,7 +530,6 @@ class OneMinuteEntryFinderV70_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -545,7 +539,7 @@ class OneMinuteEntryFinderV70_0
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'allowed_entry_types' => $allowedTypesStr,
                 ],
             ];
@@ -583,7 +577,6 @@ class OneMinuteEntryFinderV70_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -593,7 +586,7 @@ class OneMinuteEntryFinderV70_0
             'meta' => [
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
             ],
         ];

@@ -33,7 +33,7 @@ class FiveMinuteSignalScannerV22_0
         return $this->name;
     }
 
-    public function scan(string $assetType, string $asOfTsEst): array
+    public function scan(string $asOfTsEst): array
     {
         $minPrice = 1.0;
         $minVolume5m = 10000;
@@ -43,7 +43,6 @@ class FiveMinuteSignalScannerV22_0
 
         $rows = DB::table($this->fiveMinuteTable)
             ->select('symbol', 'price', 'volume')
-            ->where('asset_type', $assetType)
             ->where('ts_est', $asOfTsEst)
             ->where('price', '>=', $minPrice)
             ->where('volume', '>=', $minVolume5m)
@@ -64,7 +63,6 @@ class FiveMinuteSignalScannerV22_0
                 'symbol' => $row->symbol,
                 'signal_type' => 'ALLIGATOR_SCAN',
                 'signal_ts_est' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'scan_ts_est' => $asOfTsEst,
                 'price_5m' => $price,
                 'volume_5m' => $vol,

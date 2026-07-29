@@ -48,7 +48,6 @@ class FiveMinuteSignalScannerV31_0
      * @return array Signals with symbol, score, volatility metrics
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 1.0,
@@ -59,7 +58,6 @@ class FiveMinuteSignalScannerV31_0
 
         // Get last 7 trading days
         $tradingDays = DB::table($this->fiveMinuteTable)
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', '<=', $currentDate)
             ->select('trading_date_est')
             ->distinct()
@@ -82,8 +80,7 @@ class FiveMinuteSignalScannerV31_0
                     MAX(price) as day_high,
                     (MAX(price) - MIN(price)) / MIN(price) * 100 as intraday_range_pct
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND trading_date_est IN (?, ?, ?, ?, ?, ?, ?)
+    WHERE trading_date_est IN (?, ?, ?, ?, ?, ?, ?)
                   AND TIME(ts_est) BETWEEN '09:30:00' AND '16:00:00'
                 GROUP BY symbol, trading_date_est
                 HAVING intraday_range_pct >= 10.0
@@ -109,7 +106,7 @@ class FiveMinuteSignalScannerV31_0
             LIMIT 500
         ";
 
-        $volatileStocks = $this->dbSelect($sql, array_merge([$assetType], $tradingDays));
+        $volatileStocks = $this->dbSelect($sql, array_merge([], $tradingDays));
 
         if (empty($volatileStocks)) {
             return [];
@@ -133,19 +130,17 @@ class FiveMinuteSignalScannerV31_0
 WITH last_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
-  WHERE asset_type = ?
-    AND symbol IN ($placeholders)
+
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bar_data AS (
   SELECT
     lb.symbol,
-    lb.asset_type,
     lb.last_ts_est,
     cur.price AS last_close,
     old.price AS old_close,
@@ -153,13 +148,9 @@ bar_data AS (
     AVG(hist.volume) AS avg_volume
   FROM last_bar lb
   JOIN five_minute_prices cur
-    ON cur.symbol = lb.symbol
-    AND cur.asset_type = lb.asset_type
-    AND cur.ts_est = lb.last_ts_est
+    ON cur.symbol = lb.symbol AND cur.ts_est = lb.last_ts_est
   LEFT JOIN five_minute_prices old
-    ON old.symbol = lb.symbol
-    AND old.asset_type = lb.asset_type
-    AND old.ts_est = (
+    ON old.symbol = lb.symbol AND old.ts_est = (
       SELECT MAX(ts_est)
       FROM five_minute_prices
       WHERE symbol = lb.symbol
@@ -167,15 +158,12 @@ bar_data AS (
         AND ts_est < DATE_SUB(lb.last_ts_est, INTERVAL ? MINUTE)
     )
   LEFT JOIN five_minute_prices hist
-    ON hist.symbol = lb.symbol
-    AND hist.asset_type = lb.asset_type
-    AND hist.ts_est >= DATE_SUB(lb.last_ts_est, INTERVAL ? MINUTE)
+    ON hist.symbol = lb.symbol AND hist.ts_est >= DATE_SUB(lb.last_ts_est, INTERVAL ? MINUTE)
     AND hist.ts_est < lb.last_ts_est
-  GROUP BY lb.symbol, lb.asset_type, lb.last_ts_est, cur.price, old.price, cur.volume
+  GROUP BY lb.symbol, lb.last_ts_est, cur.price, old.price, cur.volume
 )
 SELECT
   symbol,
-  asset_type,
   last_ts_est,
   last_close,
   old_close,
@@ -192,7 +180,7 @@ ORDER BY move_pct DESC
 ";
 
         $params = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $lookbackMinutes, $lookbackMinutes],
             [$minMovePct, $volMult]
@@ -213,7 +201,6 @@ ORDER BY move_pct DESC
 
             $results[] = [
                 'symbol' => $sig->symbol,
-                'asset_type' => $sig->asset_type,
                 'signal_type' => 'VOLATILE_SWING',
                 'signal_ts_est' => $sig->last_ts_est,
                 'score' => round($combinedScore, 2),

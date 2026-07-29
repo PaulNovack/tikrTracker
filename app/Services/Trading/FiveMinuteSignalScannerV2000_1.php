@@ -39,7 +39,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
@@ -54,13 +53,12 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
         $addIntradayUniverse = (int) config('trading.market_movers.pipeline_j_add_intraday_universe', 0);
 
         if ($addIntradayUniverse > 0) {
-            $universeCacheKey = "scan_v2000_1:universe_symbols:{$assetType}";
+            $universeCacheKey = 'scan_v2000_1:universe_symbols';
             $universeSymbols = Cache::get($universeCacheKey);
 
             if ($universeSymbols === null) {
                 $universeSymbols = DB::table('intraday_universe')
                     ->select('symbol')
-                    ->where('asset_type', $assetType)
                     ->orderBy('symbol')
                     ->pluck('symbol')
                     ->all();
@@ -109,7 +107,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
         $recentRows = $this->dbSelect("
             SELECT
                 ranked.symbol,
-                ranked.asset_type,
                 ranked.ts_est,
                 ranked.price AS close_price,
                 ranked.open,
@@ -131,7 +128,6 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
             FROM (
                 SELECT
                     f.symbol,
-                    f.asset_type,
                     f.ts_est,
                     f.price,
                     f.open,
@@ -151,14 +147,13 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                     f.trading_date_est,
                     ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
                 FROM five_minute_prices f
-                WHERE f.asset_type = ?
-                  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
                   AND f.ts_est <= ?
                   AND f.symbol IN ($placeholders)
             ) ranked
             WHERE ranked.rn <= 20
             ORDER BY ranked.symbol ASC, ranked.rn ASC
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $symbols));
 
         if (empty($recentRows)) {
             return [];
@@ -178,12 +173,11 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
                 AVG(f.volume) AS avg_5m_volume,
                 AVG(f.price * f.volume) / 5 AS avg_dollar_volume_per_minute
             FROM five_minute_prices f
-            WHERE f.asset_type = ?
-              AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
               AND f.ts_est <= ?
               AND f.symbol IN ($placeholders)
             GROUP BY f.symbol
-        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $symbols));
+        ", array_merge([$tradeDate, $asOfTsEst], $symbols));
 
         $dayStatsBySymbol = [];
         foreach ($dayStatsRows as $row) {
@@ -355,7 +349,7 @@ class FiveMinuteSignalScannerV2000_1 implements FiveMinuteSignalScannerContract
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $latest->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => $setupType,
                 'signal_ts_est' => (string) $latest->ts_est,
                 'score' => $score,

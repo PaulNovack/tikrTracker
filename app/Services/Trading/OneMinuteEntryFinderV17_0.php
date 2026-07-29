@@ -11,12 +11,8 @@ use Illuminate\Support\Facades\Cache;
  * Purpose: Experiment with adjustments to find more entries without sacrificing quality
  * Changes TBD
  */
-class OneMinuteEntryFinderV17_0
+class OneMinuteEntryFinderV17_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v17.0';
-
     private float $maxRiskPct;
 
     private float $atrMultiplier;
@@ -28,7 +24,7 @@ class OneMinuteEntryFinderV17_0
     public function __construct()
     {
         // Load max risk from config (matches production stop logic)
-        $this->maxRiskPct = (float) config('trading.v17.max_risk_pct', 1.00);
+        $this->maxRiskPct = (float) env('TRADING_V17_MAX_RISK_PCT', 1.00);
 
         // Load ATR-based stop parameters from the single DB-backed source
         $this->atrMultiplier = TradingSettingService::getStopLossAtrMultiplier();
@@ -38,7 +34,18 @@ class OneMinuteEntryFinderV17_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v17.0';
+    }
+
+    public function getName(): string
+    {
+        return 'v17.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
     }
 
     /**
@@ -289,9 +296,8 @@ class OneMinuteEntryFinderV17_0
      *  ['ok'=>bool,'best_entry'=>..., 'candidates'=>...]
      *  best_entry includes: atr, atr_pct, suggested_trailing_stop, suggested_trailing_stop_pct
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -301,7 +307,7 @@ class OneMinuteEntryFinderV17_0
         string $fillModel = 'next_open', // next_open|close
         int $freshnessMinutes = 6, // Maximum age for entries to be considered fresh
         ?string $freshnessRefTsEst = null // Optional real-time freshness reference
-    ): array {
+    ): ?array {
         // v13.0: LIVE MODE FIX - Analysis window relative to NOW, not signal time
         // For live trading, we only care about RECENT entries (last 6 minutes from now)
         // The signal time tells us WHEN momentum was detected, but entries must be fresh
@@ -321,8 +327,8 @@ class OneMinuteEntryFinderV17_0
         $vwapEnd = $analysisEnd;
 
         $bucketTs = date('Y-m-d H:i', strtotime($vwapEnd));
-        $cacheKey1m = "1m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd) {
+        $cacheKey1m = "1m_bars:v17:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -332,24 +338,16 @@ class OneMinuteEntryFinderV17_0
                   `price` AS `close`,
                   `volume`
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+            ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
         });
 
         if (! $bars || count($bars) < 25) {
-            return [
-                'ok' => false,
-                'error' => 'Not enough 1m data in range (market closed or missing bars).',
-                'symbol' => $symbol,
-                'asset_type' => $assetType,
-                'range_est' => [$vwapStart, $vwapEnd],
-                'bars_found' => $bars ? count($bars) : 0,
-            ];
+            return null;
         }
 
         // Validate data quality: reject if extreme price drops (reverse splits, bad data)
@@ -357,23 +355,22 @@ class OneMinuteEntryFinderV17_0
             $prevClose = (float) $bars[$i - 1]->close;
             $currentOpen = (float) $bars[$i]->open;
             if ($prevClose > 0 && (($currentOpen - $prevClose) / $prevClose) * 100.0 < -50.0) {
-                return ['ok' => false, 'error' => 'Bad data - extreme drop', 'symbol' => $symbol];
+                return null;
             }
         }
 
         // Get 5-minute bars for choppiness detection (use full VWAP window, not analysis window)
-        $cacheKey5m = "5m_bars:v17:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd) {
+        $cacheKey5m = "5m_bars:v17:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $vwapStart, $vwapEnd) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+            ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
         });
 
         // Calculate choppiness (log only, no filtering for v17.0)
@@ -1734,18 +1731,7 @@ class OneMinuteEntryFinderV17_0
             $best['suggested_trailing_stop_pct'] = round($trailPct, 3);
         }
 
-        return [
-            'ok' => (bool) $best,
-            'symbol' => $symbol,
-            'asset_type' => $assetType,
-            'signal_ts_est' => $signalTsEst,
-            'analysis_window_est' => [$analysisStart, $analysisEnd],
-            'freshness_reference_est' => $freshnessReference,
-            'market_open_est' => $marketOpen,
-            'bars_loaded' => count($norm),
-            'best_entry' => $best,
-            'candidates' => $candidates,
-        ];
+        return $best ?: null;
     }
 
     /**
@@ -1754,7 +1740,7 @@ class OneMinuteEntryFinderV17_0
      * @param  array  $fiveMinBars  Array of 5-minute bars (most recent 6-12 bars)
      * @return array ['directional_changes', 'green_bar_pct', 'net_progress']
      */
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

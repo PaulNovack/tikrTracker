@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Log;
  * Output signals:
  * [
  *   'symbol' => 'AAPL',
- *   'asset_type' => 'stock',
  *   'signal_type' => 'MOMO_5M',
  *   'signal_ts_est' => 'YYYY-mm-dd HH:MM:SS',
  *   'score' => 12.34,
@@ -24,7 +23,7 @@ use Illuminate\Support\Facades\Log;
  * ]
  *
  * Assumptions:
- * - five_minute_prices has: symbol, asset_type, ts_est, price, volume
+ * - five_minute_prices has: symbol, ts_est, price, volume
  */
 class FiveMinuteSignalScannerV30_0
 {
@@ -48,7 +47,7 @@ class FiveMinuteSignalScannerV30_0
      * @param  array<string,mixed>|int|string|null  $opts
      * @return array<int,array<string,mixed>>
      */
-    public function scan(string $assetType, string $asOfTsEst, array|int|string|null $opts = []): array
+    public function scan(string $asOfTsEst, array|int|string|null $opts = []): array
     {
         // Normalize opts (Pipeline sometimes passes lookback minutes as an int)
         if (! is_array($opts)) {
@@ -89,7 +88,6 @@ class FiveMinuteSignalScannerV30_0
         );
 
         Log::channel('trading')->info('[FiveMinuteSignalScannerV30_0] scan done', [
-            'asset_type' => $assetType,
             'as_of_ts_est' => $asOfTsEst,
             'lookback_minutes' => $lookbackMinutes,
             'min_move_pct' => $minMovePct,
@@ -107,11 +105,10 @@ class FiveMinuteSignalScannerV30_0
     /**
      * @return array<int,string>
      */
-    private function loadUniverse(string $assetType, string $tradingDateEst): array
+    private function loadUniverse(string $tradingDateEst): array
     {
         $rows = DB::table('eligible_symbols')
             ->select('symbol')
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDateEst)
             ->limit(5000)
             ->get();
@@ -132,7 +129,6 @@ class FiveMinuteSignalScannerV30_0
      * @return array<int,array<string,mixed>>
      */
     private function querySignals(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes,
         float $minMovePct,
@@ -161,51 +157,47 @@ WITH params AS (
 bars AS (
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.price AS close_px,
         f.volume
     FROM five_minute_prices f
     JOIN params p
       ON f.ts_est BETWEEN p.start_ts AND p.as_of_ts
-    WHERE f.asset_type = ?
+
       AND f.ts_est <= (SELECT as_of_ts FROM params)
       '.($useUniverse ? " AND f.symbol IN ($inPlaceholders) " : '').'
 ),
 agg AS (
     SELECT
         b.symbol,
-        b.asset_type,
         COUNT(*) AS bars,
         MAX(b.ts_est) AS last_ts,
         MIN(b.ts_est) AS first_ts
     FROM bars b
-    GROUP BY b.symbol, b.asset_type
+    GROUP BY b.symbol
 ),
 first_last AS (
     SELECT
         a.symbol,
-        a.asset_type,
         a.bars,
         a.first_ts,
         a.last_ts,
         (SELECT b1.close_px FROM bars b1
-          WHERE b1.symbol=a.symbol AND b1.asset_type=a.asset_type AND b1.ts_est=a.first_ts
+          WHERE b1.symbol=a.symbol AND b1.ts_est=a.first_ts
           LIMIT 1) AS first_close,
         (SELECT b2.close_px FROM bars b2
-          WHERE b2.symbol=a.symbol AND b2.asset_type=a.asset_type AND b2.ts_est=a.last_ts
+          WHERE b2.symbol=a.symbol AND b2.ts_est=a.last_ts
           LIMIT 1) AS last_close,
         (SELECT b3.volume FROM bars b3
-          WHERE b3.symbol=a.symbol AND b3.asset_type=a.asset_type AND b3.ts_est=a.last_ts
+          WHERE b3.symbol=a.symbol AND b3.ts_est=a.last_ts
           LIMIT 1) AS last_vol,
         (SELECT AVG(b4.volume) FROM bars b4
-          WHERE b4.symbol=a.symbol AND b4.asset_type=a.asset_type AND b4.ts_est < a.last_ts
+          WHERE b4.symbol=a.symbol AND b4.ts_est < a.last_ts
         ) AS avg_vol
     FROM agg a
 )
 SELECT
     fl.symbol,
-    fl.asset_type,
     fl.last_ts,
     fl.bars,
     fl.first_close,
@@ -258,7 +250,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->last_ts,
                 'score' => $score,

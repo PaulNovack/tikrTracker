@@ -70,8 +70,8 @@ it('filters by score thresholds', function () {
     if (! empty($signals)) {
         foreach ($signals as $signal) {
             $score = $signal['score'];
-            $minScore = config('trading.v700.entry_score_min', 80);
-            $maxScore = config('trading.v700.entry_score_max', 100);
+            $minScore = $this->scanner->entryScoreMin;
+            $maxScore = $this->scanner->entryScoreMax;
 
             expect($score)->toBeGreaterThanOrEqual($minScore);
             expect($score)->toBeLessThanOrEqual($maxScore);

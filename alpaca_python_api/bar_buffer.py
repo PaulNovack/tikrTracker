@@ -18,9 +18,12 @@ Usage (standalone flush):
 Flush is always safe to call; it's a no-op when the buffer is empty.
 """
 
-import os
-import sys
+import asyncio
+import json
 import logging
+import os
+import signal
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -307,6 +310,10 @@ class BarBufferService:
         # Per-symbol indicator state — keyed by uppercase symbol string
         self._states: dict[str, SymbolIndicatorState] = {}
 
+        # Per-symbol 5m bar aggregation buckets: symbol → epoch_5m → {open, high, low, close, vol, vwap_n, vwap_d, count}
+        self._5m_buckets: dict[str, dict[int, dict]] = {}
+        self._5m_last_epoch: dict[str, int] = {}
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -335,6 +342,9 @@ class BarBufferService:
         with self._lock:
             self._pending.append(row)
             should_flush = len(self._pending) >= self.flush_size
+
+        # ── 5m bar aggregation (always, not just on flush) ──
+        self._maybe_aggregate_5m(row)
 
         if should_flush:
             self.flush()
@@ -654,9 +664,179 @@ class BarBufferService:
 
                 pipe.hset(key, mapping=mapping)
                 pipe.expire(key, 3700)  # 1h + small buffer
+
+                # Also write 1m bar to rt:bars:1m sorted set for entry finder (PDF §4)
+                try:
+                    ts_str = bar.get("ts", "")
+                    if ts_str:
+                        ts_epoch = int(datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+                        date_str = datetime.fromtimestamp(ts_epoch, tz=_EST).strftime("%Y%m%d")
+                        bar_key = f"{prefix}rt:bars:1m:{date_str}:stock:{bar["symbol"].upper()}"
+                        payload = {"ts": ts_epoch, "ts_est": bar.get("ts_est", ts_str), "symbol": bar["symbol"].upper(), "open": round(float(bar.get("open", bar["price"])), 4), "high": round(float(bar.get("high", bar["price"])), 4), "low": round(float(bar.get("low", bar["price"])), 4), "close": round(float(bar["price"]), 4), "volume": int(bar.get("volume", 0) or 0), "vwap": round(float(bar.get("vwap", bar["price"])), 4), "is_final": True, "source": "alpaca_stream"}
+                        payload_json = json.dumps(payload)
+                        pipe.zremrangebyscore(bar_key, ts_epoch, ts_epoch)
+                        pipe.zadd(bar_key, {payload_json: ts_epoch})
+                        pipe.zremrangebyrank(bar_key, 0, -421)
+                        pipe.expire(bar_key, 172800)
+                        event = {"type": "1m_bar", "symbol": bar["symbol"].upper(), "epoch": str(ts_epoch), "ts_est": bar.get("ts_est", ts_str), "close": str(round(float(bar["price"]), 4)), "volume": str(int(bar.get("volume", 0) or 0))}
+                        r.xadd("rt:events:bars", event, maxlen=100000, approximate=True)
+                except (ValueError, IndexError):
+                    pass
             pipe.execute()
         except Exception:
             pass  # Redis is optional; MySQL is the source of truth
+
+    # ── 5m bar aggregation for rt:bars:5m sorted set ────────────────
+
+    def _maybe_aggregate_5m(self, bar: dict) -> None:
+        """Track 1m bars for 5m aggregation.
+
+        Accumulates OHLCV into 5-minute buckets. When a bar crosses into
+        a new 5m bucket, flushes the previous bucket as a completed
+        5-minute bar to the rt:bars:5m sorted set.
+        """
+        sym = bar["symbol"]
+        ts_str = bar.get("ts", "")
+        if not ts_str:
+            return
+
+        try:
+            ts_epoch = int(datetime.strptime(
+                ts_str[:19], "%Y-%m-%d %H:%M:%S"
+            ).replace(tzinfo=timezone.utc).timestamp())
+        except (ValueError, IndexError):
+            return
+
+        epoch_5m = ts_epoch - (ts_epoch % 300)  # floor to 5-minute boundary
+        prev_epoch = self._5m_last_epoch.get(sym)
+
+        # First bar for this symbol — start new bucket
+        if prev_epoch is None or epoch_5m != prev_epoch:
+            # Flush previous bucket if it had data
+            if prev_epoch is not None and prev_epoch in self._5m_buckets.get(sym, {}):
+                self._flush_5m_bucket(sym, prev_epoch)
+
+            # Start new bucket
+            if sym not in self._5m_buckets:
+                self._5m_buckets[sym] = {}
+            self._5m_buckets[sym][epoch_5m] = {
+                "open": bar.get("open", bar["price"]),
+                "high": bar.get("high", bar["price"]),
+                "low": bar.get("low", bar["price"]),
+                "close": bar["price"],
+                "volume": int(bar.get("volume", 0) or 0),
+                "vwap_num": bar["price"] * (int(bar.get("volume", 0) or 0)),
+                "vwap_den": int(bar.get("volume", 0) or 0),
+                "count": 1,
+            }
+            self._5m_last_epoch[sym] = epoch_5m
+        else:
+            # Same bucket — accumulate
+            bucket = self._5m_buckets[sym].get(epoch_5m)
+            if bucket is None:
+                return
+            close_price = bar["price"]
+            vol = int(bar.get("volume", 0) or 0)
+            bucket["high"] = max(bucket["high"], bar.get("high", close_price))
+            bucket["low"] = min(bucket["low"], bar.get("low", close_price))
+            bucket["close"] = close_price
+            bucket["volume"] += vol
+            bucket["vwap_num"] += close_price * vol
+            bucket["vwap_den"] += vol
+            bucket["count"] += 1
+
+    def _flush_5m_bucket(self, symbol: str, epoch_5m: int) -> None:
+        """Aggregate a completed 5m bucket and write to Redis sorted set."""
+        buckets = self._5m_buckets.get(symbol, {})
+        bucket = buckets.pop(epoch_5m, None)
+        if bucket is None or bucket.get("count", 0) < 1:
+            return
+
+        vwap = bucket["vwap_num"] / bucket["vwap_den"] if bucket["vwap_den"] > 0 else bucket["close"]
+
+        BarBufferService._cache_5m_bar_to_sorted_set(
+            symbol=symbol,
+            epoch_5m=epoch_5m,
+            open_price=bucket["open"],
+            high=bucket["high"],
+            low=bucket["low"],
+            close_price=bucket["close"],
+            volume=bucket["volume"],
+            vwap=vwap,
+        )
+
+    @classmethod
+    def _cache_5m_bar_to_sorted_set(
+        cls,
+        symbol: str,
+        epoch_5m: int,
+        open_price: float,
+        high: float,
+        low: float,
+        close_price: float,
+        volume: int,
+        vwap: float,
+    ) -> None:
+        """Write a completed 5-minute bar to the rt:bars:5m sorted set.
+
+        Follows the exact same key/payload format as the PHP
+        RedisBarHydrator::write5mBarsToRedis so that getLatestBars
+        can read bars from both live and warm-up sources.
+        Key: rt:bars:5m:{Ymd}:stock:{SYMBOL}
+        """
+        try:
+            r = cls._get_redis()
+            est_epoch = epoch_5m - (4 * 3600)  # UTC-4 EDT offset for ts_est
+            ts_est = datetime.fromtimestamp(est_epoch, tz=timezone.utc).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            date_str = datetime.fromtimestamp(epoch_5m, tz=_EST).strftime("%Y%m%d")
+            prefix = os.environ.get("REDIS_PREFIX", "")
+            key = f"{prefix}rt:bars:5m:{date_str}:stock:{symbol.upper()}"
+
+            payload = {
+                "ts": epoch_5m,
+                "ts_est": ts_est,
+                "symbol": symbol.upper(),
+                "open": round(open_price, 4),
+                "high": round(high, 4),
+                "low": round(low, 4),
+                "close": round(close_price, 4),
+                "volume": volume,
+                "vwap": round(vwap, 4),
+                "is_final": True,
+                "source": "alpaca_stream",
+                "above_vwap": 1 if close_price > vwap else 0,
+            }
+            payload_json = json.dumps(payload)
+
+            pipe = r.pipeline()
+            pipe.zremrangebyscore(key, epoch_5m, epoch_5m)
+            pipe.zadd(key, {payload_json: epoch_5m})
+            pipe.zremrangebyrank(key, 0, -101)  # keep last 100 bars
+            pipe.expire(key, 172800)  # 2-day TTL
+            pipe.execute()
+
+        except Exception as exc:
+            logging.warning("[bar_buffer] Redis pipeline failed for %s: %s", symbol, exc)
+
+        # Emit event to rt:events:bars stream for ConsumeBarEvents (outside try block)
+        # Only emit for recent bars (≤ 10 min old) — warmup bars are stale and
+        # would be discarded by every consumer, generating log noise.
+        age = int(time.time()) - epoch_5m
+        if age <= 600:
+            try:
+                event = {
+                    "type": "5m_bar",
+                    "symbol": symbol.upper(),
+                    "epoch": str(epoch_5m),
+                    "ts_est": ts_est,
+                    "close": str(round(close_price, 4)),
+                    "volume": str(volume),
+                }
+                r.xadd("rt:events:bars", event, maxlen=100000, approximate=True)
+            except Exception as exc:
+                logging.warning("[bar_buffer] Redis 5m_bar event failed for %s: %s", symbol, exc)
 
     # ------------------------------------------------------------------
     # Startup warm-up: seed indicator states from today's MySQL bars

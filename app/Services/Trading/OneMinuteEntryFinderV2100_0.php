@@ -50,7 +50,6 @@ class OneMinuteEntryFinderV2100_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -71,11 +70,10 @@ class OneMinuteEntryFinderV2100_0
                 trading_time_est
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est = ?
             LIMIT 1
-        ', [$symbol, $assetType, $tradingDate, $signalTsEst]);
+        ', [$symbol, $tradingDate, $signalTsEst]);
 
         if (empty($signalBar)) {
             return [
@@ -83,9 +81,8 @@ class OneMinuteEntryFinderV2100_0
                 'best_entry' => null,
                 'reason' => 'signal_not_found',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -101,9 +98,8 @@ class OneMinuteEntryFinderV2100_0
                 'best_entry' => null,
                 'reason' => 'invalid_signal_price',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -119,10 +115,9 @@ class OneMinuteEntryFinderV2100_0
                 'best_entry' => null,
                 'reason' => 'entry_window_closed',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'entry_search_start_ts_est' => $entrySearchStartTsEst,
@@ -135,17 +130,16 @@ class OneMinuteEntryFinderV2100_0
         $target5Mult = 1.0 + ($this->target5Pct / 100.0);
         $maxStopMult = $this->maxStopPct / 100.0;
 
-        $roughContext = $this->queryRoughFivePctContext($symbol, $assetType, $tradingDate);
+        $roughContext = $this->queryRoughFivePctContext($symbol, $tradingDate);
         if ($roughContext === null) {
             return [
                 'ok' => 0,
                 'best_entry' => null,
                 'reason' => 'not_rough_5pct_runner',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -154,17 +148,16 @@ class OneMinuteEntryFinderV2100_0
 
         // Chronological run-start context is calculated in PHP for this one symbol.
         // That avoids a MySQL running-window CTE inside the heavy entry query.
-        $runContext = $this->queryRunContext($symbol, $assetType, $tradingDate);
+        $runContext = $this->queryRunContext($symbol, $tradingDate);
         if ($runContext === null) {
             return [
                 'ok' => 0,
                 'best_entry' => null,
                 'reason' => 'no_chronological_5pct_run',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'rough_day_low' => $roughContext['rough_day_low'],
@@ -179,7 +172,7 @@ class OneMinuteEntryFinderV2100_0
             ."WITH entry_candidates AS (\n"
             ."    SELECT\n"
             ."        e.symbol,\n"
-            ."        e.asset_type,\n"
+            .",\n"
             ."        e.trading_date_est,\n"
             ."        ? AS signal_price,\n"
             ."        e.ts_est AS entry_ts_est,\n"
@@ -211,7 +204,6 @@ class OneMinuteEntryFinderV2100_0
             ."        e.price * {$target5Mult} AS target5_price\n"
             ."    FROM one_minute_prices e\n"
             ."    WHERE e.symbol = ?\n"
-            ."      AND e.asset_type = ?\n"
             ."      AND e.trading_date_est = ?\n"
             ."      AND e.ts_est >= ?\n"
             ."      AND e.ts_est > ?\n"
@@ -224,23 +216,23 @@ class OneMinuteEntryFinderV2100_0
             ."entry_avg_volume AS (\n"
             ."    SELECT\n"
             ."        ec.symbol,\n"
-            ."        ec.asset_type,\n"
+            .",\n"
             ."        ec.trading_date_est,\n"
             ."        ec.entry_ts_est,\n"
             ."        AVG(CASE WHEN p.volume > 0 THEN p.volume END) AS avg_prior_volume\n"
             ."    FROM entry_candidates ec\n"
             ."    LEFT JOIN one_minute_prices p\n"
             ."      ON p.symbol = ec.symbol\n"
-            ."     AND p.asset_type = ec.asset_type\n"
+            ." \n"
             ."     AND p.trading_date_est = ec.trading_date_est\n"
             ."     AND p.ts_est < ec.entry_ts_est\n"
             ."     AND p.ts_est >= DATE_SUB(ec.entry_ts_est, INTERVAL 20 MINUTE)\n"
-            ."    GROUP BY ec.symbol, ec.asset_type, ec.trading_date_est, ec.entry_ts_est\n"
+            ."    GROUP BY ec.symbol, ec.trading_date_est, ec.entry_ts_est\n"
             ."),\n"
             ."future_stats AS (\n"
             ."    SELECT\n"
             ."        ec.symbol,\n"
-            ."        ec.asset_type,\n"
+            .",\n"
             ."        ec.trading_date_est,\n"
             ."        ec.signal_price,\n"
             ."        ec.entry_ts_est,\n"
@@ -283,12 +275,12 @@ class OneMinuteEntryFinderV2100_0
             ."    FROM entry_candidates ec\n"
             ."    LEFT JOIN entry_avg_volume av\n"
             ."      ON av.symbol = ec.symbol\n"
-            ."     AND av.asset_type = ec.asset_type\n"
+            ." \n"
             ."     AND av.trading_date_est = ec.trading_date_est\n"
             ."     AND av.entry_ts_est = ec.entry_ts_est\n"
             ."    JOIN one_minute_prices fp\n"
             ."      ON fp.symbol = ec.symbol\n"
-            ."     AND fp.asset_type = ec.asset_type\n"
+            ." \n"
             ."     AND fp.trading_date_est = ec.trading_date_est\n"
             ."     AND fp.ts_est > ec.entry_ts_est\n"
             ."     AND fp.ts_est <= DATE_ADD(ec.entry_ts_est, INTERVAL 300 MINUTE)\n"
@@ -296,7 +288,7 @@ class OneMinuteEntryFinderV2100_0
             ."      AND fp.high IS NOT NULL\n"
             ."      AND fp.low IS NOT NULL\n"
             ."    GROUP BY\n"
-            ."        ec.symbol, ec.asset_type, ec.trading_date_est, ec.signal_price, ec.entry_ts_est,\n"
+            ."        ec.symbol, ec.trading_date_est, ec.signal_price, ec.entry_ts_est,\n"
             ."        ec.entry_price, ec.open, ec.high, ec.low, ec.volume, ec.entry_atr, ec.entry_atr_pct,\n"
             ."        ec.vwap, ec.vwap_dist_pct, ec.above_vwap, ec.ema9, ec.ema21,\n"
             ."        ec.ema9_ema21_spread, ec.ema9_above_ema21, ec.stop_price, ec.risk_per_share,\n"
@@ -336,7 +328,6 @@ class OneMinuteEntryFinderV2100_0
             [
                 $signalPrice,
                 $symbol,
-                $assetType,
                 $tradingDate,
                 $entrySearchStartTsEst,
                 $signalTsEst,
@@ -353,10 +344,9 @@ class OneMinuteEntryFinderV2100_0
                 'best_entry' => null,
                 'reason' => 'no_forward_valid_delayed_entry',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'forward_bias' => true,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'as_of_ts_est' => $asOfTsEst,
                     'entry_search_start_ts_est' => $entrySearchStartTsEst,
@@ -419,7 +409,7 @@ class OneMinuteEntryFinderV2100_0
         $aboveVwapEntryPct = $entryVwap > 0 ? (($entryPrice - $entryVwap) / $entryVwap) * 100.0 : null;
 
         // --- HOD + room-to-run ---
-        $hod = $this->queryHod($symbol, $assetType, $tradingDate);
+        $hod = $this->queryHod($symbol, $tradingDate);
         $roomToHodPct = ($hod !== null && $entryPrice > 0) ? (($hod - $entryPrice) / $entryPrice) * 100.0 : null;
         $entryAtrForRoom = $best->entry_atr !== null ? (float) $best->entry_atr : null;
         $roomToHodAtr = ($roomToHodPct !== null && $entryAtrForRoom !== null && $entryAtrForRoom > 0)
@@ -427,10 +417,10 @@ class OneMinuteEntryFinderV2100_0
             : null;
 
         // --- 5-minute trend/choppiness ---
-        $choppiness = $this->calculate5MinChoppiness($symbol, $assetType, $tradingDate, (string) $best->entry_ts_est);
+        $choppiness = $this->calculate5MinChoppiness($symbol, $tradingDate, (string) $best->entry_ts_est);
 
         // --- RSI-14 (1-minute) ---
-        $rsi = $this->calculateRsi14($symbol, $assetType, $tradingDate, (string) $best->entry_ts_est);
+        $rsi = $this->calculateRsi14($symbol, $tradingDate, (string) $best->entry_ts_est);
 
         // --- Entry scoring sub-components ---
         $sc = $this->computeEntryScoreComponents(
@@ -494,7 +484,7 @@ class OneMinuteEntryFinderV2100_0
             'entry_time_bonus' => $sc['time_bonus'],
 
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'forward_bias' => true,
 
                 'signal_ts_est' => $signalTsEst,
@@ -537,7 +527,7 @@ class OneMinuteEntryFinderV2100_0
             'ok' => 1,
             'best_entry' => $bestEntry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'forward_bias' => true,
                 'as_of_ts_est' => $asOfTsEst,
                 'signal_ts_est' => $signalTsEst,
@@ -550,7 +540,7 @@ class OneMinuteEntryFinderV2100_0
      *
      * @return array<string,mixed>|null
      */
-    private function queryRoughFivePctContext(string $symbol, string $assetType, string $tradingDate): ?array
+    private function queryRoughFivePctContext(string $symbol, string $tradingDate): ?array
     {
         $rows = $this->dbSelect('
             SELECT
@@ -560,7 +550,6 @@ class OneMinuteEntryFinderV2100_0
                 SUM(COALESCE(volume, 0)) AS day_volume
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND trading_time_est BETWEEN \'09:30:00\' AND \'16:00:00\'
               AND high IS NOT NULL
@@ -571,7 +560,7 @@ class OneMinuteEntryFinderV2100_0
               AND price > 0
             HAVING rough_range_pct >= ?
             LIMIT 1
-        ', [$symbol, $assetType, $tradingDate, $this->target5Pct]);
+        ', [$symbol, $tradingDate, $this->target5Pct]);
 
         if (empty($rows) || $rows[0]->rough_range_pct === null) {
             return null;
@@ -591,13 +580,12 @@ class OneMinuteEntryFinderV2100_0
      *
      * @return array<string,mixed>|null
      */
-    private function queryRunContext(string $symbol, string $assetType, string $tradingDate): ?array
+    private function queryRunContext(string $symbol, string $tradingDate): ?array
     {
         $bars = $this->dbSelect('
             SELECT ts_est, high, low
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND trading_time_est BETWEEN \'09:30:00\' AND \'16:00:00\'
               AND high IS NOT NULL
@@ -605,7 +593,7 @@ class OneMinuteEntryFinderV2100_0
               AND low IS NOT NULL
               AND low > 0
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $tradingDate]);
+        ', [$symbol, $tradingDate]);
 
         $runningLow = null;
         $runningLowTs = null;
@@ -637,7 +625,6 @@ class OneMinuteEntryFinderV2100_0
 
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -678,15 +665,14 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Query the regular-session high-of-day for a symbol on a given trading date.
      */
-    private function queryHod(string $symbol, string $assetType, string $tradingDate): ?float
+    private function queryHod(string $symbol, string $tradingDate): ?float
     {
         $result = $this->dbSelect('
             SELECT MAX(high) as hod
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
-        ', [$symbol, $assetType, $tradingDate]);
+        ', [$symbol, $tradingDate]);
 
         if (empty($result) || $result[0]->hod === null) {
             return null;
@@ -698,18 +684,17 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Calculate 5-minute choppiness metrics from bars leading up to the entry.
      */
-    private function calculate5MinChoppiness(string $symbol, string $assetType, string $tradingDate, string $entryTsEst): array
+    private function calculate5MinChoppiness(string $symbol, string $tradingDate, string $entryTsEst): array
     {
         $bars = $this->dbSelect('
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 12
-        ', [$symbol, $assetType, $tradingDate, $entryTsEst]);
+        ', [$symbol, $tradingDate, $entryTsEst]);
 
         if (count($bars) < 2) {
             return [
@@ -760,18 +745,17 @@ class OneMinuteEntryFinderV2100_0
     /**
      * Calculate RSI-14 from the 14 prior 1-minute bars before entry.
      */
-    private function calculateRsi14(string $symbol, string $assetType, string $tradingDate, string $entryTsEst): ?float
+    private function calculateRsi14(string $symbol, string $tradingDate, string $entryTsEst): ?float
     {
         $bars = $this->dbSelect('
             SELECT ts_est, price
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 15
-        ', [$symbol, $assetType, $tradingDate, $entryTsEst]);
+        ', [$symbol, $tradingDate, $entryTsEst]);
 
         if (count($bars) < 15) {
             return null;

@@ -245,7 +245,6 @@ class OneMinuteEntryFinderV18_0
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -282,20 +281,18 @@ class OneMinuteEntryFinderV18_0
               `price` AS `close`,
               `volume`
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $vwapStart, $vwapEnd]);
+        ', [$symbol, $tradeDate, $vwapStart, $vwapEnd]);
 
         if (! $bars || count($bars) < 25) {
             return [
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$vwapStart, $vwapEnd],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -1524,7 +1521,6 @@ class OneMinuteEntryFinderV18_0
         $filtered = $this->applyFiveMinuteBreakoutConfirmation(
             $filtered,
             $symbol,
-            $assetType,
             $asOfTsEst
         );
 
@@ -1563,7 +1559,6 @@ class OneMinuteEntryFinderV18_0
         return [
             'ok' => (bool) $best,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -1585,7 +1580,6 @@ class OneMinuteEntryFinderV18_0
     private function applyFiveMinuteBreakoutConfirmation(
         array $candidates,
         string $symbol,
-        string $assetType,
         string $asOfTsEst
     ): array {
         if (empty($candidates)) {
@@ -1596,13 +1590,13 @@ class OneMinuteEntryFinderV18_0
         $oneMinSql = '
             SELECT price AS last_price
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 1
         ';
 
-        $oneMinResult = DB::selectOne($oneMinSql, [$assetType, $symbol, $asOfTsEst]);
+        $oneMinResult = DB::selectOne($oneMinSql, [$symbol, $asOfTsEst]);
 
         if (! $oneMinResult) {
             return []; // No 1m data, reject all
@@ -1617,12 +1611,12 @@ class OneMinuteEntryFinderV18_0
                 SUBSTRING_INDEX(GROUP_CONCAT(open ORDER BY ts_est DESC), ',', 1) AS last5_open,
                 SUBSTRING_INDEX(GROUP_CONCAT(price ORDER BY ts_est DESC), ',', 1) AS last5_close
             FROM five_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND ts_est <= ?
               AND ts_est >= DATE_SUB(?, INTERVAL 25 MINUTE)
         ";
 
-        $fiveMinResult = DB::selectOne($fiveMinSql, [$assetType, $symbol, $asOfTsEst, $asOfTsEst]);
+        $fiveMinResult = DB::selectOne($fiveMinSql, [$symbol, $asOfTsEst, $asOfTsEst]);
 
         if (! $fiveMinResult) {
             return []; // No 5m data, reject all

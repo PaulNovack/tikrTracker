@@ -22,10 +22,8 @@ use App\Services\Market\BestPerformers5mService;
  * - V120_MIN_GAP_PCT: minimum gap-up % (default 2.0)
  * - V120_REQUIRE_VOL_INCREASE: require volume increasing (default true)
  */
-class FiveMinuteSignalScannerV120_0
+class FiveMinuteSignalScannerV120_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v120.0';
 
     private string $name = 'Elite Multi-Day Momentum';
@@ -59,7 +57,15 @@ class FiveMinuteSignalScannerV120_0
             'min_consecutive_days' => $this->minConsecutiveDays,
             'min_gap_pct' => $this->minGapPct,
             'require_vol_increase' => $this->requireVolIncrease,
-        ];
+        
+        'min_notional_5m' => 0,
+        'min_atr_pct_5m' => 0,
+        'min_rvol_5m' => 0,
+        'min_move_30m_pct' => 0,
+        'move_bars_5m' => 6,
+        'atr_period_5m' => 14,
+        'rvol_lookback_5m' => 20,
+];
     }
 
     public function __construct(
@@ -85,14 +91,13 @@ class FiveMinuteSignalScannerV120_0
         $this->gainersLosersService->setFullTable($full);
     }
 
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 1.2,
         float $volMult = 3.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         // Score range: 70-95 provides good funnel for ML filtering
         // 85-100 for "elite only" mode, 70-95 for workable candidate flow
         $minScore = $this->entryScoreMin;
@@ -120,7 +125,6 @@ class FiveMinuteSignalScannerV120_0
         // 1) Get Elite Multi-Day Winners (2+ days up with increasing volume)
         // -----------------------------
         $eliteMovers = $this->getEliteMultiDayMovers(
-            $assetType,
             $tradeDate,
             $minConsecutiveDays,
             $requireVolIncrease
@@ -158,7 +162,7 @@ class FiveMinuteSignalScannerV120_0
         // -----------------------------
         // 2) Check for gap-up continuation patterns
         // -----------------------------
-        $gapData = $this->getGapUpData($assetType, $symbols, $tradeDate, $minGapPct);
+        $gapData = $this->getGapUpData($symbols, $tradeDate, $minGapPct);
 
         // -----------------------------
         // 3) Get 5m momentum breakout candidates
@@ -169,7 +173,6 @@ class FiveMinuteSignalScannerV120_0
 WITH today_data AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -179,23 +182,20 @@ WITH today_data AS (
     f.vwap,
     f.atr_pct
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
 ),
 latest_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM today_data
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 current_state AS (
   SELECT
     td.symbol,
-    td.asset_type,
     td.ts_est AS signal_ts_est,
     td.close,
     td.high,
@@ -223,7 +223,6 @@ with_metrics AS (
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -244,7 +243,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -324,7 +323,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'move_pct' => $moveFromOpen,
@@ -383,7 +381,7 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
+                'asset_type' => 'stock',
                 'signal_type' => 'ELITE_MOMENTUM_CONTINUATION',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -420,7 +418,6 @@ LIMIT ?
      * Get stocks with 2+ consecutive up days with increasing volume
      */
     private function getEliteMultiDayMovers(
-        string $assetType,
         string $tradeDate,
         int $minConsecutiveDays,
         bool $requireVolIncrease
@@ -431,7 +428,7 @@ WITH recent_days AS (
   SELECT DISTINCT date
   FROM daily_prices
   WHERE date < ?
-    AND asset_type = ?
+
   ORDER BY date DESC
   LIMIT 5
 ),
@@ -448,16 +445,14 @@ consecutive_movers AS (
     dp.volume / NULLIF(
       (SELECT AVG(d2.volume)
        FROM daily_prices d2
-       WHERE d2.symbol = dp.symbol
-         AND d2.asset_type = dp.asset_type
-         AND d2.date < dp.date
+       WHERE d2.symbol = dp.symbol AND d2.date < dp.date
          AND d2.date >= DATE_SUB(dp.date, INTERVAL 10 DAY)
       ), 0
     ) as vol_ratio,
     ROW_NUMBER() OVER (PARTITION BY dp.symbol ORDER BY dp.date DESC) as day_rank
   FROM daily_prices dp
   INNER JOIN recent_days rd ON dp.date = rd.date
-  WHERE dp.asset_type = ?
+
     AND (dp.price - dp.open) / dp.open >= 0.025
   HAVING vol_ratio >= 1.2
 ),
@@ -495,8 +490,6 @@ FROM streak_analysis
 
         $movers = $this->dbSelect($sql, [
             $tradeDate,
-            $assetType,
-            $assetType,
             $minConsecutiveDays,
         ]);
 
@@ -507,7 +500,6 @@ FROM streak_analysis
      * Get gap-up data and check if stocks are holding the gap
      */
     private function getGapUpData(
-        string $assetType,
         array $symbols,
         string $tradeDate,
         float $minGapPct
@@ -523,15 +515,11 @@ FROM streak_analysis
 SELECT
   f.symbol,
   (SELECT f2.open FROM five_minute_prices f2 
-   WHERE f2.symbol = f.symbol 
-     AND f2.asset_type = f.asset_type 
-     AND f2.trading_date_est = ?
+   WHERE f2.symbol = f.symbol AND f2.trading_date_est = ?
    ORDER BY f2.ts_est ASC LIMIT 1) as first_open,
   prev.close as yesterday_close,
   ((SELECT f2.open FROM five_minute_prices f2 
-    WHERE f2.symbol = f.symbol 
-      AND f2.asset_type = f.asset_type 
-      AND f2.trading_date_est = ?
+    WHERE f2.symbol = f.symbol AND f2.trading_date_est = ?
     ORDER BY f2.ts_est ASC LIMIT 1) - prev.close) / prev.close * 100 as gap_pct,
   MIN(f.price) as intraday_low,
   (MIN(f.price) >= prev.close) as holding_gap
@@ -541,22 +529,19 @@ INNER JOIN (
   FROM daily_prices
   WHERE date = (
     SELECT MAX(date) FROM daily_prices 
-    WHERE date < ? AND asset_type = ?
-  )
-  AND asset_type = ?
+    WHERE date < ?)
   AND symbol IN ($placeholders)
 ) prev ON f.symbol = prev.symbol
-WHERE f.asset_type = ?
+
   AND f.symbol IN ($placeholders)
   AND f.trading_date_est = ?
-GROUP BY f.symbol, f.asset_type, prev.close
+GROUP BY f.symbol, prev.close
 HAVING gap_pct >= ?
 ";
 
         $params = array_merge(
-            [$tradeDate, $tradeDate, $tradeDate, $assetType, $assetType],
+            [$tradeDate, $tradeDate, $tradeDate],
             $symbols,
-            [$assetType],
             $symbols,
             [$tradeDate, $minGapPct]
         );

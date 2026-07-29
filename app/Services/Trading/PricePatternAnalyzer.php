@@ -18,7 +18,6 @@ class PricePatternAnalyzer
      */
     public function getHistoricalSnapshots(
         string $symbol,
-        string $assetType,
         string $signalTs,
         float $entryPrice,
         array $intervalsMinutes = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
@@ -30,7 +29,6 @@ class PricePatternAnalyzer
 
             $bar = DB::table('five_minute_prices')
                 ->where('symbol', $symbol)
-                ->where('asset_type', $assetType)
                 ->where('ts_est', '<=', $ts)
                 ->orderBy('ts_est', 'desc')
                 ->first();

@@ -33,12 +33,8 @@ use Illuminate\Support\Facades\Log;
  * - Higher ATR runway (1.8x vs 1.5x) - need expansion potential
  * - More bars required (20 vs 15) - better structure analysis
  */
-class OneMinuteEntryFinderV140_0
+class OneMinuteEntryFinderV140_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v140.0';
-
     private static array $dbg = [
         'called' => 0,
         'not_enough_bars' => 0,
@@ -52,18 +48,29 @@ class OneMinuteEntryFinderV140_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v140.0';
+    }
+
+    public function getName(): string
+    {
+        return 'v140.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
     }
 
     /**
      * REQUIRED by Pipeline:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    protected function doFindBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -75,31 +82,30 @@ class OneMinuteEntryFinderV140_0
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'as_of_ts_est' => $asOfTsEst,
             ],
         ];
     }
 
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
 
-    private function isDebugEnabled(): bool
+    protected function isDebugEnabled(): bool
     {
         return ((string) env('ENTRYFINDER_V140_DEBUG', '0') === '1')
             || (bool) config('trading.v140.debug', false);
     }
 
-    private function maybeLogDebug(): void
+    protected function maybeLogDebug(): void
     {
         if (! $this->isDebugEnabled()) {
             return;
@@ -109,7 +115,7 @@ class OneMinuteEntryFinderV140_0
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v140.entry', []);
 
@@ -152,13 +158,12 @@ class OneMinuteEntryFinderV140_0
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -778,11 +783,11 @@ class OneMinuteEntryFinderV140_0
         return false;
     }
 
-    private function isAllowedTime(string $tsEst): bool
+    protected function isAllowedTime(string $time, bool $allowLunch = false): bool
     {
         // Stricter: 09:35–11:30 and 14:00–15:55 (avoid lunch 11:30-2pm)
-        $hh = (int) substr($tsEst, 11, 2);
-        $mm = (int) substr($tsEst, 14, 2);
+        $hh = (int) substr($time, 11, 2);
+        $mm = (int) substr($time, 14, 2);
         $t = $hh + $mm / 60.0;
 
         $a = ($t >= 9.58 && $t <= 11.50);  // 9:35 to 11:30

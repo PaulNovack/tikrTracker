@@ -37,7 +37,6 @@ class FiveMinuteSignalScannerV50_0
      * Uses $lookbackMinutes as the scan window (recommend: 10).
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 10,
         float $minMovePct = 0.5,
@@ -63,7 +62,7 @@ class FiveMinuteSignalScannerV50_0
         $sql = "
 WITH params AS (
   SELECT
-    ? AS p_asset_type,
+    ? AS,
     CAST(? AS DATETIME) AS p_asof,
     CAST(? AS DATETIME) - INTERVAL ? MINUTE AS p_from
 ),
@@ -71,7 +70,7 @@ base AS (
   SELECT
     omp.*,
     AVG(omp.volume) OVER (
-      PARTITION BY omp.symbol, omp.asset_type
+      PARTITION BY omp.symbol
       ORDER BY omp.ts_est
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20,
@@ -79,16 +78,12 @@ base AS (
   FROM one_minute_prices omp
   JOIN params p ON omp.asset_type = p.p_asset_type
   LEFT JOIN five_minute_prices fmp ON (
-    fmp.symbol = omp.symbol
-    AND fmp.asset_type = omp.asset_type
-    AND fmp.ts_est <= omp.ts_est
+    fmp.symbol = omp.symbol AND fmp.ts_est <= omp.ts_est
     AND fmp.ts_est >= DATE(omp.ts_est)
     AND fmp.ts_est = (
       SELECT MAX(fmp2.ts_est)
       FROM five_minute_prices fmp2
-      WHERE fmp2.symbol = omp.symbol
-        AND fmp2.asset_type = omp.asset_type
-        AND fmp2.ts_est <= omp.ts_est
+      WHERE fmp2.symbol = omp.symbol AND fmp2.ts_est <= omp.ts_est
         AND fmp2.ts_est >= DATE(omp.ts_est)
     )
   )
@@ -124,7 +119,6 @@ scored AS (
 ranked AS (
   SELECT
     s.symbol,
-    s.asset_type,
     s.ts_est AS signal_ts_est,
     ROUND(
       100 * (
@@ -155,7 +149,7 @@ ranked AS (
     AND COALESCE(s.above_vwap,0)=1
     AND COALESCE(s.five_min_trend,0)=1
 )
-SELECT symbol, asset_type, signal_ts_est, entry_score
+SELECT symbol, signal_ts_est, entry_score
 FROM ranked
 WHERE rn = 1
   AND entry_score BETWEEN ? AND ?
@@ -164,7 +158,6 @@ LIMIT ?
 ";
 
         $rows = $this->dbSelect($sql, [
-            $assetType,
             $asOfTsEst,
             $asOfTsEst,
             $lookbackMinutes,
@@ -177,7 +170,6 @@ LIMIT ?
         foreach ($rows as $r) {
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_type' => 'ENTRY_SCORE',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => (float) $r->entry_score,

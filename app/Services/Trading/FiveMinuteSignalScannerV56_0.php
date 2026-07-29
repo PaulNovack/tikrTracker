@@ -5,7 +5,6 @@ namespace App\Services\Trading;
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -159,7 +158,6 @@ class FiveMinuteSignalScannerV56_0
      * @return array<int, array<string, mixed>>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.35,
@@ -191,21 +189,21 @@ class FiveMinuteSignalScannerV56_0
         $lookbackMinutes = max($lookbackMinutes, $this->analysisLookbackMinutes);
         $table = $this->fiveMinuteTable;
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
-        $cacheKey = "scan_v56:{$table}:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v56:{$table}:{$bucketTs}:{$lookbackMinutes}";
 
         $rows = $skipCache ? null : Cache::get($cacheKey);
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
-                WHERE asset_type = ?
-                  AND symbol IN ({$placeholders})
+
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
-            $params = array_merge([$assetType], $symbols, [$marketOpen, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$marketOpen, $asOfTsEst]);
 
             if ($skipCache) {
                 $rows = $this->dbSelect($sql, $params);
@@ -375,7 +373,6 @@ class FiveMinuteSignalScannerV56_0
             $drops['passed']++;
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'MOMENTUM_ACCELERATION_SETUP_5M_V56',
                 'signal_ts_est' => $metrics['signal_ts_est'],
                 'score' => $scores['score'],
@@ -421,7 +418,6 @@ class FiveMinuteSignalScannerV56_0
         if ($this->debug) {
             Log::info('[ScannerV56] debug counters', array_merge($drops, [
                 'as_of_ts_est' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'effective_move_20m_floor' => $effectiveMove20mFloor,
                 'effective_recent_rvol_floor' => $effectiveRecentRvolFloor,
                 'returned' => count($out),
@@ -433,29 +429,9 @@ class FiveMinuteSignalScannerV56_0
     }
 
     /** @return array<int, string> */
-    private function loadUniverse(string $assetType, bool $skipCache): array
+    private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = "scan_v56:universe_symbols:{$assetType}";
-        $symbols = $skipCache ? null : Cache::get($cacheKey);
-
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->map(static fn ($symbol): string => (string) $symbol)
-                ->all();
-
-            if ($this->marketMoversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)
-                    ->getTodaysTopMoversFromCache(null, $this->marketMoversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            if (! $skipCache) {
-                Cache::put($cacheKey, $symbols, $this->universeCacheSeconds);
-            }
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v56:universe_symbols', null, '', $skipCache);
 
         return array_values(array_filter(
             array_map(static fn ($symbol): string => trim((string) $symbol), $symbols),

@@ -87,7 +87,6 @@ class OneMinuteEntryFinderV45
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -161,13 +160,12 @@ class OneMinuteEntryFinderV45
         $bars = $this->dbSelect("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ", [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
 
         if (count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -396,14 +394,13 @@ class OneMinuteEntryFinderV45
         $this->maybeLogDebug();
 
         $best['symbol'] = $symbol;
-        $best['asset_type'] = $assetType;
         $best['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $best,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'pattern' => 'VWAP_HIGHER_LOW_CONFIRMATION',
                 'as_of_ts_est' => $asOfTsEst,
             ],
@@ -413,7 +410,6 @@ class OneMinuteEntryFinderV45
     /** @return array<string, mixed> */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -424,7 +420,6 @@ class OneMinuteEntryFinderV45
     /** @return array<string, mixed>|null */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst
     ): ?array {
@@ -495,13 +490,12 @@ class OneMinuteEntryFinderV45
         $bars = $this->dbSelect("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ", [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
 
         if (count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -1408,8 +1402,8 @@ class OneMinuteEntryFinderV45
 
     private function isAllowedTime(string $tsEst): bool
     {
-        $hour = (int) substr($tsEst, 11, 2);
-        $minute = (int) substr($tsEst, 14, 2);
+        $hour = (int) substr($time, 11, 2);
+        $minute = (int) substr($time, 14, 2);
         $time = $hour + ($minute / 60.0);
 
         // Frequency-tuned windows: 09:40-11:30 and 14:55-15:30 ET.

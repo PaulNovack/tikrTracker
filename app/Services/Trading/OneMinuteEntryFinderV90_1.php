@@ -18,20 +18,26 @@ use Illuminate\Support\Facades\Cache;
  * - EntryScore (0-100): momentum quality metric
  * - Entry price, risk/reward, targets
  */
-class OneMinuteEntryFinderV90_1
+class OneMinuteEntryFinderV90_1 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v90.1';
-
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v90.1';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return 'v90.1';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -65,8 +71,8 @@ class OneMinuteEntryFinderV90_1
         $to = $analysisEnd;
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
-        $cacheKey1m = "1m_bars:v90_1:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey1m = "1m_bars:v90_1:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -85,18 +91,17 @@ class OneMinuteEntryFinderV90_1
                   atr,
                   atr_pct,
                   AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 25) {
@@ -104,7 +109,6 @@ class OneMinuteEntryFinderV90_1
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -120,18 +124,17 @@ class OneMinuteEntryFinderV90_1
         }
 
         // Get 5-minute bars to check for downtrends and calculate choppiness
-        $cacheKey5m = "5m_bars:v90_1:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey5m = "5m_bars:v90_1:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         // Build a lookup for 5-minute trend at any given time
@@ -216,7 +219,6 @@ class OneMinuteEntryFinderV90_1
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Excessive 5-minute choppiness (directional_changes >= 8)',
@@ -539,7 +541,6 @@ class OneMinuteEntryFinderV90_1
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -549,7 +550,7 @@ class OneMinuteEntryFinderV90_1
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                 ],
             ];
         }
@@ -665,7 +666,6 @@ class OneMinuteEntryFinderV90_1
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -676,7 +676,7 @@ class OneMinuteEntryFinderV90_1
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'filtered_reason' => 'All candidates failed quality filters',
                     'filtered_count' => count($preFilterCandidates),
                 ],
@@ -719,7 +719,6 @@ class OneMinuteEntryFinderV90_1
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -729,7 +728,7 @@ class OneMinuteEntryFinderV90_1
             'meta' => [
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
             ],
         ];
@@ -741,7 +740,7 @@ class OneMinuteEntryFinderV90_1
      * @param  array  $fiveMinBars  Array of 5-minute bars (most recent 6-12 bars)
      * @return array ['directional_changes', 'green_bar_pct', 'net_progress']
      */
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

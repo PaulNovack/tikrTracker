@@ -23,6 +23,39 @@ class OneMinuteEntryFinderV600_0
 
     private string $version = 'v600.0';
 
+    // ── Entry Finder Configuration (public so pipeline can read) ──
+    /** @var float Minimum entry score (0-100) — relaxed to get picks daily */
+    public float $entryScoreMin;
+
+    /** @var float Maximum entry score (0-100) */
+    public float $entryScoreMax;
+
+    /** @var float Minimum ATR% for sufficient volatility */
+    public float $entryMinAtrPct;
+
+    /** @var float Minimum volume ratio vs 20-bar average */
+    public float $entryMinVolRatio;
+
+    /** @var float Volume ratio required for individual pattern confirmation */
+    public float $finderEntryMinVolRatio;
+
+    /** @var int Max entry hour (reject at this hour and later) */
+    public int $maxEntryHour;
+
+    /** @var float Minimum big-move readiness score (0-1) */
+    public float $minBigMoveScore;
+
+    public function __construct()
+    {
+        $this->entryScoreMin = (float) env('V600_ENTRY_SCORE_MIN', 40);
+        $this->entryScoreMax = (float) env('V600_ENTRY_SCORE_MAX', 100);
+        $this->entryMinAtrPct = (float) env('V600_ENTRY_MIN_ATR_PCT', 0.10);
+        $this->entryMinVolRatio = (float) env('V600_ENTRY_MIN_VOL_RATIO', 1.25);
+        $this->finderEntryMinVolRatio = (float) env('V600_FINDER_ENTRY_MIN_VOL_RATIO', 2.0);
+        $this->maxEntryHour = (int) env('V600_MAX_ENTRY_HOUR', 15);
+        $this->minBigMoveScore = (float) env('V600_MIN_BIG_MOVE_SCORE', 0.20);
+    }
+
     public function getVersion(): string
     {
         return $this->version;
@@ -30,7 +63,6 @@ class OneMinuteEntryFinderV600_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -39,8 +71,8 @@ class OneMinuteEntryFinderV600_0
         int $pivotLookback = 15,
         string $fillModel = 'next_open' // next_open|close
     ): array {
-        $minScore = (float) config('trading.v600.entry_score_min', 94);
-        $maxScore = (float) config('trading.v600.entry_score_max', 100);
+        $minScore = $this->entryScoreMin;
+        $maxScore = $this->entryScoreMax;
         if ($maxScore <= 0) {
             $maxScore = 100.0;
         }
@@ -49,10 +81,10 @@ class OneMinuteEntryFinderV600_0
         }
 
         // v600 feasibility gates (tightened)
-        $minAtrPct = (float) config('trading.v600.entry_min_atr_pct', 0.5);
-        $minVolRatio = (float) config('trading.v600.entry_min_vol_ratio', 3.0);
-        $maxHour = (int) config('trading.v600.max_entry_hour', 14); // reject >= 14 (2pm+)
-        $minBigMoveScore = (float) config('trading.v600.min_big_move_score', 0.70);
+        $minAtrPct = $this->entryMinAtrPct;
+        $minVolRatio = $this->entryMinVolRatio;
+        $maxHour = $this->maxEntryHour; // reject >= this hour
+        $minBigMoveScore = $this->minBigMoveScore;
 
         // Live analysis window relative to NOW (asOf)
         $analysisEnd = $asOfTsEst;
@@ -68,8 +100,8 @@ class OneMinuteEntryFinderV600_0
         $to = $analysisEnd;
         $bucketTs = date('Y-m-d H:i', strtotime($to));
 
-        $cacheKey1m = "1m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey1m = "1m_bars:v600_0:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -88,18 +120,17 @@ class OneMinuteEntryFinderV600_0
                   atr,
                   atr_pct,
                   AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 25) {
@@ -107,7 +138,6 @@ class OneMinuteEntryFinderV600_0
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -123,19 +153,18 @@ class OneMinuteEntryFinderV600_0
         }
 
         // 5m bars for trend/chop filter - enhanced with spread and distance
-        $cacheKey5m = "5m_bars:v600_0:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey5m = "5m_bars:v600_0:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap,
                        ema9_ema21_spread, vwap_dist_pct
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
         });
 
         // Enhanced: require strong 5-min trend
@@ -190,7 +219,6 @@ class OneMinuteEntryFinderV600_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Choppy 5-minute action (directional_changes >= 6)',
@@ -203,7 +231,6 @@ class OneMinuteEntryFinderV600_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => sprintf('Insufficient 5m green bars (%.1f%% < 55%%)', $greenBarPct * 100),
@@ -322,7 +349,7 @@ class OneMinuteEntryFinderV600_0
             $volRatio = ($baseVol > 0) ? ((float) ($cur->volume ?? 0) / $baseVol) : 0.0;
 
             // VWAP reclaim requires higher volume confirmation
-            $finderMinVolRatio = (float) config('trading.v600.finder_entry_min_vol_ratio', 2.0);
+            $finderMinVolRatio = $this->finderEntryMinVolRatio;
             if ($volRatio < $finderMinVolRatio || $volRatio > 75.0) {
                 continue;
             }
@@ -393,7 +420,7 @@ class OneMinuteEntryFinderV600_0
                 $volRatio = ($baseVol > 0) ? ((float) ($cur->volume ?? 0) / $baseVol) : 0.0;
 
                 // Pivot break requires strong institutional volume
-                $finderMinVolRatio = (float) config('trading.v600.finder_entry_min_vol_ratio', 2.0);
+                $finderMinVolRatio = $this->finderEntryMinVolRatio;
                 if ($volRatio < ($finderMinVolRatio + 0.5) || $volRatio > 75.0) {
                     continue;
                 }
@@ -455,7 +482,7 @@ class OneMinuteEntryFinderV600_0
                 $volRatio = ($baseVol > 0) ? ((float) ($cur->volume ?? 0) / $baseVol) : 0.0;
 
                 // OR breakout requires exceptional volume
-                $finderMinVolRatio = (float) config('trading.v600.finder_entry_min_vol_ratio', 2.0);
+                $finderMinVolRatio = $this->finderEntryMinVolRatio;
                 if ($volRatio < ($finderMinVolRatio + 1.0) || $volRatio > 75.0) {
                     continue;
                 }
@@ -527,7 +554,7 @@ class OneMinuteEntryFinderV600_0
             $volRatio = ($baseVol > 0) ? ((float) ($cur->volume ?? 0) / $baseVol) : 0.0;
 
             // EMA9 bounce requires solid volume confirmation
-            $finderMinVolRatio = (float) config('trading.v600.finder_entry_min_vol_ratio', 2.0);
+            $finderMinVolRatio = $this->finderEntryMinVolRatio;
             if ($volRatio < $finderMinVolRatio || $volRatio > 75.0) {
                 continue;
             }
@@ -598,7 +625,7 @@ class OneMinuteEntryFinderV600_0
             $volRatio = ($baseVol > 0) ? ((float) ($cur->volume ?? 0) / $baseVol) : 0.0;
 
             // Bull flag breakout requires very strong volume
-            $finderMinVolRatio = (float) config('trading.v600.finder_entry_min_vol_ratio', 2.0);
+            $finderMinVolRatio = $this->finderEntryMinVolRatio;
             if ($volRatio < ($finderMinVolRatio + 0.5) || $volRatio > 75.0) {
                 continue;
             }
@@ -634,7 +661,6 @@ class OneMinuteEntryFinderV600_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -644,7 +670,7 @@ class OneMinuteEntryFinderV600_0
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'filters' => [
                         'min_atr_pct' => $minAtrPct,
                         'min_vol_ratio' => $minVolRatio,
@@ -670,7 +696,6 @@ class OneMinuteEntryFinderV600_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -678,7 +703,7 @@ class OneMinuteEntryFinderV600_0
                 'best_entry' => null,
                 'candidates' => [],
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'filtered_reason' => 'No candidates passed allowedTypes for 3-5% goal',
                 ],
             ];
@@ -731,7 +756,6 @@ class OneMinuteEntryFinderV600_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -741,7 +765,7 @@ class OneMinuteEntryFinderV600_0
             'meta' => [
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
                 'goal' => '3-5%+ feasible entries',
             ],

@@ -193,14 +193,13 @@ class OneMinuteEntryFinderV55
     /** @return array<string, mixed> */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
     ): array {
         self::$dbg['called']++;
 
-        [$entry, $reason] = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        [$entry, $reason] = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
         if ($entry === null) {
             $this->maybeLogDebug();
 
@@ -209,7 +208,7 @@ class OneMinuteEntryFinderV55
                 'best_entry' => null,
                 'reason' => $reason,
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'as_of_ts_est' => $asOfTsEst,
                 ],
             ];
@@ -219,14 +218,13 @@ class OneMinuteEntryFinderV55
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'pattern' => 'TREND_COMPRESSION_CONTINUATION',
                 'as_of_ts_est' => $asOfTsEst,
             ],
@@ -236,7 +234,6 @@ class OneMinuteEntryFinderV55
     /** @return array<string, mixed> */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -249,7 +246,6 @@ class OneMinuteEntryFinderV55
      */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst
     ): array {
@@ -293,6 +289,7 @@ class OneMinuteEntryFinderV55
 
         if (! $allowLunch && ! $this->isAllowedTime($asOfTsEst)) {
             self::$dbg['time_blocked']++;
+
             return [null, 'time_blocked'];
         }
 
@@ -305,6 +302,7 @@ class OneMinuteEntryFinderV55
         $signalAgeSeconds = $asOfEpoch - $signalEpoch;
         if ($signalAgeSeconds < 0 || $signalAgeSeconds > ($maxSignalAgeMinutes * 60)) {
             self::$dbg['signal_stale']++;
+
             return [null, 'signal_stale'];
         }
 
@@ -315,22 +313,23 @@ class OneMinuteEntryFinderV55
         $rows = $this->dbSelect("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ", [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
 
         if (count($rows) < $minBars) {
             self::$dbg['not_enough_bars']++;
+
             return [null, 'not_enough_bars'];
         }
 
         $bars = $this->normalizeBars($rows, $atrPeriod, $volLookback);
         if ($bars === null || count($bars) < $minBars) {
             self::$dbg['bad_data']++;
+
             return [null, 'bad_data'];
         }
 
@@ -344,6 +343,7 @@ class OneMinuteEntryFinderV55
 
             if (! $allowLunch && ! $this->isAllowedTime($entryTs)) {
                 self::$dbg['entry_time_blocked']++;
+
                 continue;
             }
 
@@ -390,6 +390,7 @@ class OneMinuteEntryFinderV55
                 || $emaSlopePct < $minEmaSlopePct
             ) {
                 self::$dbg['trend_failed']++;
+
                 continue;
             }
 
@@ -399,11 +400,13 @@ class OneMinuteEntryFinderV55
                 || $upperWickFraction > $maxUpperWickFraction
             ) {
                 self::$dbg['quality_failed']++;
+
                 continue;
             }
 
             if ($volumeRatio < $minVolumeRatio || $notional < $minNotional1m) {
                 self::$dbg['volume_failed']++;
+
                 continue;
             }
 
@@ -413,6 +416,7 @@ class OneMinuteEntryFinderV55
                 || $atrPct > $maxAtrPct
             ) {
                 self::$dbg['extension_failed']++;
+
                 continue;
             }
 
@@ -459,6 +463,7 @@ class OneMinuteEntryFinderV55
 
             if ($trigger === null || $structureLow === null || $breakLevel === null) {
                 self::$dbg['no_trigger']++;
+
                 continue;
             }
 
@@ -475,6 +480,7 @@ class OneMinuteEntryFinderV55
 
             if ($riskPerShare <= 0 || $riskPct < $minStopPct || $riskPct > $maxStopPct) {
                 self::$dbg['risk_failed']++;
+
                 continue;
             }
 
@@ -486,6 +492,7 @@ class OneMinuteEntryFinderV55
 
             if (! $breaksSessionHigh && $roomToSessionHighR < $minRoomToSessionHighR) {
                 self::$dbg['resistance_failed']++;
+
                 continue;
             }
 
@@ -536,7 +543,7 @@ class OneMinuteEntryFinderV55
                 'entry_age_seconds' => $entryAgeSeconds,
                 'signal_age_seconds' => $signalAgeSeconds,
                 'meta' => array_merge($triggerMeta, [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'trigger' => $trigger,
                     'break_level' => round($breakLevel, 6),
                     'structure_low' => round($structureLow, 6),
@@ -886,6 +893,7 @@ class OneMinuteEntryFinderV55
         $start = max(0, $index - $lookback);
         $base = (float) $bars[$start]['ema9'];
         $current = (float) $bars[$index]['ema9'];
+
         return $base > 0 ? (($current - $base) / $base) * 100.0 : 0.0;
     }
 

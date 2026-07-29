@@ -39,6 +39,24 @@ Schedule::command('indicators:calculate-5m --days=2 --chunk=100 --no-interaction
         Log::channel('scheduled')->error('[Scheduler] FAILED indicators:calculate-5m premarket');
     });
 
+// Warm-up Redis bar caches before market open for event-driven pipeline
+Schedule::command('redis:hydrate-bars')
+    ->dailyAt('08:00')
+    ->timezone('America/New_York')
+    ->weekdays()
+    ->name('hydrate-bars-premarket')
+    ->withoutOverlapping()
+    ->description('Warm up Redis bar caches before market open (8:00 AM EST)')
+    ->before(function () {
+        Log::channel('scheduled')->info('[Scheduler] Starting redis:hydrate-bars premarket');
+    })
+    ->after(function () {
+        Log::channel('scheduled')->info('[Scheduler] Completed redis:hydrate-bars premarket');
+    })
+    ->onFailure(function () {
+        Log::channel('scheduled')->error('[Scheduler] FAILED redis:hydrate-bars premarket');
+    });
+
 // Run at 4:30 PM (after market close) to calculate RSI & Bollinger Bands for the day
 // This avoids deadlocks with yfinance sync during market hours
 Schedule::command('indicators:calculate-5m --days=1 --chunk=200 --no-interaction')

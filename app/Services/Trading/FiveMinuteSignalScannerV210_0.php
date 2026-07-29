@@ -78,7 +78,6 @@ class FiveMinuteSignalScannerV210_0
      * @return array Array of signal arrays
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minDeclinePct = 1.2,
@@ -107,7 +106,7 @@ class FiveMinuteSignalScannerV210_0
         }
 
         // Single query for all symbols instead of N+1 per-symbol queries.
-        $symbolBars = $this->batchGet5mBars($symbols, $assetType, $asOfTsEst, $lookbackMinutes + 15);
+        $symbolBars = $this->batchGet5mBars($symbols, $asOfTsEst, $lookbackMinutes + 15);
 
         $signals = [];
 
@@ -115,7 +114,6 @@ class FiveMinuteSignalScannerV210_0
             $signal = $this->analyzeSymbol(
                 $symbolBars[$symbol] ?? [],
                 $symbol,
-                $assetType,
                 $asOfTsEst,
                 $minDeclinePct,
                 $minVolumeMult,
@@ -141,7 +139,6 @@ class FiveMinuteSignalScannerV210_0
     private function analyzeSymbol(
         array $bars,
         string $symbol,
-        string $assetType,
         string $asOfTsEst,
         float $minDeclinePct,
         float $minVolumeMult,
@@ -215,7 +212,6 @@ class FiveMinuteSignalScannerV210_0
 
         return [
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_type' => 'OVERSOLD_BOUNCE',
             'signal_ts_est' => $asOfTsEst,
             'price' => $currentPrice,
@@ -240,7 +236,6 @@ class FiveMinuteSignalScannerV210_0
     private function getActiveSymbols(string $assetType): array
     {
         return DB::table('asset_info')
-            ->where('asset_type', $assetType)
             ->whereNull('deleted_at')
             ->pluck('symbol')
             ->toArray();
@@ -252,7 +247,7 @@ class FiveMinuteSignalScannerV210_0
      * @param  array<int, string>  $symbols
      * @return array<string, list<object>>
      */
-    private function batchGet5mBars(array $symbols, string $assetType, string $asOfTsEst, int $lookbackMinutes): array
+    private function batchGet5mBars(array $symbols, string $asOfTsEst, int $lookbackMinutes): array
     {
         if (empty($symbols)) {
             return [];
@@ -264,7 +259,7 @@ class FiveMinuteSignalScannerV210_0
         // Symbol list is intentionally excluded so all callers share the same cache entry
         // regardless of which subset of symbols they request — filtered in PHP below.
         $bucketTs = date('Y-m-d H:i', strtotime(floor(strtotime($asOfTsEst) / 300) * 300));
-        $cacheKey = "5m_bars:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "5m_bars:{$bucketTs}:{$lookbackMinutes}";
 
         $allGrouped = Cache::get($cacheKey);
         if ($allGrouped === null) {
@@ -274,11 +269,10 @@ class FiveMinuteSignalScannerV210_0
                     $rows = $this->dbSelect('
                     SELECT *
                     FROM five_minute_prices
-                    WHERE asset_type = ?
-                      AND ts <= ?
+    WHERE ts <= ?
                       AND ts >= ?
                     ORDER BY symbol ASC, ts DESC
-                ', [$assetType, $asOfTsEst, $startTime]);
+                ', [$asOfTsEst, $startTime]);
 
                     $allGrouped = [];
                     foreach ($rows as $row) {

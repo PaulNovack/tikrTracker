@@ -1,6 +1,6 @@
 # Supervisor Configuration
 
-Supervisor manages all long-running processes for this application — queue workers, Reverb WebSocket server, and continuous backtest loops for each active pipeline.
+Supervisor manages all long-running processes for this application — queue workers, Reverb WebSocket server, continuous backtest loops, and the TradingV2 unified bar consumer.
 
 ## Installation & Boot Setup
 
@@ -25,6 +25,29 @@ It is **copied** (not symlinked) to the supervisor conf.d directory:
 ```
 
 > **Important:** Because it is a copy, any changes to `laravel-invest-worker.conf` in the repo must be re-deployed manually (see Updating Config below).
+
+## TradingV2 — Unified Bar Consumer (replaces bar-events-{a-q})
+
+### `laravel-invest-tradingv2-consumer` (3 instances)
+
+```
+command: php artisan trading:consume-bars --group=scanner --batch=200
+log:     storage/logs/tradingv2-consumer.log
+```
+
+Single consumer reads `rt:events:bars` stream, calls `GateEvaluator` to compute ALL gates from Redis bars, dispatches `EvaluateBarJob` to `gate-check` queue. Replaces all 18 per-pipeline `bar-events-{a-q}` programs.
+
+### `laravel-invest-tradingv2-workers` (18 instances)
+
+```
+command: php artisan queue:work redis --queue=gate-check --sleep=0 --tries=1 --max-time=300
+```
+
+Processes `EvaluateBarJob` instances. Each job iterates all active alert versions from the DB, checks version-specific gate thresholds against pre-computed gate values, stores candidates, runs entry type classification, and writes alerts via `TradeAlertWriterV1`.
+
+### `laravel-invest-bar-events-{a-q}` — DEPRECATED
+
+These are replaced by the two `tradingv2-*` programs above. Keep running side-by-side until V2 is proven stable, then remove.
 
 ## Apache / www-data Access
 
@@ -77,18 +100,18 @@ Processes jobs from the `default` Redis queue. Runs 7 parallel workers (`_00` th
 
 ---
 
-### `laravel-invest-ml-scoring-worker` (3 instances)
+### `laravel-invest-ml-scoring-worker` (6 instances)
 
 ```
 command: php artisan queue:work redis --queue=ml-scoring --sleep=1 --tries=3 --max-time=3600
 log:     storage/logs/ml-scoring-worker.log
 ```
 
-Dedicated workers for the `ml-scoring` queue. Runs 3 parallel workers.
+Dedicated workers for the `ml-scoring` queue. Runs 6 parallel workers.
 
 ---
 
-### `laravel-invest-ml-scoring-catchup-worker` (1 instance)
+### `laravel-invest-ml-scoring-catchup-worker` (3 instances)
 
 ```
 command: php artisan queue:work redis --queue=ml-scoring-catchup --sleep=1 --tries=3 --max-time=3600
@@ -150,6 +173,17 @@ command: scripts/log-bar-stream.sh
 ```
 
 Bar streaming service for real-time market data.
+
+---
+
+### `laravel-invest-bar-events-{a-q}` (3 instances each)
+
+```
+command: php artisan bar-events:consume --pipeline={letter} --group=scanner-{letter} --consumer={letter}-%(process_num)02d --batch=100
+log:     storage/logs/bar-events-{letter}.log
+```
+
+Redis stream consumers for the event-driven trade alert pipeline (A-Q). Each pipeline has 3 parallel consumers (`_00` through `_02`) sharing a Redis consumer group (`scanner-{letter}`). Events older than 10 minutes are discarded to prevent stale alert creation when consumers fall behind. Candidate entries older than 10 minutes are also discarded with their Redis key deleted.
 
 ---
 

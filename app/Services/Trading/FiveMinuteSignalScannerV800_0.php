@@ -45,7 +45,6 @@ class FiveMinuteSignalScannerV800_0
      * Scan for Higher-Low Breakout Setup candidates (LONG)
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -79,7 +78,6 @@ class FiveMinuteSignalScannerV800_0
 WITH f AS (
     SELECT
         symbol,
-        asset_type,
         ts_est,
         trading_date_est,
         trading_time_est,
@@ -99,36 +97,34 @@ WITH f AS (
         atr_pct,
         rsi_14,
 
-        LAG(price, 1) OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev_price,
-        LAG(price, 2) OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev2_price,
-        LAG(high, 1)  OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev_high,
-        LAG(low, 1)   OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev_low,
-        LAG(low, 2)   OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev2_low,
-        LAG(volume, 1) OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev_volume,
-        LAG(vwap_dist_pct, 1) OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est) AS prev_vwap_dist_pct,
+        LAG(price, 1) OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev_price,
+        LAG(price, 2) OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev2_price,
+        LAG(high, 1)  OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev_high,
+        LAG(low, 1)   OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev_low,
+        LAG(low, 2)   OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev2_low,
+        LAG(volume, 1) OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev_volume,
+        LAG(vwap_dist_pct, 1) OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est) AS prev_vwap_dist_pct,
 
         MAX(high) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN 6 PRECEDING AND 1 PRECEDING
         ) AS prior_30m_high,
 
         MIN(low) OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY ts_est
             ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING
         ) AS pullback_floor_15m
 
     FROM five_minute_prices
-    WHERE asset_type = ?
-      AND trading_date_est = ?
+    WHERE trading_date_est = ?
       AND ts_est <= ?
       AND trading_time_est BETWEEN ? AND ?
       AND price BETWEEN ? AND ?
 )
 SELECT
     symbol,
-    asset_type,
     trading_date_est,
     ts_est AS signal_ts_est,
     trading_time_est,
@@ -165,7 +161,6 @@ LIMIT ?
 ';
 
         $params = [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             $timeWindowStart,
@@ -238,7 +233,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'setup_price' => $setupPrice,
@@ -283,7 +277,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'HIGHER_LOW_BREAKOUT_SETUP',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],

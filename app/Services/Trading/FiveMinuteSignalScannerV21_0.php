@@ -46,7 +46,7 @@ class FiveMinuteSignalScannerV21_0
      * @param  string  $asOfTsEst  EST timestamp
      * @return array Signal candidates for entry finder
      */
-    public function scan(string $assetType, string $asOfTsEst): array
+    public function scan(string $asOfTsEst): array
     {
         $minPrice = 1.0;
         $minVolume5m = 10000; // Basic liquidity filter
@@ -54,7 +54,6 @@ class FiveMinuteSignalScannerV21_0
         // Get symbols with recent 5-minute data that pass basic filters
         $symbols = DB::table($this->fiveMinuteTable)
             ->select('symbol', 'price', 'volume')
-            ->where('asset_type', $assetType)
             ->where('ts_est', $asOfTsEst)
             ->where('price', '>=', $minPrice)
             ->where('volume', '>=', $minVolume5m)
@@ -67,7 +66,6 @@ class FiveMinuteSignalScannerV21_0
                 'symbol' => $row->symbol,
                 'signal_type' => 'ALLIGATOR_SCAN',
                 'signal_ts_est' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'scan_ts_est' => $asOfTsEst,
                 'price_5m' => (float) $row->price,
                 'volume_5m' => (int) $row->volume,

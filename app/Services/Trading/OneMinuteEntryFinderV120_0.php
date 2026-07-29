@@ -23,20 +23,35 @@ use Illuminate\Support\Facades\Cache;
  * 4. OR_BREAKOUT - Opening range break with multi-day context
  * 5. EMA9_BOUNCE - Trend continuation off key moving average
  */
-class OneMinuteEntryFinderV120_0
+class OneMinuteEntryFinderV120_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
+    // Finder score thresholds — previously in .env as V120_FINDER_ENTRY_SCORE_MIN/MAX
+    public float $finderEntryScoreMin = 40;
 
-    private string $version = 'v120.0';
+    public float $finderEntryScoreMax = 75;
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v120.0';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return 'v120.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return [
+            'version' => $this->getVersion(),
+            'finder_entry_score_min' => $this->finderEntryScoreMin,
+            'finder_entry_score_max' => $this->finderEntryScoreMax,
+        ];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -48,8 +63,8 @@ class OneMinuteEntryFinderV120_0
         int $freshnessMinutes = 4 // Maximum age for entries to be considered fresh (tightened from 6 to 4 for lower slippage)
     ): array {
         // Focus on 40-59 score sweet spot (5.40% avg P&L) - uses finder-specific score, not the 5m scanner score
-        $minScore = (float) config('trading.v120.finder_entry_score_min', 40);
-        $maxScore = (float) config('trading.v120.finder_entry_score_max', 75);
+        $minScore = $this->finderEntryScoreMin;
+        $maxScore = $this->finderEntryScoreMax;
 
         if ($maxScore <= 0) {
             $maxScore = 100.0;
@@ -74,8 +89,8 @@ class OneMinuteEntryFinderV120_0
         $to = $analysisEnd;
 
         $bucketTs = date('Y-m-d H:i', strtotime($to));
-        $cacheKey1m = "1m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $bars = Cache::remember($cacheKey1m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey1m = "1m_bars:v120:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $bars = Cache::remember($cacheKey1m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT
                   ts_est,
@@ -94,18 +109,17 @@ class OneMinuteEntryFinderV120_0
                   atr,
                   atr_pct,
                   AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                   ) AS avg_vol_20
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $from, $to]);
+            ', [$symbol, $tradeDate, $from, $to]);
         });
 
         if (! $bars || count($bars) < 25) {
@@ -113,7 +127,6 @@ class OneMinuteEntryFinderV120_0
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -129,18 +142,17 @@ class OneMinuteEntryFinderV120_0
         }
 
         // Get 5-minute bars for trend confirmation
-        $cacheKey5m = "5m_bars:v120:{$assetType}:{$symbol}:{$tradeDate}:{$bucketTs}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($assetType, $symbol, $tradeDate, $from, $to) {
+        $cacheKey5m = "5m_bars:v120:{$symbol}:{$tradeDate}:{$bucketTs}";
+        $fiveMinBars = Cache::remember($cacheKey5m, 90, function () use ($symbol, $tradeDate, $from, $to) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $from, $to]);
+            ', [$symbol, $tradeDate, $from, $to]);
         });
 
         // Optimize 5-minute trend lookup using pointer (O(N) instead of O(N²))
@@ -236,7 +248,6 @@ class OneMinuteEntryFinderV120_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => sprintf('Excessive 5-minute choppiness (%d/%d changes)', $choppiness['directional_changes'] ?? 0, $maxChanges),
@@ -543,7 +554,6 @@ class OneMinuteEntryFinderV120_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -551,7 +561,7 @@ class OneMinuteEntryFinderV120_0
                 'best_entry' => null,
                 'filter_reason' => 'No qualifying multi-day momentum entries found',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
                     'consecutive_days' => $consecutiveDays,
@@ -667,11 +677,10 @@ class OneMinuteEntryFinderV120_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Filtered by elite multi-day momentum criteria',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'consecutive_days' => $consecutiveDays,
                 ],
             ];
@@ -690,7 +699,6 @@ class OneMinuteEntryFinderV120_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -718,12 +726,11 @@ class OneMinuteEntryFinderV120_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
                 'consecutive_days' => $consecutiveDays,
@@ -814,7 +821,7 @@ class OneMinuteEntryFinderV120_0
         return max(0.0, min(100.0, $score));
     }
 
-    private function calculate5MinChoppiness(array $bars): array
+    protected function calculate5MinChoppiness(array $bars): array
     {
         if (count($bars) < 2) {
             return [

@@ -72,6 +72,16 @@ class TradePipelineRunE extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate ──
+        if (config('trading.pipelines.e.use_redis', false)) {
+            $msg = 'Pipeline E: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            // \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 
@@ -103,11 +113,9 @@ class TradePipelineRunE extends Command
 
         // V21.0 uses simpler scan API (just assetType and timestamp)
         if ($version === 'v21.0') {
-            $signals = $scanner->scan($assetType, $asOfTsEst);
+            $signals = $scanner->scan($asOfTsEst);
         } else {
-            $signals = $scanner->scan(
-                $assetType,
-                $asOfTsEst,
+            $signals = $scanner->scan($asOfTsEst,
                 (int) $this->option('lookback'),
                 (float) $this->option('minMove'),
                 (float) $this->option('volMult'),
@@ -430,11 +438,9 @@ class TradePipelineRunE extends Command
 
                 // V21.0 uses simpler scan API
                 if ($version === 'v21.0') {
-                    $signals = $scanner->scan($assetType, $asOfTsEst);
+                    $signals = $scanner->scan($asOfTsEst);
                 } else {
-                    $signals = $scanner->scan(
-                        $assetType,
-                        $asOfTsEst,
+                    $signals = $scanner->scan($asOfTsEst,
                         (int) $this->option('lookback'),
                         (float) $this->option('minMove'),
                         (float) $this->option('volMult'),

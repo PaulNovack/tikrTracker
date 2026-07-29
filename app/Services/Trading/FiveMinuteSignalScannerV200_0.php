@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
  * FiveMinuteSignalScannerV200_0 - "TPB" (Trend + Pullback + Breakout) Scanner
  *
  * Output signals are compatible with TradeAlertWriterV1:
- *  - symbol, asset_type, signal_type, signal_ts_est, price, score, vol_ratio, meta[]
+ *  - symbol, signal_type, signal_ts_est, price, score, vol_ratio, meta[]
  *
  * Uses ONLY DB tables:
  *  - five_minute_prices (ts_est, open, high, low, price, volume, vwap, ema9, ema21, atr, atr_pct, ema9_above_ema21)
@@ -48,7 +48,6 @@ class FiveMinuteSignalScannerV200_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         int $limit = 80
@@ -76,15 +75,14 @@ class FiveMinuteSignalScannerV200_0
                 SUM(volume) AS vol_sum,
                 MAX(price) AS max_price_in_window
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND ts_est >= ?
+    WHERE ts_est >= ?
               AND ts_est <= ?
             GROUP BY symbol
             HAVING vol_sum >= ?
                AND max_price_in_window BETWEEN ? AND ?
             ORDER BY vol_sum DESC
             LIMIT ?
-        ', [$assetType, $start, $asOfTsEst, $minSumVol, $minPrice, $maxPrice, $universeLimit]);
+        ', [$start, $asOfTsEst, $minSumVol, $minPrice, $maxPrice, $universeLimit]);
 
         if (empty($symbols)) {
             return [];
@@ -112,7 +110,7 @@ class FiveMinuteSignalScannerV200_0
             if (in_array($symbol, $blacklist)) {
                 continue;
             }
-            $bars = $this->get5MinBars($symbol, $assetType, $barsFrom, $asOfTsEst);
+            $bars = $this->get5MinBars($symbol, $barsFrom, $asOfTsEst);
             if (count($bars) < 10) {
                 continue;
             }
@@ -269,7 +267,6 @@ class FiveMinuteSignalScannerV200_0
 
             $candidates[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'TPB_5M',
                 'signal_ts_est' => (string) ($last->ts_est ?? $asOfTsEst),
                 'price' => round($lastPrice, 4),
@@ -305,7 +302,7 @@ class FiveMinuteSignalScannerV200_0
         return array_slice($candidates, 0, $limit);
     }
 
-    private function get5MinBars(string $symbol, string $assetType, string $from, string $to): array
+    private function get5MinBars(string $symbol, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT
@@ -323,11 +320,11 @@ class FiveMinuteSignalScannerV200_0
                 atr_pct
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
+
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $from, $to]);
+        ', [$symbol, $from, $to]);
     }
 
     private function analyzeStructure(

@@ -21,7 +21,6 @@ class OneMinuteEntryFinderMarketMovers
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 5,
@@ -33,7 +32,6 @@ class OneMinuteEntryFinderMarketMovers
         // Get 1-minute bars around the signal
         $bars = $this->getOneMinuteBars(
             $symbol,
-            $assetType,
             $signalTsEst,
             $asOfTsEst,
             $beforeMinutes,
@@ -63,7 +61,6 @@ class OneMinuteEntryFinderMarketMovers
 
     private function getOneMinuteBars(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes,
@@ -82,13 +79,12 @@ class OneMinuteEntryFinderMarketMovers
                 volume
             FROM one_minute_prices
             WHERE symbol = ?
-                AND asset_type = ?
                 AND ts_est >= ?
                 AND ts_est <= ?
             ORDER BY ts_est ASC
         ';
 
-        return $this->dbSelect($sql, [$symbol, $assetType, $startTs, $endTs]);
+        return $this->dbSelect($sql, [$symbol, $startTs, $endTs]);
     }
 
     /**

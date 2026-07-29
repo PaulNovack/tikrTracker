@@ -34,7 +34,6 @@ class OneMinuteEntryFinderV210_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         $beforeMinutesOrOpts = 20,
@@ -66,7 +65,6 @@ class OneMinuteEntryFinderV210_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Unsupported pattern (expected OVERSOLD_BOUNCE). Got: '.$pattern,
                 'meta' => ['pattern' => $pattern, 'meta' => $meta],
@@ -107,7 +105,6 @@ class OneMinuteEntryFinderV210_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'signal_ts_est' => $signalTsEst,
                     'filter_reason' => "Entry hour {$entryHour} outside allowed range {$minEntryHour}-{$maxEntryHour}",
                     'meta' => ['entry_hour' => $entryHour, 'min_hour' => $minEntryHour, 'max_hour' => $maxEntryHour],
@@ -115,12 +112,11 @@ class OneMinuteEntryFinderV210_0
             }
         }
 
-        $bars = $this->get1mBars($symbol, $assetType, $analysisStart, $analysisEnd);
+        $bars = $this->get1mBars($symbol, $analysisStart, $analysisEnd);
         if (count($bars) < 3) {
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Insufficient 1m bars in analysis window (need 3+, got '.count($bars).')',
                 'meta' => ['analysisStart' => $analysisStart, 'analysisEnd' => $analysisEnd],
@@ -170,7 +166,6 @@ class OneMinuteEntryFinderV210_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No valid low found in bars',
                 'meta' => ['lowestBarIndex' => $lowestBarIndex],
@@ -279,7 +274,6 @@ class OneMinuteEntryFinderV210_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No valid bounce entry found after low',
                 'candidates' => [],
@@ -296,7 +290,6 @@ class OneMinuteEntryFinderV210_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "Best entry score {$bestEntry['score']} below minimum {$minScore}",
                 'candidates' => $candidates,
@@ -307,7 +300,6 @@ class OneMinuteEntryFinderV210_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $bestEntry,
             'candidates' => $candidates,
@@ -319,7 +311,7 @@ class OneMinuteEntryFinderV210_0
         ];
     }
 
-    private function get1mBars(string $symbol, string $assetType, string $startTsEst, string $endTsEst): array
+    private function get1mBars(string $symbol, string $startTsEst, string $endTsEst): array
     {
         // Extract trading_date_est from timestamp to prevent time travel data leaks
         $tradingDate = substr($startTsEst, 0, 10);
@@ -327,19 +319,18 @@ class OneMinuteEntryFinderV210_0
         return $this->dbSelect('
             SELECT *,
                 AVG(volume) OVER (
-                    PARTITION BY symbol, asset_type
+                    PARTITION BY symbol
                     ORDER BY ts_est
                     ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
                 ) AS avg_vol_20
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 200
-        ', [$symbol, $assetType, $tradingDate, $startTsEst, $endTsEst]);
+        ', [$symbol, $tradingDate, $startTsEst, $endTsEst]);
     }
 
     private function calculateVolumeRatio(array $bars, int $currentIndex, int $lookback): float

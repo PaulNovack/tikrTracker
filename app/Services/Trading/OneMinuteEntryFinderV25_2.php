@@ -47,7 +47,7 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
     public function entryConfig(): array
     {
         return [
-            'version' => $this->version,
+            'version' => $this->getVersion(),
             'min_notional_1m' => (int) config('trading.v25_2.min_notional_1m', 100000),
             'min_vol_ratio_1m' => (float) config('trading.v25_2.min_vol_ratio_1m', 2.5),
             'max_above_vwap_entry_pct' => (float) config('trading.v25_2.max_above_vwap_entry_pct', 0.60),
@@ -63,7 +63,6 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
 
     protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array {
@@ -77,12 +76,26 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $tradeDate = substr($signalTsEst, 0, 10);
         $marketOpen = $tradeDate.' 09:30:00';
 
-        $bars = $this->fetchOneMinuteBars($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $bars = $this->fetchOneMinuteBars($symbol, $marketOpen, $asOfTsEst);
         if (! $bars || count($bars) < $cfg['min_bars']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: not_enough_bars', [
+                'symbol' => $symbol,
+                'bars_count' => count($bars ?? []),
+                'min_required' => $cfg['min_bars'],
+                'asOfTsEst' => $asOfTsEst,
+                'marketOpen' => $marketOpen,
+            ]);
+
             return null;
         }
 
         if (! $this->hasValidPriceData($bars)) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: bad_data', [
+                'symbol' => $symbol,
+                'bars_count' => count($bars),
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
@@ -141,6 +154,13 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
 
         $notional1m = $last['close'] * $last['volume'];
         if ($notional1m < $cfg['min_notional_1m']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: fail_notional_1m', [
+                'symbol' => $symbol,
+                'notional' => round($notional1m, 2),
+                'min_required' => $cfg['min_notional_1m'],
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
@@ -148,15 +168,36 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $avgVolOther = count($volSlice) > 1 ? (array_sum(array_column($volSlice, 'volume')) - $last['volume']) / (count($volSlice) - 1) : $last['volume'];
         $volRatio = $avgVolOther > 0 ? $last['volume'] / $avgVolOther : 1.0;
         if ($volRatio < $cfg['min_vol_ratio_1m']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: low_vol_ratio', [
+                'symbol' => $symbol,
+                'vol_ratio' => round($volRatio, 2),
+                'min_required' => $cfg['min_vol_ratio_1m'],
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
         if ($cfg['require_trend_align'] && $last['ema9'] <= $last['ema21']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: trend_not_aligned', [
+                'symbol' => $symbol,
+                'ema9' => round($last['ema9'], 4),
+                'ema21' => round($last['ema21'], 4),
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
         $aboveVwapPct = (($last['close'] - $last['vwap']) / $last['vwap']) * 100.0;
         if ($aboveVwapPct > $cfg['max_above_vwap_entry_pct']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: too_extended', [
+                'symbol' => $symbol,
+                'above_vwap_pct' => round($aboveVwapPct, 3),
+                'max_allowed' => $cfg['max_above_vwap_entry_pct'],
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
@@ -164,6 +205,15 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $roomAtr = $atr > 0 ? ($atr / $last['close']) * 100.0 * $cfg['room_atr_mult'] : 0;
         $room = max($roomToHod, $roomAtr);
         if ($room < $cfg['min_room_to_run_pct']) {
+            \Log::channel('redis-scan')->info('[EntryFinderV25_2] GATE: no_room_to_run', [
+                'symbol' => $symbol,
+                'room_pct' => round($room, 3),
+                'min_required' => $cfg['min_room_to_run_pct'],
+                'room_to_hod' => round($roomToHod, 3),
+                'room_atr' => round($roomAtr, 3),
+                'asOfTsEst' => $asOfTsEst,
+            ]);
+
             return null;
         }
 
@@ -190,11 +240,23 @@ class OneMinuteEntryFinderV25_2 extends AbstractOneMinuteEntryFinder
         $score = ($volRatio * 1.2) + max(0.0, 1.5 - abs($aboveVwapPct)) + ($bodyPct * 50.0);
 
         $choppiness = [];
-        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $assetType, $marketOpen, $asOfTsEst);
+        $fiveMinBars = $this->fetchFiveMinuteBarsForAnalysis($symbol, $marketOpen, $asOfTsEst);
         if (count($fiveMinBars) >= 6) {
             $recent5Min = array_slice($fiveMinBars, -12);
             $choppiness = $this->calculate5MinChoppiness($recent5Min);
         }
+
+        \Log::channel('redis-scan')->info('[EntryFinderV25_2] ENTRY PASSED ALL GATES', [
+            'symbol' => $symbol,
+            'entry_type' => $entryType,
+            'entry_price' => round($last['close'], 2),
+            'score' => round($score, 3),
+            'vol_ratio' => round($volRatio, 2),
+            'above_vwap_pct' => round($aboveVwapPct, 3),
+            'room_pct' => round($room, 3),
+            'bars_count' => $bc,
+            'asOfTsEst' => $asOfTsEst,
+        ]);
 
         return [
             'entry_price' => round($last['close'], 2),

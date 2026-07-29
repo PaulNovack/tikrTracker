@@ -21,6 +21,39 @@ class OneMinuteEntryFinderV700_0
 
     private string $version = 'v700.0';
 
+    // ── Entry Finder Configuration (public so pipeline can read) ──
+    /** @var float Minimum entry score (0-100) */
+    public float $entryScoreMin;
+
+    /** @var float Maximum entry score (0-100) */
+    public float $entryScoreMax;
+
+    /** @var float Minimum ATR% for sufficient volatility */
+    public float $entryMinAtrPct;
+
+    /** @var float Minimum volume ratio vs 20-bar average */
+    public float $entryMinVolRatio;
+
+    /** @var int Max entry hour (reject at this hour and later) */
+    public int $maxEntryHour;
+
+    /** @var float Minimum RSI for entry */
+    public float $entryMinRsi;
+
+    /** @var float Maximum RSI for entry */
+    public float $entryMaxRsi;
+
+    public function __construct()
+    {
+        $this->entryScoreMin = (float) env('V700_ENTRY_SCORE_MIN', 80);
+        $this->entryScoreMax = (float) env('V700_ENTRY_SCORE_MAX', 100);
+        $this->entryMinAtrPct = (float) env('V700_ENTRY_MIN_ATR_PCT', 0.20);
+        $this->entryMinVolRatio = (float) env('V700_ENTRY_MIN_VOL_RATIO', 1.3);
+        $this->maxEntryHour = (int) env('V700_MAX_ENTRY_HOUR', 14);
+        $this->entryMinRsi = (float) env('V700_ENTRY_MIN_RSI', 50);
+        $this->entryMaxRsi = (float) env('V700_ENTRY_MAX_RSI', 78);
+    }
+
     public function getVersion(): string
     {
         return $this->version;
@@ -32,7 +65,6 @@ class OneMinuteEntryFinderV700_0
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -41,8 +73,8 @@ class OneMinuteEntryFinderV700_0
         int $pivotLookback = 15,
         string $fillModel = 'next_open' // next_open|close
     ): array {
-        $minScore = (float) config('trading.v700.entry_score_min', 80);
-        $maxScore = (float) config('trading.v700.entry_score_max', 100);
+        $minScore = $this->entryScoreMin;
+        $maxScore = $this->entryScoreMax;
         if ($maxScore <= 0) {
             $maxScore = 100.0;
         }
@@ -51,12 +83,12 @@ class OneMinuteEntryFinderV700_0
         }
 
         // LONG entry gates
-        $minAtrPct = (float) config('trading.v700.entry_min_atr_pct', 0.20);
-        $minVolRatio = (float) config('trading.v700.entry_min_vol_ratio', 1.3);
-        $maxHour = (int) config('trading.v700.max_entry_hour', 14);
+        $minAtrPct = $this->entryMinAtrPct;
+        $minVolRatio = $this->entryMinVolRatio;
+        $maxHour = $this->maxEntryHour;
 
-        $minRsi = (float) config('trading.v700.entry_min_rsi', 50);
-        $maxRsi = (float) config('trading.v700.entry_max_rsi', 78);
+        $minRsi = $this->entryMinRsi;
+        $maxRsi = $this->entryMaxRsi;
 
         // Entry search window: look forward from signal time, not from market open
         // This prevents forward-looking bias in backtesting
@@ -101,18 +133,17 @@ class OneMinuteEntryFinderV700_0
               atr,
               atr_pct,
               AVG(volume) OVER (
-                PARTITION BY symbol, asset_type
+                PARTITION BY symbol
                 ORDER BY ts_est
                 ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
               ) AS avg_vol_20
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // V700 targets inverse/leveraged ETFs which often have sparse 1-minute data
         // Ultra-low threshold (3 bars) for ML training mode
@@ -121,7 +152,6 @@ class OneMinuteEntryFinderV700_0
                 'ok' => false,
                 'error' => 'Not enough 1m data in range (market closed or missing bars).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$from, $to],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -140,13 +170,12 @@ class OneMinuteEntryFinderV700_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9_above_ema21, above_vwap
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         // Choppiness filter
         $choppiness = [];
@@ -160,7 +189,6 @@ class OneMinuteEntryFinderV700_0
                 return [
                     'ok' => false,
                     'symbol' => $symbol,
-                    'asset_type' => $assetType,
                     'range_est' => [$from, $to],
                     'bars_found' => count($bars),
                     'filter_reason' => 'Excessive 5-minute choppiness',
@@ -515,7 +543,6 @@ class OneMinuteEntryFinderV700_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -525,7 +552,7 @@ class OneMinuteEntryFinderV700_0
                 'meta' => [
                     'entry_score_min' => $minScore,
                     'entry_score_max' => $maxScore,
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'goal' => 'risk-off winners LONG entries',
                     'filters' => [
                         'min_atr_pct' => $minAtrPct,
@@ -550,7 +577,6 @@ class OneMinuteEntryFinderV700_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'analysis_window_est' => [$analysisStart, $analysisEnd],
                 'market_open_est' => $marketOpen,
@@ -558,7 +584,7 @@ class OneMinuteEntryFinderV700_0
                 'best_entry' => null,
                 'candidates' => [],
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'filtered_reason' => 'No candidates passed allowedTypes for longs',
                 ],
             ];
@@ -611,7 +637,6 @@ class OneMinuteEntryFinderV700_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,
@@ -621,7 +646,7 @@ class OneMinuteEntryFinderV700_0
             'meta' => [
                 'entry_score_min' => $minScore,
                 'entry_score_max' => $maxScore,
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
                 'goal' => 'risk-off winners LONG entries',
             ],
@@ -833,7 +858,6 @@ class OneMinuteEntryFinderV700_0
      */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 15,
@@ -844,7 +868,6 @@ class OneMinuteEntryFinderV700_0
     ): array {
         return $this->findBestLong(
             $symbol,
-            $assetType,
             $signalTsEst,
             $asOfTsEst,
             $beforeMinutes,

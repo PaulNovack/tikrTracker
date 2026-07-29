@@ -50,11 +50,11 @@ class OneMinuteEntryFinderV3000_0
      * REQUIRED by Pipeline:
      * Must return ['ok'=>1, 'best_entry'=> [...]].
      */
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -66,20 +66,19 @@ class OneMinuteEntryFinderV3000_0
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'as_of_ts_est' => $asOfTsEst,
             ],
         ];
     }
 
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
@@ -100,7 +99,7 @@ class OneMinuteEntryFinderV3000_0
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v3000.entry', []);
 
@@ -154,13 +153,12 @@ class OneMinuteEntryFinderV3000_0
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -184,13 +182,12 @@ class OneMinuteEntryFinderV3000_0
         $fiveMinBars = $this->dbSelect('
             SELECT ts_est, open, high, low, price, ema9, ema21
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+              WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         // Build normalized 1m series + VWAP + EMA + HOD + 5m EMA values
         $norm = [];
@@ -506,7 +503,7 @@ class OneMinuteEntryFinderV3000_0
         $best['suggested_trailing_stop_pct'] = round($trailPct, 3);
 
         // Only run the 5m query after a valid candidate exists.
-        $choppiness = $this->loadRecent5MinChoppiness($symbol, $assetType, $tradeDate, $marketOpen, $analysisEnd);
+        $choppiness = $this->loadRecent5MinChoppiness($symbol, $tradeDate, $marketOpen, $analysisEnd);
         $best['five_min_directional_changes'] = $choppiness['directional_changes'] ?? null;
         $best['five_min_green_bar_pct'] = isset($choppiness['green_bar_pct']) ? round($choppiness['green_bar_pct'], 1) : null;
         $best['five_min_net_progress'] = isset($choppiness['net_progress']) ? round($choppiness['net_progress'], 3) : null;
@@ -515,9 +512,9 @@ class OneMinuteEntryFinderV3000_0
     }
 
     /** @return array<int, object> */
-    private function loadOneMinuteBars(string $symbol, string $assetType, string $tradeDate, string $marketOpen, string $analysisEnd): array
+    private function loadOneMinuteBars(string $symbol, string $tradeDate, string $marketOpen, string $analysisEnd): array
     {
-        $key = implode('|', [$this->oneMinuteTable, $assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        $key = implode('|', [$this->oneMinuteTable, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
         if (isset(self::$oneMinuteBarsCache[$key])) {
             return self::$oneMinuteBarsCache[$key];
         }
@@ -526,13 +523,12 @@ class OneMinuteEntryFinderV3000_0
         $bars = DB::select("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ", [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (count(self::$oneMinuteBarsCache) >= self::$maxLocalCacheKeys) {
             array_shift(self::$oneMinuteBarsCache);
@@ -543,20 +539,19 @@ class OneMinuteEntryFinderV3000_0
     }
 
     /** @return array<string, mixed> */
-    private function loadRecent5MinChoppiness(string $symbol, string $assetType, string $tradeDate, string $marketOpen, string $analysisEnd): array
+    private function loadRecent5MinChoppiness(string $symbol, string $tradeDate, string $marketOpen, string $analysisEnd): array
     {
         $table = $this->safeTable($this->fiveMinuteTable);
         $bars = DB::select("
             SELECT ts_est, `open`, high, low, price
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 12
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $analysisEnd]);
+        ", [$symbol, $tradeDate, $marketOpen, $analysisEnd]);
 
         if (count($bars) < 2) {
             return [];
@@ -672,8 +667,8 @@ class OneMinuteEntryFinderV3000_0
 
     private function isAllowedTime(string $tsEst): bool
     {
-        $hh = (int) substr($tsEst, 11, 2);
-        $mm = (int) substr($tsEst, 14, 2);
+        $hh = (int) substr($time, 11, 2);
+        $mm = (int) substr($time, 14, 2);
         $t = $hh + $mm / 60.0;
 
         $a = ($t >= 9.58 && $t <= 11.25);  // approx. 9:35 to 11:15

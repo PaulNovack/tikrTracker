@@ -20,12 +20,8 @@ use Illuminate\Support\Facades\Log;
  * - New ORB_BREAKOUT pattern for earlier entries
  * - Slightly looser room-to-run (0.6% min room, 1.5x ATR mult) to allow more entries
  */
-class OneMinuteEntryFinderV27_0
+class OneMinuteEntryFinderV27_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v27.0';
-
     private static array $dbg = [
         'called' => 0,
         'not_enough_bars' => 0,
@@ -38,14 +34,25 @@ class OneMinuteEntryFinderV27_0
 
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v27.0';
     }
 
-    public function findBestLong(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function getName(): string
+    {
+        return 'v27.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         self::$dbg['called']++;
 
-        $entry = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -57,31 +64,30 @@ class OneMinuteEntryFinderV27_0
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'as_of_ts_est' => $asOfTsEst,
             ],
         ];
     }
 
-    public function findBestShort(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst, ...$rest): array
+    public function findBestShort(string $symbol, string $signalTsEst, string $asOfTsEst, ...$rest): array
     {
         return ['ok' => 0, 'best_entry' => null, 'reason' => 'short_not_implemented'];
     }
 
-    private function isDebugEnabled(): bool
+    protected function isDebugEnabled(): bool
     {
         return ((string) env('ENTRYFINDER_V27_DEBUG', '0') === '1')
             || (bool) config('trading.v27.debug', false);
     }
 
-    private function maybeLogDebug(): void
+    protected function maybeLogDebug(): void
     {
         if (! $this->isDebugEnabled()) {
             return;
@@ -91,7 +97,7 @@ class OneMinuteEntryFinderV27_0
         }
     }
 
-    private function findEntry(string $symbol, string $assetType, string $signalTsEst, string $asOfTsEst): ?array
+    private function findEntry(string $symbol, string $signalTsEst, string $asOfTsEst): ?array
     {
         $cfg = (array) config('trading.v27.entry', []);
 
@@ -126,21 +132,20 @@ class OneMinuteEntryFinderV27_0
             $analysisStart = $marketOpen;
         }
 
-        // Cache 1m bars per (symbol, asset_type, trading_date) for 60 seconds.
+        // Cache 1m bars per (symbol, trading_date) for 60 seconds.
         // During backtests data never changes, so caching eliminates redundant
         // queries for symbols that the scanner signals repeatedly.
-        $cacheKey1m = "entry_finder_v27:1m:{$assetType}:{$symbol}:{$tradeDate}";
-        $bars = Cache::remember($cacheKey1m, 60, function () use ($assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst) {
+        $cacheKey1m = "entry_finder_v27:1m:{$symbol}:{$tradeDate}";
+        $bars = Cache::remember($cacheKey1m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, `open`, high, low, price AS close, volume
                 FROM one_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+            ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
         });
 
         if (! $bars || count($bars) < $minBars) {
@@ -163,19 +168,18 @@ class OneMinuteEntryFinderV27_0
             }
         }
 
-        // Cache 5m bars per (symbol, asset_type, trading_date) for 60 seconds
-        $cacheKey5m = "entry_finder_v27:5m:{$assetType}:{$symbol}:{$tradeDate}";
-        $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst) {
+        // Cache 5m bars per (symbol, trading_date) for 60 seconds
+        $cacheKey5m = "entry_finder_v27:5m:{$symbol}:{$tradeDate}";
+        $fiveMinBars = Cache::remember($cacheKey5m, 60, function () use ($symbol, $tradeDate, $marketOpen, $asOfTsEst) {
             return $this->dbSelect('
                 SELECT ts_est, open, high, low, price
                 FROM five_minute_prices
-                WHERE asset_type = ?
-                  AND symbol = ?
+                  WHERE symbol = ?
                   AND trading_date_est = ?
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY ts_est ASC
-            ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+            ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
         });
 
         $choppiness = [];
@@ -837,10 +841,10 @@ class OneMinuteEntryFinderV27_0
         return $atr > 0 && ($hod - $entry) >= ($atr * $roomAtrMult);
     }
 
-    private function isAllowedTime(string $tsEst): bool
+    protected function isAllowedTime(string $time, bool $allowLunch = false): bool
     {
-        $hh = (int) substr($tsEst, 11, 2);
-        $mm = (int) substr($tsEst, 14, 2);
+        $hh = (int) substr($time, 11, 2);
+        $mm = (int) substr($time, 14, 2);
         $t = $hh + $mm / 60.0;
 
         $a = ($t >= 9.58 && $t <= 11.25);
@@ -868,7 +872,7 @@ class OneMinuteEntryFinderV27_0
         return 1.0;
     }
 
-    private function calculate5MinChoppiness(array $fiveMinBars): array
+    protected function calculate5MinChoppiness(array $fiveMinBars): array
     {
         if (count($fiveMinBars) < 2) {
             return [

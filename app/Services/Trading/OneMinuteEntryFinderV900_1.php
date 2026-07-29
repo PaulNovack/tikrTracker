@@ -16,20 +16,26 @@ use Illuminate\Support\Facades\DB;
  * Takes first qualifying entry within 10 minutes of setup (momentum trades fast).
  * Designed for explosive momentum stocks that already moved 20-40%+.
  */
-class OneMinuteEntryFinderV900_1
+class OneMinuteEntryFinderV900_1 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v900.1';
-
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v900.1';
     }
 
-    public function findBestLong(
+    public function getName(): string
+    {
+        return 'v900.1';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
+    }
+
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 10,
@@ -65,7 +71,6 @@ class OneMinuteEntryFinderV900_1
 WITH one_minute_candidates AS (
     SELECT
         o.symbol,
-        o.asset_type,
         o.trading_date_est,
         o.ts_est AS entry_ts_est,
         o.price AS entry_price,
@@ -82,24 +87,23 @@ WITH one_minute_candidates AS (
         o.atr_pct,
 
         AVG(o.volume) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 10 PRECEDING AND 1 PRECEDING
         ) AS avg_volume_10,
 
         LAG(o.high, 1) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
         ) AS prev_1m_high,
 
         LAG(o.price, 1) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
         ) AS prev_1m_close
 
     FROM one_minute_prices o
     WHERE o.symbol = ?
-      AND o.asset_type = ?
       AND o.trading_date_est = ?
       AND o.ts_est > ?
       AND o.ts_est <= ?
@@ -124,7 +128,7 @@ FROM (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY symbol, asset_type, trading_date_est
+            PARTITION BY symbol, trading_date_est
             ORDER BY entry_ts_est
         ) AS rn
     FROM qualified_entries
@@ -137,7 +141,6 @@ LIMIT 1
 
         $params = [
             $symbol,
-            $assetType,
             $tradeDate,
             $signalTsEst,
             $entryWindowEnd,
@@ -150,7 +153,6 @@ LIMIT 1
                 'ok' => false,
                 'error' => 'No qualifying momentum continuation entry found within window.',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'entry_window' => [$signalTsEst, $entryWindowEnd],
             ];
@@ -173,12 +175,11 @@ LIMIT 1
                 SELECT open, ts_est
                 FROM one_minute_prices
                 WHERE symbol = ?
-                  AND asset_type = ?
                   AND trading_date_est = ?
                   AND ts_est > ?
                 ORDER BY ts_est ASC
                 LIMIT 1
-            ', [$symbol, $assetType, $tradeDate, $entryTs]);
+            ', [$symbol, $tradeDate, $entryTs]);
 
             if ($nextBar && (float) $nextBar->open > 0) {
                 $entryPx = (float) $nextBar->open;
@@ -194,7 +195,6 @@ LIMIT 1
                 'ok' => false,
                 'error' => sprintf('Entry score %.2f outside range [%.2f, %.2f]', $entryScore, $minScore, $maxScore),
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'entry_ts_est' => $entryTs,
                 'entry_score' => $entryScore,
@@ -218,7 +218,6 @@ LIMIT 1
             'best_entry' => [
                 'type' => 'MOMENTUM_CONTINUATION',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'entry_ts_est' => $entryTs,
                 'entry_price' => round($entryPx, 4),
                 'entry_score' => round($entryScore, 2),
@@ -241,7 +240,7 @@ LIMIT 1
                 'notes' => '1m momentum continuation breakout',
             ],
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'fill_model' => $fillModel,
                 'entry_window' => [$signalTsEst, $entryWindowEnd],
             ],

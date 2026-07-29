@@ -44,49 +44,68 @@ class FiveMinuteSignalScannerV700_0
 
     // ── Scanner Configuration (public so entry finders can read) ──
     /** @var float Minimum entry score (0-100) */
-    public float $entryScoreMin = 80;
+    public float $entryScoreMin;
 
     /** @var float Maximum entry score (0-100) */
-    public float $entryScoreMax = 100;
+    public float $entryScoreMax;
 
     /** @var int Max number of signals to return */
-    public int $entryScoreLimit = 15;
+    public int $entryScoreLimit;
 
     /** @var string Market proxy symbol for RS calculation */
-    public string $marketProxySymbol = 'ONEQ';
+    public string $marketProxySymbol;
 
     /** @var bool Only pick when proxy is below VWAP (risk-off mode) */
-    public bool $requireMarketRiskOff = false;
+    public bool $requireMarketRiskOff;
 
     /** @var bool Allow leveraged/inverse products */
-    public bool $allowLeveragedInverse = true;
+    public bool $allowLeveragedInverse;
 
     /** @var int Min 5m bars above VWAP for persistence */
-    public int $minAboveVwapBars = 7;
+    public int $minAboveVwapBars;
 
     /** @var float Min relative strength % vs market proxy */
-    public float $minRsPct = 0.80;
+    public float $minRsPct;
 
     /** @var float Minimum volume ratio vs average */
-    public float $minVolRatio = 1.10;
+    public float $minVolRatio;
 
     /** @var float Minimum ATR% for volatility */
-    public float $minAtrPct = 0.20;
+    public float $minAtrPct;
 
     /** @var float Minimum RSI reading */
-    public float $minRsi = 50;
+    public float $minRsi;
 
     /** @var float Minimum net progress (0-1, higher = less choppy) */
-    public float $minNetProgress = 0.12;
+    public float $minNetProgress;
 
     /** @var float Minimum volume vs 20-bar average (active stock filter) */
-    public float $minVolMult = 0.5;
+    public float $minVolMult;
 
     /** @var float Minimum share price */
-    public float $minPrice = 3.0;
+    public float $minPrice;
 
     /** @var float Maximum share price */
-    public float $maxPrice = 500.0;
+    public float $maxPrice;
+
+    // ── Entry Finder Configuration ──
+    /** @var float Entry min ATR% */
+    public float $entryMinAtrPct;
+
+    /** @var float Entry min volume ratio */
+    public float $entryMinVolRatio;
+
+    /** @var int Max entry hour (reject at this hour and later) */
+    public int $maxEntryHour;
+
+    /** @var float Entry min RSI */
+    public float $entryMinRsi;
+
+    /** @var float Entry max RSI */
+    public float $entryMaxRsi;
+
+    /** @var float Stop loss ATR multiplier */
+    public float $stopLossAtrMultiplier;
 
     /** @return array<string, mixed> */
     public function scanConfig(): array
@@ -107,24 +126,44 @@ class FiveMinuteSignalScannerV700_0
             'min_vol_mult' => $this->minVolMult,
             'min_price' => $this->minPrice,
             'max_price' => $this->maxPrice,
+            'entry_min_atr_pct' => $this->entryMinAtrPct,
+            'entry_min_vol_ratio' => $this->entryMinVolRatio,
+            'max_entry_hour' => $this->maxEntryHour,
+            'entry_min_rsi' => $this->entryMinRsi,
+            'entry_max_rsi' => $this->entryMaxRsi,
+            'stop_loss_atr_multiplier' => $this->stopLossAtrMultiplier,
         ];
     }
 
-    public function getVersion(): string
+    public function __construct()
     {
-        return $this->version;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
+        $this->entryScoreMin = (float) env('V700_ENTRY_SCORE_MIN', 80);
+        $this->entryScoreMax = (float) env('V700_ENTRY_SCORE_MAX', 100);
+        $this->entryScoreLimit = (int) env('V700_ENTRY_SCORE_LIMIT', 15);
+        $this->marketProxySymbol = env('V700_MARKET_PROXY_SYMBOL', 'ONEQ');
+        $this->requireMarketRiskOff = (bool) env('V700_REQUIRE_MARKET_RISK_OFF', false);
+        $this->allowLeveragedInverse = (bool) env('V700_ALLOW_LEVERAGED_INVERSE', true);
+        $this->minAboveVwapBars = (int) env('V700_MIN_ABOVE_VWAP_BARS', 7);
+        $this->minRsPct = (float) env('V700_MIN_RS_PCT', 0.80);
+        $this->minVolRatio = (float) env('V700_MIN_VOL_RATIO', 1.10);
+        $this->minAtrPct = (float) env('V700_MIN_ATR_PCT', 0.20);
+        $this->minRsi = (float) env('V700_MIN_RSI', 50);
+        $this->minNetProgress = (float) env('V700_MIN_NET_PROGRESS', 0.12);
+        $this->minVolMult = (float) env('V700_MIN_VOL_MULT', 0.5);
+        $this->minPrice = (float) env('V700_MIN_PRICE', 3.0);
+        $this->maxPrice = (float) env('V700_MAX_PRICE', 500.0);
+        $this->entryMinAtrPct = (float) env('V700_ENTRY_MIN_ATR_PCT', 0.20);
+        $this->entryMinVolRatio = (float) env('V700_ENTRY_MIN_VOL_RATIO', 1.3);
+        $this->maxEntryHour = (int) env('V700_MAX_ENTRY_HOUR', 14);
+        $this->entryMinRsi = (float) env('V700_ENTRY_MIN_RSI', 50);
+        $this->entryMaxRsi = (float) env('V700_ENTRY_MAX_RSI', 78);
+        $this->stopLossAtrMultiplier = (float) env('V700_STOP_LOSS_ATR_MULTIPLIER', 1.2);
     }
 
     /**
      * Scan for Risk-Off Winners candidates (LONG)
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
@@ -208,7 +247,6 @@ class FiveMinuteSignalScannerV700_0
 WITH sym_bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.high,
@@ -221,8 +259,7 @@ WITH sym_bars AS (
     f.ema9_above_ema21,
     CASE WHEN f.price > f.vwap THEN 1 ELSE 0 END AS above_vwap
   FROM five_minute_prices f
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    WHERE f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.trading_date_est = DATE(?)
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -232,8 +269,7 @@ mkt_bars AS (
     ts_est,
     price AS m_close
   FROM five_minute_prices
-  WHERE asset_type = 'stock'
-    AND symbol = ?
+    WHERE symbol = ?
     AND trading_date_est = DATE(?)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
@@ -247,14 +283,13 @@ aligned AS (
     ON m.ts_est = s.ts_est
 ),
 latest_bar AS (
-  SELECT symbol, asset_type, MAX(ts_est) AS last_ts_est
+  SELECT symbol, MAX(ts_est) AS last_ts_est
   FROM aligned
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 window_calcs AS (
   SELECT
     a.symbol,
-    a.asset_type,
     a.ts_est,
     a.close,
     a.m_close,
@@ -262,15 +297,15 @@ window_calcs AS (
     a.low,
     a.high,
     a.above_vwap,
-    FIRST_VALUE(a.close) OVER (PARTITION BY a.symbol, a.asset_type ORDER BY a.ts_est) AS first_close,
+    FIRST_VALUE(a.close) OVER (PARTITION BY a.symbol ORDER BY a.ts_est) AS first_close,
     LAST_VALUE(a.close) OVER (
-      PARTITION BY a.symbol, a.asset_type
+      PARTITION BY a.symbol
       ORDER BY a.ts_est
       ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
     ) AS last_close,
-    FIRST_VALUE(a.m_close) OVER (PARTITION BY a.symbol, a.asset_type ORDER BY a.ts_est) AS m_first_close,
+    FIRST_VALUE(a.m_close) OVER (PARTITION BY a.symbol ORDER BY a.ts_est) AS m_first_close,
     LAST_VALUE(a.m_close) OVER (
-      PARTITION BY a.symbol, a.asset_type
+      PARTITION BY a.symbol
       ORDER BY a.ts_est
       ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
     ) AS m_last_close
@@ -279,7 +314,6 @@ window_calcs AS (
 window_stats AS (
   SELECT
     wc.symbol,
-    wc.asset_type,
     SUM(wc.above_vwap) AS bars_above_vwap,
     COUNT(*) AS total_bars,
     AVG(wc.volume) AS avg_vol,
@@ -290,23 +324,21 @@ window_stats AS (
     MIN(wc.m_first_close) AS m_first_close,
     MIN(wc.m_last_close) AS m_last_close
   FROM window_calcs wc
-  GROUP BY wc.symbol, wc.asset_type
+  GROUP BY wc.symbol
 ),
 chop AS (
   SELECT
     a.symbol,
-    a.asset_type,
     SUM(CASE WHEN a.close >= a.open THEN 1 ELSE 0 END) AS green_bars,
     SUM((a.high - a.low)) AS total_range,
     MIN(a.ts_est) AS start_ts,
     MAX(a.ts_est) AS end_ts
   FROM aligned a
-  GROUP BY a.symbol, a.asset_type
+  GROUP BY a.symbol
 ),
 current AS (
   SELECT
     a.symbol,
-    a.asset_type,
     a.ts_est AS signal_ts_est,
     a.close,
     a.high,
@@ -333,20 +365,13 @@ current AS (
     c.total_range
   FROM aligned a
   INNER JOIN latest_bar lb
-    ON a.symbol = lb.symbol
-   AND a.asset_type = lb.asset_type
-   AND a.ts_est = lb.last_ts_est
+    ON a.symbol = lb.symbol AND a.ts_est = lb.last_ts_est
   INNER JOIN window_stats ws
-    ON ws.symbol = a.symbol
-   AND ws.asset_type = a.asset_type
-  INNER JOIN chop c
-    ON c.symbol = a.symbol
-   AND c.asset_type = a.asset_type
-  WHERE a.close >= a.vwap
+    ON ws.symbol = a.symbol INNER JOIN chop c
+    ON c.symbol = a.symbol WHERE a.close >= a.vwap
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   close,
   high,
@@ -372,7 +397,7 @@ LIMIT ?
 ";
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
             [$marketProxy, $asOfTsEst, $asOfTsEst, $asOfTsEst, $lookbackMinutes],
@@ -458,7 +483,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => $score,
                 'rs_pct' => $rsPct,
@@ -503,7 +527,6 @@ LIMIT ?
         foreach ($ranked as $r) {
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
                 'signal_type' => 'RISK_OFF_WINNER_LONG',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => (int) $r['score'],
@@ -534,7 +557,6 @@ LIMIT ?
      * REUSED NAME (compatibility): now returns "active liquid symbols" instead of "weak stocks".
      */
     private function getWeakStocks(
-        string $assetType,
         string $tradeDate,
         string $asOfTsEst,
         int $lookbackMinutes
@@ -548,23 +570,20 @@ LIMIT ?
         $sql = '
 SELECT DISTINCT
     f.symbol,
-    f.asset_type,
     MAX(f.price) AS current_price
 FROM five_minute_prices f
-WHERE f.asset_type = ?
-    AND f.trading_date_est = DATE(?)
+    WHERE f.trading_date_est = DATE(?)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND f.price >= ?
     AND f.price <= ?
-GROUP BY f.symbol, f.asset_type
+GROUP BY f.symbol
 HAVING COUNT(*) >= 5
 ORDER BY MAX(f.price) DESC
 LIMIT 1200
 ';
 
         $params = [
-            $assetType,
             $asOfTsEst,
             $asOfTsEst,
             $asOfTsEst,
@@ -584,15 +603,15 @@ LIMIT 1200
      */
     private function isSpyBelowVwap(string $asOfTsEst, string $proxySymbol = 'ONEQ'): bool
     {
-        $result = DB::selectOne("
+        $result = DB::selectOne('
             SELECT price, vwap
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = 'stock'
+
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 1
-        ", [$proxySymbol, $asOfTsEst]);
+        ', [$proxySymbol, $asOfTsEst]);
 
         if (! $result || ! $result->vwap) {
             return false;

@@ -60,7 +60,6 @@ class FiveMinuteSignalScannerV16_0
      * }>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.8,
@@ -87,7 +86,6 @@ WITH params AS (
 universe AS (
   SELECT
     f.symbol,
-    f.asset_type,
     MAX(f.ts_est) AS last_ts_est,
     SUM(COALESCE(f.volume,0) * COALESCE(f.price,0)) AS dollar_vol,
     SUM(COALESCE(f.volume,0)) AS vol_sum
@@ -97,7 +95,7 @@ universe AS (
   WHERE f.ts_est <= (SELECT as_of FROM params)
     AND f.ts_est >= DATE_SUB((SELECT as_of FROM params), INTERVAL ? MINUTE)
     AND f.symbol <> 'SPY'
-  GROUP BY f.symbol, f.asset_type
+  GROUP BY f.symbol
   HAVING
     MAX(f.ts_est) >= DATE_SUB((SELECT as_of FROM params), INTERVAL ? MINUTE)
     AND SUM(COALESCE(f.volume,0) * COALESCE(f.price,0)) >= ?
@@ -109,22 +107,19 @@ universe AS (
 bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     COALESCE(f.volume,0) AS volume,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
   JOIN universe u
-    ON u.symbol = f.symbol AND u.asset_type = f.asset_type
-  WHERE f.ts_est <= (SELECT as_of FROM params)
+    ON u.symbol = f.symbol WHERE f.ts_est <= (SELECT as_of FROM params)
     AND f.ts_est >= DATE_SUB((SELECT as_of FROM params), INTERVAL ? MINUTE)
 ),
 
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
@@ -133,12 +128,11 @@ agg AS (
     MAX(close) AS max_close_in_window,
     MIN(close) AS min_close_in_window
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 
 SELECT
   a.symbol,
-  a.asset_type,
   a.signal_ts_est,
   a.last_close,
   a.prev_close,
@@ -162,7 +156,6 @@ LIMIT ?
 
         $params = [
             $asOfTsEst,
-            $assetType,
             $this->universeWindowMinutes,
             $this->activeWindowMinutes,
             $this->minDollarVol,
@@ -214,7 +207,6 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_type' => 'QUALITY_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
@@ -248,14 +240,14 @@ LIMIT ?
         $nback = max(2, (int) floor($lookbackMinutes / 5));
 
         // Use window functions with correct ordering: we want last_close at asOf and close N bars back.
-        $sql = "
+        $sql = '
 WITH w AS (
   SELECT
     ts_est,
     price AS close
   FROM five_minute_prices
   WHERE symbol = ?
-    AND asset_type = 'stock'
+
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   ORDER BY ts_est ASC
@@ -273,7 +265,7 @@ SELECT
 FROM calc
 ORDER BY ts_est DESC
 LIMIT 1
-";
+';
         $row = DB::selectOne($sql, [$asOfTsEst, $asOfTsEst, $lookbackMinutes, $nback]);
 
         if (! $row || ! $row->prev_close) {

@@ -17,10 +17,8 @@ use Illuminate\Support\Facades\DB;
  * - ENTRY_SCORE_MIN / ENTRY_SCORE_MAX: score window
  * - ENTRY_SCORE_LIMIT: max picks returned (defaults to 10)
  */
-class FiveMinuteSignalScannerV60_3
+class FiveMinuteSignalScannerV60_3 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v60.3';
 
     private string $name = 'Hybrid Breakout';
@@ -42,7 +40,15 @@ class FiveMinuteSignalScannerV60_3
             'entry_score_max' => $this->entryScoreMax,
             'entry_score_limit' => $this->entryScoreLimit,
             'min_composite' => $this->minComposite,
-        ];
+        
+        'min_notional_5m' => 0,
+        'min_atr_pct_5m' => 0,
+        'min_rvol_5m' => 0,
+        'min_move_30m_pct' => 0,
+        'move_bars_5m' => 6,
+        'atr_period_5m' => 14,
+        'rvol_lookback_5m' => 20,
+];
     }
 
     public function __construct(
@@ -76,14 +82,13 @@ class FiveMinuteSignalScannerV60_3
      * - $minMovePct: 0.9+ (loosened from 1.2 to capture more setups)
      * - $volMult: 2.5+ (loosened from 3.5 to capture more setups)
      */
-    public function scan(
-        string $assetType,
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 15,
         float $minMovePct = 0.9,
         float $volMult = 2.5,
-        int $limit = 60
-    ): array {
+        int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
+    {
         $minScore = $this->entryScoreMin;
         $maxScore = $this->entryScoreMax;
         $topN = $this->entryScoreLimit;
@@ -105,7 +110,7 @@ class FiveMinuteSignalScannerV60_3
         // 1) Universe (v17)
         // -----------------------------
         $topPerformers = $this->bestPerformersService->getBestPerformers([
-            'assetType' => $assetType,
+            'assetType' => 'stock',
             'testDateTime' => $asOfTsEst,
             'days' => 5,
             'minBars' => 200,
@@ -154,22 +159,20 @@ class FiveMinuteSignalScannerV60_3
 WITH bars AS (
   SELECT
     symbol,
-    asset_type,
     ts_est,
     price AS close,
     volume,
     atr_pct,
-    ROW_NUMBER() OVER (PARTITION BY symbol, asset_type ORDER BY ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY ts_est DESC) AS rn
   FROM five_minute_prices
-  WHERE asset_type = ?
-    AND symbol IN ($placeholders)
+
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
@@ -177,11 +180,10 @@ agg AS (
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   last_close,
   prev_close,
@@ -202,7 +204,7 @@ LIMIT ?
         $minComposite = $this->minComposite;
 
         $params5m = array_merge(
-            [$assetType],
+            [],
             $symbols,
             [$asOfTsEst],
             [$asOfTsEst],
@@ -241,7 +243,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'move_pct' => $stockMovePct,
                 'vol_ratio' => (float) $r->vol_ratio,
@@ -268,13 +269,12 @@ WITH base AS (
   SELECT
     omp.*,
     AVG(omp.volume) OVER (
-      PARTITION BY omp.symbol, omp.asset_type
+      PARTITION BY omp.symbol
       ORDER BY omp.ts_est
       ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING
     ) AS avg_vol_20
   FROM one_minute_prices omp
-  WHERE omp.asset_type = ?
-    AND omp.symbol IN ($ph)
+    WHERE omp.symbol IN ($ph)
     AND omp.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
     AND omp.ts_est <  ?
     AND omp.trading_date_est = DATE(?)
@@ -282,7 +282,6 @@ WITH base AS (
 scored AS (
   SELECT
     b.symbol,
-    b.asset_type,
     b.ts_est,
     ROUND(
       100 * (
@@ -315,7 +314,7 @@ GROUP BY symbol
 ";
 
         $params1mScore = array_merge(
-            [$assetType],
+            [],
             $candSymbols,
             [$asOfTsEst, $lookbackMinutes, $asOfTsEst, $asOfTsEst]
         );
@@ -370,13 +369,20 @@ GROUP BY symbol
 
             $out[] = [
                 'symbol' => (string) $r['symbol'],
-                'asset_type' => (string) $r['asset_type'],
+                'asset_type' => 'stock',
                 'signal_type' => 'HYBRID_MOMO_ENTRY_SCORE',
                 'signal_ts_est' => (string) $r['signal_ts_est'],
                 'score' => round((float) $r['combined_score'], 3),
                 'atr' => $atr,
                 'atr_pct' => $atrPct,
                 'meta' => [
+                    'move_30m_pct' => round((float) $r['move_pct'], 3),
+                    'rvol_5m' => round((float) $r['vol_ratio'], 3),
+                    'atr_pct_5m' => $atrPct,
+                    'notional_last5m' => 0.0,
+                    'spy_move_30m_pct' => round((float) $spyMovePct, 3),
+                    'universe_size' => 0,
+                    'signal_age_seconds' => 0,
                     'version' => $this->version,
                     'current_price' => $currentPrice,
                     'move_pct' => round((float) $r['move_pct'], 3),
@@ -404,7 +410,7 @@ GROUP BY symbol
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = 'QQQM'
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC

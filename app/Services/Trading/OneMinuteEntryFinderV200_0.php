@@ -15,10 +15,10 @@ namespace App\Services\Trading;
  *  ]
  *
  * Supports legacy-ish signature:
- *  findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fillModel,$signalMeta)
+ *  findBestLong($symbol,$signalTsEst,$asOfTsEst,$before,$after,$volLookback,$pivotLookback,$fillModel,$signalMeta)
  *
  * And "opts" signature:
- *  findBestLong($symbol,$assetType,$signalTsEst,$asOfTsEst, ['beforeMinutes'=>.., 'signalMeta'=>.., ...])
+ *  findBestLong($symbol,$signalTsEst,$asOfTsEst, ['beforeMinutes'=>.., 'signalMeta'=>.., ...])
  */
 class OneMinuteEntryFinderV200_0
 {
@@ -33,7 +33,6 @@ class OneMinuteEntryFinderV200_0
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         $beforeMinutesOrOpts = 20,
@@ -65,7 +64,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Unsupported/unknown pattern (expected TPB). Got: '.$pattern,
                 'meta' => ['pattern' => $pattern, 'meta' => $meta],
@@ -97,12 +95,11 @@ class OneMinuteEntryFinderV200_0
             }
         }
 
-        $bars = $this->get1mBars($symbol, $assetType, $tradeDate, $analysisStart, $analysisEnd);
+        $bars = $this->get1mBars($symbol, $tradeDate, $analysisStart, $analysisEnd);
         if (count($bars) < 12) {
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'Insufficient 1m bars in analysis window',
                 'meta' => ['analysisStart' => $analysisStart, 'analysisEnd' => $analysisEnd],
@@ -110,7 +107,7 @@ class OneMinuteEntryFinderV200_0
         }
 
         // 5m trend map (ema9_above_ema21) to avoid entries against 5m direction
-        $trendMap = $this->get5mTrendMap($symbol, $assetType, $tradeDate, $analysisStart, $analysisEnd);
+        $trendMap = $this->get5mTrendMap($symbol, $tradeDate, $analysisStart, $analysisEnd);
 
         $is5mUp = function (string $ts1m) use ($trendMap): bool {
             $relevant = null;
@@ -337,7 +334,7 @@ class OneMinuteEntryFinderV200_0
                 $entryTypeBonus = max(0, min(8, 8.0 - ($pullbackDepth * 10)));
             }
 
-            $timePenalty = $this->timePenalty($ts, $assetType);
+            $timePenalty = $this->timePenalty($ts);
 
             $score = 60.0;
             $score += min(18, max(0, ($volRatio - 1.0) * 8)); // Volume surge
@@ -434,7 +431,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => 'No qualifying TPB entries (trend/levels/vol/risk gates)',
                 'meta' => [
@@ -459,7 +455,6 @@ class OneMinuteEntryFinderV200_0
             return [
                 'ok' => false,
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_ts_est' => $signalTsEst,
                 'filter_reason' => "No entries within last {$freshnessMinutes} minutes (all stale)",
             ];
@@ -471,7 +466,6 @@ class OneMinuteEntryFinderV200_0
         return [
             'ok' => true,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'best_entry' => $best,
             'candidates' => $candidates,
@@ -482,7 +476,7 @@ class OneMinuteEntryFinderV200_0
         ];
     }
 
-    private function get1mBars(string $symbol, string $assetType, string $tradeDate, string $from, string $to): array
+    private function get1mBars(string $symbol, string $tradeDate, string $from, string $to): array
     {
         return $this->dbSelect('
             SELECT
@@ -500,15 +494,14 @@ class OneMinuteEntryFinderV200_0
               NULL AS rsi_14
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
     }
 
-    private function get5mTrendMap(string $symbol, string $assetType, string $tradeDate, string $from, string $to): array
+    private function get5mTrendMap(string $symbol, string $tradeDate, string $from, string $to): array
     {
         $rows = $this->dbSelect('
             SELECT
@@ -516,12 +509,11 @@ class OneMinuteEntryFinderV200_0
               CASE WHEN ema9 IS NOT NULL AND ema21 IS NOT NULL AND ema9 > ema21 THEN 1 ELSE 0 END AS trend_up
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$symbol, $assetType, $tradeDate, $from, $to]);
+        ', [$symbol, $tradeDate, $from, $to]);
 
         $map = [];
         foreach ($rows as $r) {
@@ -588,9 +580,6 @@ class OneMinuteEntryFinderV200_0
     private function timePenalty(string $ts, string $assetType): float
     {
         // For stocks: penalize lunchtime chop without hard-blocking.
-        if ($assetType !== 'stock') {
-            return 0.0;
-        }
 
         $t = strtotime($ts);
         if (! $t) {

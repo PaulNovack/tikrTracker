@@ -73,6 +73,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('settings-snapshots/{snapshot}', [\App\Http\Controllers\SettingsSnapshotsController::class, 'destroy'])->name('settings-snapshots.destroy');
 });
 
+// Generic TA Gate Versions — admin only
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('generic-ta-gate-versions', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'index'])->name('generic-ta-gate-versions.index');
+    Route::post('generic-ta-gate-versions', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'store'])->name('generic-ta-gate-versions.store');
+    Route::patch('generic-ta-gate-versions/{id}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'update'])->name('generic-ta-gate-versions.update');
+    Route::delete('generic-ta-gate-versions/{id}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'destroy'])->name('generic-ta-gate-versions.destroy');
+    Route::post('generic-ta-gate-versions/{id}/toggle', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'toggle'])->name('generic-ta-gate-versions.toggle');
+    Route::post('generic-ta-gate-versions/{id}/clone', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'clone'])->name('generic-ta-gate-versions.clone');
+    Route::post('generic-ta-gate-versions/{versionId}/gates', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'upsertGate'])->name('generic-ta-gate-versions.gates.upsert');
+    Route::delete('generic-ta-gate-versions/gates/{gateId}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'destroyGate'])->name('generic-ta-gate-versions.gates.destroy');
+});
+
 // Trading Settings (admin only)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('trading-settings', [\App\Http\Controllers\TradingSettingsController::class, 'edit'])->name('trading-settings.edit');
@@ -177,6 +189,7 @@ Route::middleware($middleware)->group(function () {
         Route::get('logs/cpu-temp', [\App\Http\Controllers\LogViewerController::class, 'cpuTemp'])->name('logs.cpu-temp');
         Route::get('logs/temp-chart', [\App\Http\Controllers\LogViewerController::class, 'tempChart'])->name('logs.temp-chart');
         Route::get('logs/continuous-bt', [\App\Http\Controllers\LogViewerController::class, 'continuousBacktest'])->name('logs.continuous-bt');
+        Route::get('logs/bar-events', [\App\Http\Controllers\LogViewerController::class, 'barEvents'])->name('logs.bar-events');
         Route::get('logs/realtime-alerts', [\App\Http\Controllers\RealtimeAlertController::class, 'index'])->name('logs.realtime-alerts');
         Route::get('api/logs/laravel', [\App\Http\Controllers\LogViewerController::class, 'getLaravelLog'])->name('logs.laravel.api');
         Route::get('api/logs/laravel/search', [\App\Http\Controllers\LogViewerController::class, 'searchLaravelLog'])->name('logs.laravel.search');
@@ -186,6 +199,7 @@ Route::middleware($middleware)->group(function () {
         Route::get('api/logs/cpu-temp', [\App\Http\Controllers\LogViewerController::class, 'getCpuTempOutput'])->name('logs.cpu-temp.api');
         Route::get('api/logs/temp-chart', [\App\Http\Controllers\LogViewerController::class, 'getTempChartData'])->name('logs.temp-chart.api');
         Route::get('api/logs/continuous-bt', [\App\Http\Controllers\LogViewerController::class, 'getContinuousBacktestLog'])->name('logs.continuous-bt.api');
+        Route::get('api/logs/bar-events', [\App\Http\Controllers\LogViewerController::class, 'getBarEventsLog'])->name('logs.bar-events.api');
         Route::get('logs/streaming', [\App\Http\Controllers\LogViewerController::class, 'streaming'])->name('logs.streaming');
         Route::get('api/logs/streaming', [\App\Http\Controllers\LogViewerController::class, 'getStreamingLog'])->name('logs.streaming.api');
         Route::get('logs/stale-entries', [\App\Http\Controllers\LogViewerController::class, 'staleEntries'])->name('logs.stale-entries');

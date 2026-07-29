@@ -27,6 +27,54 @@ class FiveMinuteSignalScannerV830_0
 
     private string $name = 'Intraday Breakout/Reversal';
 
+    // ── Scanner Configuration (public so entry finders can read) ──
+    public float $entryScoreMin;
+
+    public float $entryScoreMax;
+
+    public int $entryScoreLimit;
+
+    public float $minPrice;
+
+    public float $maxPrice;
+
+    public string $timeWindowStart;
+
+    public string $timeWindowEnd;
+
+    public float $minDailyTrendPct;
+
+    public float $minRangePosition;
+
+    /** @return array<string, mixed> */
+    public function scanConfig(): array
+    {
+        return [
+            'entry_score_min' => $this->entryScoreMin,
+            'entry_score_max' => $this->entryScoreMax,
+            'entry_score_limit' => $this->entryScoreLimit,
+            'min_price' => $this->minPrice,
+            'max_price' => $this->maxPrice,
+            'time_window_start' => $this->timeWindowStart,
+            'time_window_end' => $this->timeWindowEnd,
+            'min_daily_trend_pct' => $this->minDailyTrendPct,
+            'min_range_position' => $this->minRangePosition,
+        ];
+    }
+
+    public function __construct()
+    {
+        $this->entryScoreMin = (float) env('TRADING_V830_ENTRY_SCORE_MIN', 50);
+        $this->entryScoreMax = (float) env('TRADING_V830_ENTRY_SCORE_MAX', 100);
+        $this->entryScoreLimit = (int) env('TRADING_V830_ENTRY_SCORE_LIMIT', 25);
+        $this->minPrice = (float) env('TRADING_V830_MIN_PRICE', 5.0);
+        $this->maxPrice = (float) env('TRADING_V830_MAX_PRICE', 300.0);
+        $this->timeWindowStart = env('TRADING_V830_TIME_WINDOW_START', '09:50:00');
+        $this->timeWindowEnd = env('TRADING_V830_TIME_WINDOW_END', '14:30:00');
+        $this->minDailyTrendPct = (float) env('TRADING_V830_MIN_DAILY_TREND_PCT', 10.0);
+        $this->minRangePosition = (float) env('TRADING_V830_MIN_RANGE_POSITION', 0.80);
+    }
+
     public function getVersion(): string
     {
         return $this->version;
@@ -38,22 +86,21 @@ class FiveMinuteSignalScannerV830_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = -0.5,
         float $volMult = 1.0,
         int $limit = 50
     ): array {
-        $minScore = (float) config('trading.v830.entry_score_min', 50);
-        $maxScore = (float) config('trading.v830.entry_score_max', 100);
-        $topN = (int) config('trading.v830.entry_score_limit', 25);
-        $minPrice = (float) config('trading.v830.min_price', 5.0);
-        $maxPrice = (float) config('trading.v830.max_price', 300.0);
-        $timeWindowStart = (string) config('trading.v830.time_window_start', '09:50:00');
-        $timeWindowEnd = (string) config('trading.v830.time_window_end', '14:30:00');
-        $minDailyTrendPct = (float) config('trading.v830.min_daily_trend_pct', 10.0);
-        $minRangePosition = (float) config('trading.v830.min_range_position', 0.80);
+        $minScore = $this->entryScoreMin;
+        $maxScore = $this->entryScoreMax;
+        $topN = $this->entryScoreLimit;
+        $minPrice = $this->minPrice;
+        $maxPrice = $this->maxPrice;
+        $timeWindowStart = $this->timeWindowStart;
+        $timeWindowEnd = $this->timeWindowEnd;
+        $minDailyTrendPct = $this->minDailyTrendPct;
+        $minRangePosition = $this->minRangePosition;
 
         \Log::debug("[V830 Scanner] minScore={$minScore}, dailyTrend>={$minDailyTrendPct}%, rangePos>={$minRangePosition}, asOf={$asOfTsEst}");
 
@@ -90,7 +137,6 @@ class FiveMinuteSignalScannerV830_0
         $sql = '
 SELECT
     f.symbol,
-    f.asset_type,
     f.trading_date_est,
     f.ts_est AS signal_ts_est,
     f.trading_time_est,
@@ -152,8 +198,7 @@ SELECT
     ) AS price_5d_ago
     
 FROM five_minute_prices f
-WHERE f.asset_type = ?
-  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
   AND f.ts_est <= ?
   AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
   AND f.trading_time_est BETWEEN ? AND ?
@@ -182,7 +227,6 @@ LIMIT ?
 ';
 
         $params = [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             $asOfTsEst,
@@ -297,7 +341,6 @@ LIMIT ?
 
             $cands[] = [
                 'symbol' => $symbol,
-                'asset_type' => $r->asset_type,
                 'signal_type' => 'multi_day_trend',
                 'signal_ts_est' => $r->signal_ts_est,
                 'trading_date_est' => $r->trading_date_est,

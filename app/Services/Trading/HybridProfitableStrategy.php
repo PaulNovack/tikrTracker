@@ -180,7 +180,6 @@ class HybridProfitableStrategy
 
         return DB::table('five_minute_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', 'stock')
             ->where('ts_est', '>=', $startTime)
             ->where('ts_est', '<=', $endTime)
             ->orderBy('ts_est', 'desc')
@@ -476,7 +475,6 @@ class HybridProfitableStrategy
         $availableSymbols = DB::table('five_minute_prices')
             ->select('symbol')
             ->where('ts_est', '>=', now()->subHours(6))
-            ->where('asset_type', 'stock')
             ->whereIn('symbol', $qualitySymbols)
             ->groupBy('symbol')
             ->havingRaw('COUNT(*) >= 30')

@@ -15,10 +15,8 @@ namespace App\Services\Trading;
  *
  * This captures strong intraday momentum continuing with fresh buying pressure.
  */
-class FiveMinuteSignalScannerV1200_0
+class FiveMinuteSignalScannerV1200_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v1200.0';
 
     private string $name = 'Two-Bar Momentum';
@@ -56,7 +54,15 @@ class FiveMinuteSignalScannerV1200_0
             'min_vol_ratio' => $this->minVolRatio,
             'time_window_start' => $this->timeWindowStart,
             'time_window_end' => $this->timeWindowEnd,
-        ];
+        
+        'min_notional_5m' => 0,
+        'min_atr_pct_5m' => 0,
+        'min_rvol_5m' => 0,
+        'min_move_30m_pct' => 0,
+        'move_bars_5m' => 6,
+        'atr_period_5m' => 14,
+        'rvol_lookback_5m' => 20,
+];
     }
 
     public function getVersion(): string
@@ -69,9 +75,14 @@ class FiveMinuteSignalScannerV1200_0
         return $this->name;
     }
 
-    public function scan(
-        string $assetType,
-        string $asOfTsEst
+    protected function doScan(
+        string $asOfTsEst,
+        int $lookbackMinutes = 60,
+        float $minMovePct = 1.2,
+        float $volMult = 3.5,
+        int $limit = 60,
+        bool $skipCache = false,
+        ?string $symbol = null
     ): array {
         // Load all config from trading.v1200
         $topMovers = $this->topMovers;
@@ -128,7 +139,6 @@ class FiveMinuteSignalScannerV1200_0
 WITH latest_bars AS (
     SELECT 
         f.symbol,
-        f.asset_type,
         f.trading_date_est,
         f.ts_est,
         f.trading_time_est,
@@ -142,8 +152,7 @@ WITH latest_bars AS (
         f.atr_pct,
         ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) as bar_rank
     FROM five_minute_prices f
-    WHERE f.asset_type = ?
-        AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
         AND f.ts_est <= ?
         AND f.symbol IN ($symbolPlaceholders)
         AND f.trading_time_est BETWEEN ? AND ?
@@ -153,7 +162,6 @@ WITH latest_bars AS (
 bar_data AS (
     SELECT 
         symbol,
-        asset_type,
         trading_date_est,
         MAX(CASE WHEN bar_rank = 1 THEN ts_est END) as ts_bar0,
         MAX(CASE WHEN bar_rank = 1 THEN price END) as close_bar0,
@@ -166,7 +174,7 @@ bar_data AS (
         MAX(CASE WHEN bar_rank = 3 THEN open END) as open_bar2
     FROM latest_bars
     WHERE bar_rank <= 3
-    GROUP BY symbol, asset_type, trading_date_est
+    GROUP BY symbol, trading_date_est
     HAVING close_bar0 IS NOT NULL 
         AND close_bar1 IS NOT NULL 
         AND close_bar2 IS NOT NULL
@@ -176,8 +184,7 @@ avg_volume AS (
         symbol,
         AVG(volume) as avg_vol_20
     FROM five_minute_prices
-    WHERE asset_type = ?
-        AND trading_date_est = ?
+    WHERE trading_date_est = ?
         AND ts_est < ?
         AND symbol IN ($symbolPlaceholders)
     GROUP BY symbol
@@ -185,7 +192,6 @@ avg_volume AS (
 )
 SELECT 
     b.symbol,
-    b.asset_type,
     b.trading_date_est,
     b.ts_bar0 as signal_ts_est,
     b.close_bar0 as setup_price,
@@ -208,7 +214,6 @@ LIMIT ?
         ";
 
         $params = [
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             ...$moverSymbols,
@@ -216,7 +221,6 @@ LIMIT ?
             $timeWindowEnd,
             $minPrice,
             $maxPrice,
-            $assetType,
             $tradeDate,
             $asOfTsEst,
             ...$moverSymbols,
@@ -238,7 +242,7 @@ LIMIT ?
         return array_map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $row->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => 'TWO_BAR_MOMENTUM',
                 'signal_ts_est' => $row->signal_ts_est,
                 'score' => $row->entry_score,

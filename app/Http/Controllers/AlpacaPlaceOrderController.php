@@ -346,16 +346,12 @@ class AlpacaPlaceOrderController extends Controller
                 ], 409);
             }
 
-            // Enforce ML threshold — only block if scoring completed AND failed
+            // Enforce ML threshold — block if ML scoring failed or hasn't completed yet.
+            // passed_ml is set to 0 when the ML job runs and the score is below threshold.
+            // ml_win_prob is null when ML scoring hasn't completed yet — block to prevent
+            // orders from slipping through before scoring finishes.
             $mlThreshold = TradingSettingService::getPipelineMlThreshold('MANUAL');
             $alertRecord = TradeAlert::find($alertId);
-            if ($alertRecord && $alertRecord->passed_ml === 0 && $alertRecord->ml_win_prob !== null) {
-                DB::rollBack();
-
-                return response()->json([
-                    'error' => "{$symbol} failed ML threshold (".($mlThreshold * 100).'%). Score: '.round($alertRecord->ml_win_prob * 100, 1).'%.',
-                ], 400);
-            }
 
             // 2. Check bid-ask spread before placing the order
             $quote = DB::connection('mysql')

@@ -233,9 +233,49 @@ class LogViewerController extends Controller
         return Inertia::render('Logs/StaleEntries');
     }
 
+    public function barEvents()
+    {
+        $versions = \Illuminate\Support\Facades\DB::table('alert_versions')
+            ->orderBy('pipeline_letter')
+            ->get(['pipeline_letter', 'version_string'])
+            ->map(fn ($v) => [
+                'letter' => $v->pipeline_letter,
+                'version' => $v->version_string,
+            ]);
+
+        return Inertia::render('Logs/BarEvents', [
+            'versions' => $versions,
+        ]);
+    }
+
+    public function getBarEventsLog(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $date = $request->get('date', now('UTC')->format('Y-m-d'));
+        $lines = (int) $request->get('lines', 300);
+        $logFile = storage_path("logs/bar-events-{$date}.log");
+
+        if (! File::exists($logFile)) {
+            return response()->json([
+                'content' => null,
+                'exists' => false,
+                'filename' => "redis-scan-{$date}.log",
+                'size' => 0,
+                'date' => $date,
+            ]);
+        }
+
+        return response()->json([
+            'content' => $this->tailFile($logFile, $lines),
+            'exists' => true,
+            'filename' => "redis-scan-{$date}.log",
+            'size' => File::size($logFile),
+            'date' => $date,
+        ]);
+    }
+
     public function getStaleEntriesLog(Request $request): \Illuminate\Http\JsonResponse
     {
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $lines = (int) $request->get('lines', 500);
         $resolvedLog = $this->resolveDailyLogFile('stale-alerts', $date);
 
@@ -266,7 +306,7 @@ class LogViewerController extends Controller
             return response()->json(['blocks' => [], 'total_matches' => 0]);
         }
 
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $resolvedLog = $this->resolveDailyLogFile('stale-alerts', $date);
 
         if (! $resolvedLog) {
@@ -322,7 +362,7 @@ class LogViewerController extends Controller
     {
         $lines = (int) $request->get('lines', 300);
 
-        $date = $request->get('date', now('America/New_York')->format('Y-m-d'));
+        $date = $request->get('date', now('UTC')->format('Y-m-d'));
 
         $logs = [
             'bar_stream' => storage_path("logs/bar-stream-{$date}.log"),
@@ -356,7 +396,7 @@ class LogViewerController extends Controller
 
     public function getContinuousBacktestLog(Request $request): \Illuminate\Http\JsonResponse
     {
-        $date = $request->get('date', now('America/New_York')->format('Y-m-d'));
+        $date = $request->get('date', now('UTC')->format('Y-m-d'));
         $lines = (int) $request->get('lines', 300);
         $pipelines = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's'];
 
@@ -509,7 +549,7 @@ class LogViewerController extends Controller
 
     public function getLaravelLog(Request $request)
     {
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $logType = $this->resolveLaravelLogType($request);
         $resolvedLog = $this->resolveDailyLogFile($logType['prefix'], $date);
 
@@ -545,7 +585,7 @@ class LogViewerController extends Controller
             return response()->json(['blocks' => [], 'total_matches' => 0]);
         }
 
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $resolvedLog = $this->resolveDailyLogFile($logType['prefix'], $date);
 
         if (! $resolvedLog) {
@@ -554,29 +594,51 @@ class LogViewerController extends Controller
 
         $logFile = $resolvedLog['path'];
 
-        $lines = file($logFile, FILE_IGNORE_NEW_LINES);
         $lowerQuery = mb_strtolower($query);
-        $included = [];
         $matchCount = 0;
 
-        foreach ($lines as $i => $line) {
-            if (str_contains(mb_strtolower($line), $lowerQuery)) {
-                $matchCount++;
-                $start = max(0, $i - $context);
-                $end = min(count($lines) - 1, $i + $context);
-
-                for ($j = $start; $j <= $end; $j++) {
-                    $included[$j] = true;
-                }
-            }
+        // Single-pass: find matches, track which lines we need
+        $handle = fopen($logFile, 'r');
+        if (! $handle) {
+            return response()->json(['blocks' => [], 'total_matches' => 0, 'exists' => true]);
         }
 
-        if (empty($included)) {
+        $lineNum = 0;
+        $needed = [];
+        while (($line = fgets($handle)) !== false) {
+            $line = rtrim($line, "\r\n");
+            if (str_contains(mb_strtolower($line), $lowerQuery)) {
+                $matchCount++;
+                $start = max(0, $lineNum - $context);
+                $end = $lineNum + $context;
+                for ($j = $start; $j <= $end; $j++) {
+                    $needed[$j] = true;
+                }
+            }
+            $lineNum++;
+        }
+        fclose($handle);
+
+        if (empty($needed)) {
             return response()->json(['blocks' => [], 'total_matches' => 0]);
         }
 
-        ksort($included);
-        $indices = array_keys($included);
+        // Second pass: read only up to the last needed line
+        $handle2 = fopen($logFile, 'r');
+        ksort($needed);
+        $indices = array_keys($needed);
+        $allLines = [];
+        $lineNum = 0;
+        $stopAt = $indices[count($indices) - 1] + 1;
+        $neededFlip = array_flip($indices);
+        while (($line = fgets($handle2)) !== false && $lineNum < $stopAt) {
+            if (isset($neededFlip[$lineNum])) {
+                $allLines[$lineNum] = rtrim($line, "\r\n");
+            }
+            $lineNum++;
+        }
+        fclose($handle2);
+
         $blocks = [];
         $blockStart = $indices[0];
         $blockLines = [$indices[0]];
@@ -585,19 +647,19 @@ class LogViewerController extends Controller
             if ($indices[$i] === $indices[$i - 1] + 1) {
                 $blockLines[] = $indices[$i];
             } else {
-                $blocks[] = $this->buildBlock($lines, $blockLines, $lowerQuery);
+                $blocks[] = $this->buildBlock($allLines, $blockLines, $lowerQuery);
                 $blockStart = $indices[$i];
                 $blockLines = [$indices[$i]];
             }
         }
 
-        $blocks[] = $this->buildBlock($lines, $blockLines, $lowerQuery);
+        $blocks[] = $this->buildBlock($allLines, $blockLines, $lowerQuery);
 
         return response()->json([
             'blocks' => $blocks,
             'total_matches' => $matchCount,
             'filename' => $resolvedLog['filename'],
-            'total_lines' => count($lines),
+            'total_lines' => count($allLines),
             'type' => $logType['key'],
             'label' => $logType['label'],
             'fallback' => $resolvedLog['is_fallback'],
@@ -621,6 +683,11 @@ class LogViewerController extends Controller
                 'key' => 'realtime',
                 'prefix' => 'realtime',
                 'label' => 'Realtime Log',
+            ],
+            'redis-scan' => [
+                'key' => 'redis-scan',
+                'prefix' => 'redis-scan',
+                'label' => 'Redis Scan Log',
             ],
             default => [
                 'key' => 'app',
@@ -670,6 +737,9 @@ class LogViewerController extends Controller
         $blockLines = [];
 
         foreach ($indices as $idx) {
+            if (! isset($lines[$idx])) {
+                continue;
+            }
             $blockLines[] = [
                 'text' => $lines[$idx],
                 'is_match' => str_contains(mb_strtolower($lines[$idx]), $lowerQuery),
@@ -681,7 +751,7 @@ class LogViewerController extends Controller
 
     public function getSchedulerLog(Request $request)
     {
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $logFile = storage_path("logs/laravel-scheduled-{$date}.log");
 
         if (! File::exists($logFile)) {
@@ -710,7 +780,7 @@ class LogViewerController extends Controller
             return response()->json(['blocks' => [], 'total_matches' => 0]);
         }
 
-        $date = now('America/New_York')->format('Y-m-d');
+        $date = now('UTC')->format('Y-m-d');
         $logFile = storage_path("logs/laravel-scheduled-{$date}.log");
 
         if (! File::exists($logFile)) {

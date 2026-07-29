@@ -246,14 +246,13 @@ class OneMinuteEntryFinderV55_3
     /** @return array<string, mixed> */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
     ): array {
         self::$dbg['called']++;
 
-        [$entry, $reason] = $this->findEntry($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        [$entry, $reason] = $this->findEntry($symbol, $signalTsEst, $asOfTsEst);
         if ($entry === null) {
             $this->maybeLogDebug();
 
@@ -262,7 +261,7 @@ class OneMinuteEntryFinderV55_3
                 'best_entry' => null,
                 'reason' => $reason,
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'as_of_ts_est' => $asOfTsEst,
                 ],
             ];
@@ -272,14 +271,13 @@ class OneMinuteEntryFinderV55_3
         $this->maybeLogDebug();
 
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
             'ok' => 1,
             'best_entry' => $entry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'pattern' => 'PRACTICAL_TREND_COMPRESSION_CONTINUATION',
                 'as_of_ts_est' => $asOfTsEst,
             ],
@@ -289,7 +287,6 @@ class OneMinuteEntryFinderV55_3
     /** @return array<string, mixed> */
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -302,7 +299,6 @@ class OneMinuteEntryFinderV55_3
      */
     private function findEntry(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst
     ): array {
@@ -384,13 +380,12 @@ class OneMinuteEntryFinderV55_3
         $rows = $this->dbSelect("
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM {$table}
-            WHERE asset_type = ?
               AND symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ", [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ", [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
 
         if (count($rows) < $minBars) {
             self::$dbg['not_enough_bars']++;
@@ -651,7 +646,7 @@ class OneMinuteEntryFinderV55_3
                 'entry_age_seconds' => $entryAgeSeconds,
                 'signal_age_seconds' => $signalAgeSeconds,
                 'meta' => array_merge($triggerMeta, [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'trigger' => $trigger,
                     'break_level' => round($breakLevel, 6),
                     'structure_low' => round($structureLow, 6),

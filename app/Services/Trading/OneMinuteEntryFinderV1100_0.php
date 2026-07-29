@@ -20,15 +20,22 @@ namespace App\Services\Trading;
  * - overextended entries too far from VWAP
  * - weak tape-followers
  */
-class OneMinuteEntryFinderV1100_0
+class OneMinuteEntryFinderV1100_0 extends AbstractOneMinuteEntryFinder
 {
-    use HasPriceTables;
-
-    private string $version = 'v1100.0';
-
     public function getVersion(): string
     {
-        return $this->version;
+        return 'v1100.0';
+    }
+
+    public function getName(): string
+    {
+        return 'v1100.0';
+    }
+
+    /** @return array<string, mixed> */
+    public function entryConfig(): array
+    {
+        return ['version' => $this->getVersion()];
     }
 
     /**
@@ -36,9 +43,8 @@ class OneMinuteEntryFinderV1100_0
      *
      * @param  string  $fillModel  next_open|close
      */
-    public function findBestLong(
+    protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 10,
@@ -73,7 +79,6 @@ class OneMinuteEntryFinderV1100_0
 WITH signal_5m AS (
     SELECT
         f.symbol,
-        f.asset_type,
         f.ts_est,
         f.price AS fmp_price,
         f.vwap  AS fmp_vwap,
@@ -87,7 +92,6 @@ WITH signal_5m AS (
         f.rsi_14 AS fmp_rsi_14
     FROM five_minute_prices f
     WHERE f.symbol = ?
-      AND f.asset_type = ?
       AND f.ts_est <= ?
     ORDER BY f.ts_est DESC
     LIMIT 1
@@ -101,7 +105,7 @@ spy_1m AS (
         LAG(o.price, 5) OVER (ORDER BY o.ts_est) AS spy_price_5m_ago
     FROM one_minute_prices o
     WHERE o.symbol = ?
-      AND o.asset_type = 'stock'
+
       AND o.ts_est BETWEEN DATE_SUB(?, INTERVAL {$beforeMinutes} MINUTE)
                       AND ?
 ),
@@ -120,7 +124,6 @@ spy_last AS (
 base AS (
     SELECT
         o.symbol,
-        o.asset_type,
         o.ts_est,
         o.trading_date_est,
         o.trading_time_est,
@@ -139,68 +142,67 @@ base AS (
         o.atr,
         o.atr_pct,
 
-        LAG(o.price, 1) OVER (PARTITION BY o.symbol, o.asset_type, o.trading_date_est ORDER BY o.ts_est) AS prev_price,
-        LAG(o.high,  1) OVER (PARTITION BY o.symbol, o.asset_type, o.trading_date_est ORDER BY o.ts_est) AS prev_high,
-        LAG(o.low,   1) OVER (PARTITION BY o.symbol, o.asset_type, o.trading_date_est ORDER BY o.ts_est) AS prev_low,
-        LAG(o.vwap,  1) OVER (PARTITION BY o.symbol, o.asset_type, o.trading_date_est ORDER BY o.ts_est) AS prev_vwap,
-        LAG(o.ema9,  1) OVER (PARTITION BY o.symbol, o.asset_type, o.trading_date_est ORDER BY o.ts_est) AS prev_ema9,
+        LAG(o.price, 1) OVER (PARTITION BY o.symbol, o.trading_date_est ORDER BY o.ts_est) AS prev_price,
+        LAG(o.high,  1) OVER (PARTITION BY o.symbol, o.trading_date_est ORDER BY o.ts_est) AS prev_high,
+        LAG(o.low,   1) OVER (PARTITION BY o.symbol, o.trading_date_est ORDER BY o.ts_est) AS prev_low,
+        LAG(o.vwap,  1) OVER (PARTITION BY o.symbol, o.trading_date_est ORDER BY o.ts_est) AS prev_vwap,
+        LAG(o.ema9,  1) OVER (PARTITION BY o.symbol, o.trading_date_est ORDER BY o.ts_est) AS prev_ema9,
 
         AVG(o.volume) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN {$volLookback} PRECEDING AND 1 PRECEDING
         ) AS avg_vol_prev,
 
         MAX(o.high) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN {$pivotLookback} PRECEDING AND 1 PRECEDING
         ) AS pivot_high,
 
         MIN(o.low) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN {$pivotLookback} PRECEDING AND 1 PRECEDING
         ) AS pivot_low,
 
         MAX(o.high) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING
         ) AS high_5bars,
 
         MIN(o.low) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING
         ) AS low_5bars,
 
         MAX(o.high) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 15 PRECEDING AND CURRENT ROW
         ) AS recent_high_15,
 
         MIN(o.low) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN 15 PRECEDING AND CURRENT ROW
         ) AS recent_low_15,
 
         FIRST_VALUE(o.high) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
         ) AS first_bar_high,
 
         FIRST_VALUE(o.low) OVER (
-            PARTITION BY o.symbol, o.asset_type, o.trading_date_est
+            PARTITION BY o.symbol, o.trading_date_est
             ORDER BY o.ts_est
             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
         ) AS first_bar_low
     FROM one_minute_prices o
     WHERE o.symbol = ?
-      AND o.asset_type = ?
       AND o.ts_est BETWEEN DATE_SUB(?, INTERVAL {$beforeMinutes} MINUTE)
                       AND ?
 ),
@@ -320,7 +322,6 @@ scored AS (
 )
 SELECT
     symbol,
-    asset_type,
     ts_est,
     trading_date_est,
     trading_time_est,
@@ -362,9 +363,9 @@ SELECT
     entry_score,
     CASE
         WHEN '{$fillModel}' = 'close' THEN price
-        ELSE LEAD(open, 1) OVER (PARTITION BY symbol, asset_type, trading_date_est ORDER BY ts_est)
+        ELSE LEAD(open, 1) OVER (PARTITION BY symbol, trading_date_est ORDER BY ts_est)
     END AS suggested_entry,
-    '{$this->version}' AS algo_version
+    '{$this->getVersion()}' AS algo_version
 FROM scored
 WHERE entry_type IS NOT NULL
   AND entry_score BETWEEN {$entryScoreMin} AND {$entryScoreMax}
@@ -381,13 +382,11 @@ SQL;
 
         $rows = $this->dbSelect($sql, [
             $symbol,
-            $assetType,
             $signalTsEst,
             $benchmarkSymbol,
             $signalTsEst,
             $asOfTsEst,
             $symbol,
-            $assetType,
             $signalTsEst,
             $asOfTsEst,
         ]);

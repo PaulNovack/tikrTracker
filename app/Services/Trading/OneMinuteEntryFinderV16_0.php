@@ -95,7 +95,6 @@ class OneMinuteEntryFinderV16_0
      */
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         int $beforeMinutes = 12,
@@ -125,18 +124,17 @@ class OneMinuteEntryFinderV16_0
         $bars = $this->dbSelect('
             SELECT ts_est, `open`, `high`, `low`, `price` AS `close`, COALESCE(`volume`,0) AS volume
             FROM one_minute_prices
-            WHERE asset_type = ? AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ? AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradingDate, $marketOpen, $analysisEnd]);
+        ', [$symbol, $tradingDate, $marketOpen, $analysisEnd]);
 
         if (! $bars || count($bars) < 35) {
             return [
                 'ok' => false,
                 'error' => 'Not enough 1m bars (market closed or missing).',
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'range_est' => [$marketOpen, $analysisEnd],
                 'bars_found' => $bars ? count($bars) : 0,
             ];
@@ -544,7 +542,6 @@ class OneMinuteEntryFinderV16_0
         return [
             'ok' => (bool) $best,
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'signal_ts_est' => $signalTsEst,
             'analysis_window_est' => [$analysisStart, $analysisEnd],
             'market_open_est' => $marketOpen,

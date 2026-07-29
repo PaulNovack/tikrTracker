@@ -28,7 +28,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
 
     public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest
@@ -53,10 +52,9 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 rsi_14
             FROM five_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND ts_est = ?
             LIMIT 1
-        ', [$symbol, $assetType, $signalTsEst]);
+        ', [$symbol, $signalTsEst]);
 
         if (empty($signalBar)) {
             return [
@@ -75,7 +73,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'signal_too_old',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'signal_age_seconds' => $signalAgeSeconds,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -102,12 +100,11 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 rsi_14
             FROM one_minute_prices
             WHERE symbol = ?
-              AND asset_type = ?
               AND trading_date_est = DATE(?)
               AND ts_est <= ?
             ORDER BY ts_est DESC
             LIMIT 30
-        ', [$symbol, $assetType, $asOfTsEst, $asOfTsEst]);
+        ', [$symbol, $asOfTsEst, $asOfTsEst]);
 
         if (empty($recentOneMinuteBars)) {
             return [
@@ -159,7 +156,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'entry_bar_too_old',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'entry_bar_age_seconds' => $barAgeSeconds,
                     'as_of_ts_est' => $asOfTsEst,
                 ],
@@ -213,7 +210,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'atr_pct_out_of_range',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'atr_pct' => $atrPct,
                 ],
             ];
@@ -225,7 +222,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'entry_below_vwap',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'vwap' => $vwap,
                     'vwap_dist_pct' => $vwapDistPct,
                 ],
@@ -238,7 +235,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'entry_below_ema9',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'ema9' => $ema9,
                     'entry' => $entryPrice,
                 ],
@@ -251,7 +248,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'entry_too_extended_from_vwap',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'vwap_dist_pct' => round($vwapDistPct, 4),
                 ],
             ];
@@ -263,7 +260,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'entry_volume_ratio_too_low',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'vol_ratio' => $volRatio,
                 ],
             ];
@@ -287,7 +284,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'no_1m_trigger',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'entry_ts_est' => $entryTsEst,
                     'entry' => round($entryPrice, 4),
                     'vol_ratio' => $volRatio,
@@ -327,7 +324,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
                 'best_entry' => null,
                 'reason' => 'risk_too_wide',
                 'meta' => [
-                    'version' => $this->version,
+                    'version' => $this->getVersion(),
                     'risk_pct' => $riskPct,
                     'entry' => round($entryPrice, 4),
                     'stop' => $stopPrice,
@@ -376,7 +373,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
             'suggested_trailing_stop_pct' => $suggestedTrailingStopPct,
             'targets' => $targets,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'signal_ts_est' => $signalTsEst,
                 'as_of_ts_est' => $asOfTsEst,
                 'days_appeared' => $universeStats['days_appeared'] ?? null,
@@ -408,7 +405,7 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
             'ok' => 1,
             'best_entry' => $bestEntry,
             'meta' => [
-                'version' => $this->version,
+                'version' => $this->getVersion(),
                 'as_of_ts_est' => $asOfTsEst,
             ],
         ];
@@ -416,7 +413,6 @@ class OneMinuteEntryFinderV2000_1 implements OneMinuteEntryFinderContract
 
     public function findBestShort(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
         ...$rest

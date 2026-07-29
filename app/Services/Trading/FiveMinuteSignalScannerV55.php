@@ -5,7 +5,6 @@ namespace App\Services\Trading;
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -135,7 +134,6 @@ class FiveMinuteSignalScannerV55
      * @return array<int, array<string, mixed>>
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.35,
@@ -178,21 +176,21 @@ class FiveMinuteSignalScannerV55
         $lookbackMinutes = max($lookbackMinutes, $analysisLookbackMinutes);
         $table = $this->fiveMinuteTable;
         $bucketTs = date('Y-m-d H:i', intdiv($asOfEpoch, 300) * 300);
-        $cacheKey = "scan_v55:{$table}:{$assetType}:{$bucketTs}:{$lookbackMinutes}";
+        $cacheKey = "scan_v55:{$table}:{$bucketTs}:{$lookbackMinutes}";
 
         $rows = $skipCache ? null : Cache::get($cacheKey);
         if ($rows === null) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $sql = "
-                SELECT symbol, asset_type, ts_est, `open`, high, low, price AS close, volume
+                SELECT symbol, ts_est, `open`, high, low, price AS close, volume
                 FROM {$table}
-                WHERE asset_type = ?
-                  AND symbol IN ({$placeholders})
+
+                  WHERE symbol IN ({$placeholders})
                   AND ts_est >= ?
                   AND ts_est <= ?
                 ORDER BY symbol ASC, ts_est ASC
             ";
-            $params = array_merge([$assetType], $symbols, [$marketOpen, $asOfTsEst]);
+            $params = array_merge([], $symbols, [$marketOpen, $asOfTsEst]);
 
             if ($skipCache) {
                 $rows = $this->dbSelect($sql, $params);
@@ -239,18 +237,21 @@ class FiveMinuteSignalScannerV55
             $metrics = $this->calculateMetrics($bars, $atrPeriod, $rvolLookback);
             if ($metrics === null) {
                 $drops['not_enough_bars']++;
+
                 continue;
             }
 
             $signalEpoch = strtotime((string) $metrics['signal_ts_est']);
             if ($signalEpoch === false) {
                 $drops['stale']++;
+
                 continue;
             }
 
             $signalAgeSeconds = $asOfEpoch - $signalEpoch;
             if ($signalAgeSeconds < 0 || $signalAgeSeconds > $maxSignalAgeSeconds) {
                 $drops['stale']++;
+
                 continue;
             }
 
@@ -262,6 +263,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['last_close'] < ((float) $metrics['ema9'] - (0.15 * (float) $metrics['atr']))
             ) {
                 $drops['trend']++;
+
                 continue;
             }
 
@@ -270,6 +272,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['max_notional_last3'] >= ($minNotional5m * 1.50);
             if (! $liquidityOk) {
                 $drops['liquidity']++;
+
                 continue;
             }
 
@@ -278,6 +281,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['atr_pct'] > $maxAtrPct5m
             ) {
                 $drops['atr']++;
+
                 continue;
             }
 
@@ -286,6 +290,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['move_20m_pct'] >= max(0.75, $minMove20mPct * 1.50);
             if (! $activityOk) {
                 $drops['activity']++;
+
                 continue;
             }
 
@@ -294,11 +299,13 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['move_20m_pct'] > $maxMove20mPct
             ) {
                 $drops['move']++;
+
                 continue;
             }
 
             if ((float) $metrics['above_vwap_pct'] > $maxAboveVwapPct) {
                 $drops['extended']++;
+
                 continue;
             }
 
@@ -307,6 +314,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['compression_ratio'] > $maxCompressionRatio
             ) {
                 $drops['compression']++;
+
                 continue;
             }
 
@@ -316,6 +324,7 @@ class FiveMinuteSignalScannerV55
                 || (float) $metrics['green_bar_pct'] < $minGreenBarPct
             ) {
                 $drops['location']++;
+
                 continue;
             }
 
@@ -324,6 +333,7 @@ class FiveMinuteSignalScannerV55
                 && (float) $metrics['distance_from_ema9_atr'] > $maxDistanceFromEma9Atr
             ) {
                 $drops['ema_distance']++;
+
                 continue;
             }
 
@@ -332,7 +342,6 @@ class FiveMinuteSignalScannerV55
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'TREND_COMPRESSION_SETUP_5M_V55',
                 'signal_ts_est' => $metrics['signal_ts_est'],
                 'score' => $scores['score'],
@@ -375,7 +384,6 @@ class FiveMinuteSignalScannerV55
         if ($this->isDebugEnabled()) {
             Log::info('[ScannerV55] debug counters', array_merge($drops, [
                 'as_of_ts_est' => $asOfTsEst,
-                'asset_type' => $assetType,
                 'returned' => count($out),
                 'pid' => getmypid(),
             ]));
@@ -385,29 +393,9 @@ class FiveMinuteSignalScannerV55
     }
 
     /** @return array<int, string> */
-    private function loadUniverse(string $assetType, bool $skipCache): array
+    private function loadUniverse(bool $skipCache): array
     {
-        $cacheKey = "scan_v55:universe_symbols:{$assetType}";
-        $symbols = $skipCache ? null : Cache::get($cacheKey);
-
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->where('asset_type', $assetType)
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->map(static fn ($symbol): string => (string) $symbol)
-                ->all();
-
-            if ($this->marketMoversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)
-                    ->getTodaysTopMoversFromCache(null, $this->marketMoversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            if (! $skipCache) {
-                Cache::put($cacheKey, $symbols, $this->universeCacheSeconds);
-            }
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v55:universe_symbols', null, $asOfTsEst, $skipCache);
 
         return array_values(array_filter(
             array_map(static fn ($symbol): string => trim((string) $symbol), $symbols),
@@ -617,6 +605,7 @@ class FiveMinuteSignalScannerV55
     private function maxObjectField(array $rows, string $field): float
     {
         $values = array_map(static fn (object $row): float => (float) ($row->{$field} ?? 0.0), $rows);
+
         return $values === [] ? 0.0 : max($values);
     }
 
@@ -624,6 +613,7 @@ class FiveMinuteSignalScannerV55
     private function minObjectField(array $rows, string $field): float
     {
         $values = array_map(static fn (object $row): float => (float) ($row->{$field} ?? 0.0), $rows);
+
         return $values === [] ? 0.0 : min($values);
     }
 

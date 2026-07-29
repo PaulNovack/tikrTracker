@@ -95,7 +95,7 @@ class TradeAlertWriterV1
     {
         if ($pipelineRun === 'M') {
             return implode('|', [
-                $signal['asset_type'],
+                $signal['asset_type'] ?? 'stock',
                 $signal['symbol'],
                 $tradingDate,
                 $version ?? $this->version,
@@ -114,7 +114,7 @@ class TradeAlertWriterV1
         );
 
         return implode('|', [
-            $signal['asset_type'],
+            $signal['asset_type'] ?? 'stock',
             $signal['symbol'],
             $dedupeMinuteBucket ?? 'UNKNOWN',
         ]);
@@ -371,20 +371,20 @@ class TradeAlertWriterV1
      * Calculate 5-day daily trend percentage.
      * Returns (today_close - 5_days_ago_close) / 5_days_ago_close * 100
      */
-    private function calculateDailyTrend(string $symbol, string $assetType, string $tradingDate): ?float
+    private function calculateDailyTrend(string $symbol, string $tradingDate): ?float
     {
         $result = DB::table('daily_prices as dp')
             ->select([
                 'dp.price as today_price',
                 'dp5.price as price_5d_ago',
             ])
-            ->leftJoin('daily_prices as dp5', function ($join) use ($symbol, $assetType) {
+            ->leftJoin('daily_prices as dp5', function ($join) use ($symbol) {
                 $join->on('dp5.symbol', '=', DB::raw("'".$symbol."'"))
-                    ->on('dp5.asset_type', '=', DB::raw("'".$assetType."'"))
+                    ->on('dp5.asset_type', '=', DB::raw("'"."'"))
                     ->on('dp5.date', '=', DB::raw('DATE_SUB(dp.date, INTERVAL 5 DAY)'));
             })
             ->where('dp.symbol', $symbol)
-            ->where('dp.asset_type', $assetType)
+            ->where('dp.asset_type')
             ->where('dp.date', $tradingDate)
             ->first();
 
@@ -399,13 +399,12 @@ class TradeAlertWriterV1
      * Calculate position in 60-minute range (0.0 to 1.0).
      * Uses 12 five-minute bars before entry to establish range.
      */
-    private function calculateRangePosition(string $symbol, string $assetType, string $entryTs, float $entryPrice): ?float
+    private function calculateRangePosition(string $symbol, string $entryTs, float $entryPrice): ?float
     {
         // Get 60 minutes of 5-minute bars before entry (12 bars * 5 minutes = 60 minutes)
         $bars = DB::table($this->fiveMinuteTable)
             ->select(['price', 'high', 'low'])
             ->where('symbol', $symbol)
-            ->where('asset_type', $assetType)
             ->where('ts_est', '<=', $entryTs)
             ->orderBy('ts_est', 'desc')
             ->limit(12)
@@ -431,6 +430,7 @@ class TradeAlertWriterV1
     {
         // Centralized run_cron gate: if pipeline is disabled, block alert creation
         // regardless of caller (live, backtest, manual, stream watcher, etc.).
+        // EvaluateBarJob already skips disabled pipelines silently; this is a safety net.
         if (! TradingSettingService::isPipelineRunCronEnabled($pipelineRun)) {
             \Log::channel('scheduled')->debug("[TradeAlertWriter] Pipeline {$pipelineRun} disabled (run_cron=0) — alert suppressed.", [
                 'symbol' => $signal['symbol'] ?? null,
@@ -443,10 +443,48 @@ class TradeAlertWriterV1
         // Use provided algorithm version, or fall back to writer version
         $version = $algorithmVersion ?? $this->version;
 
+        // ── Entry validation: reject alerts with null/missing required fields ──
+        // This guards against pipeline bugs where findBestLong() returns
+        // ok=0 / best_entry=null but the caller passes it anyway.
+        if (empty($entry['entry_type']) && empty($entry['type'])) {
+            \Log::channel('stale-alerts')->warning('[TradeAlertWriter] Rejecting alert with null entry_type', [
+                'symbol' => $signal['symbol'] ?? null,
+                'pipeline_run' => $pipelineRun,
+                'entry_type' => $entry['entry_type'] ?? $entry['type'] ?? null,
+            ]);
+
+            \Log::channel('redis-scan')->warning('[TradeAlertWriter] REJECTED: null entry_type', [
+                'symbol' => $signal['symbol'] ?? null,
+                'gate' => 'null_entry_type',
+                'pipeline_run' => $pipelineRun,
+            ]);
+
+            return false;
+        }
+
+        if (empty($entry['entry_price']) && empty($entry['entry'])) {
+            \Log::channel('stale-alerts')->warning('[TradeAlertWriter] Rejecting alert with null entry_price', [
+                'symbol' => $signal['symbol'] ?? null,
+                'pipeline_run' => $pipelineRun,
+                'entry' => $entry['entry'] ?? $entry['entry_price'] ?? null,
+            ]);
+
+            \Log::channel('redis-scan')->warning('[TradeAlertWriter] REJECTED: null entry_price', [
+                'symbol' => $signal['symbol'] ?? null,
+                'gate' => 'null_entry_price',
+                'pipeline_run' => $pipelineRun,
+                'entry_price' => $entry['entry_price'] ?? $entry['entry'] ?? null,
+            ]);
+
+            return false;
+        }
+
         // Hard write-time freshness gate: prevent stale alerts from being created.
-        // This is the centralized safety net across all pipelines.
+        // Only applies to non-realtime (cron/backtest) pipelines.  Realtime
+        // consumers (BarEventConsumer, stream watchers) fire on incoming bars
+        // so the entry is inherently fresh — no staleness check needed.
         // Skip for backtest mode — historical entries will always be "stale" vs now().
-        if (! $this->backtestMode) {
+        if (! $isRealtime && ! $this->backtestMode) {
             $maxWriteAgeMinutes = $this->resolveWriteFreshnessMinutes($pipelineRun, $isRealtime);
             $nowUtc = now('UTC');
             $entryAtUtc = $this->resolveTimestampToUtc((string) ($entry['entry_ts_est'] ?? ''));
@@ -469,6 +507,15 @@ class TradeAlertWriterV1
                     'signal_age_minutes' => $signalAgeMinutes !== null ? round((float) $signalAgeMinutes, 2) : null,
                     'max_age_minutes' => $maxWriteAgeMinutes,
                     'as_of_ts_est' => $asOfTsEst,
+                ]);
+
+                \Log::channel('redis-scan')->warning('[TradeAlertWriter] REJECTED: stale alert', [
+                    'symbol' => $signal['symbol'] ?? null,
+                    'gate' => 'stale',
+                    'pipeline_run' => $pipelineRun,
+                    'entry_age_minutes' => $entryAgeMinutes !== null ? round((float) $entryAgeMinutes, 2) : null,
+                    'signal_age_minutes' => $signalAgeMinutes !== null ? round((float) $signalAgeMinutes, 2) : null,
+                    'max_age_minutes' => $maxWriteAgeMinutes,
                 ]);
 
                 return false;
@@ -497,6 +544,13 @@ class TradeAlertWriterV1
                     'recent_pipeline' => $recentPassedAlert->pipeline_run,
                     'recent_ml_win_prob' => $recentPassedAlert->ml_win_prob,
                     'skip_minutes' => $skipMinutes,
+                ]);
+
+                \Log::channel('redis-scan')->warning('[TradeAlertWriter] REJECTED: ML duplicate skip', [
+                    'symbol' => $signal['symbol'] ?? null,
+                    'gate' => 'ml_duplicate',
+                    'pipeline_run' => $pipelineRun,
+                    'recent_alert_id' => $recentPassedAlert->id,
                 ]);
 
                 return false;
@@ -540,7 +594,6 @@ class TradeAlertWriterV1
         $sentimentResult = $this->calculateSentimentBoost($signal['symbol']);
         $alertData = [
             'symbol' => $signal['symbol'],
-            'asset_type' => $signal['asset_type'],
 
             'trading_date_est' => $tradingDate,
             'as_of_ts_est' => $asOfTsEst,
@@ -549,10 +602,10 @@ class TradeAlertWriterV1
             'signal_ts_est' => $signal['signal_ts_est'],
             'time_of_day' => isset($signal['signal_ts_est']) ? substr($signal['signal_ts_est'], 11, 5) : null,
 
-            'entry_type' => $entry['type'] ?? null,
+            'entry_type' => $entry['entry_type'] ?? $entry['type'] ?? null,
             'entry_ts_est' => $entry['entry_ts_est'] ?? null,
-            'entry' => $entry['entry'] ?? $entry['entry_price'] ?? null, // Support v100 entry_price
-            'stop' => $entry['stop'] ?? $entry['stop_price'] ?? null, // Support v100 stop_price
+            'entry' => $entry['entry_price'] ?? $entry['entry'] ?? null,
+            'stop' => $entry['stop_loss'] ?? $entry['stop'] ?? $entry['stop_price'] ?? null,
 
             'risk_pct' => $entry['risk_pct'] ?? null,
             'risk_per_share' => $entry['risk_per_share'] ?? $entry['risk_amount'] ?? null, // Support v100 risk_amount
@@ -571,8 +624,8 @@ class TradeAlertWriterV1
 
             'atr' => $entry['atr'] ?? null,
             'atr_pct' => $entry['atr_pct'] ?? null,
-            'daily_trend_5d_pct' => $this->calculateDailyTrend($signal['symbol'], $signal['asset_type'], $tradingDate),
-            'range_position_60m' => $this->calculateRangePosition($signal['symbol'], $signal['asset_type'], $entry['entry_ts_est'], $entry['entry'] ?? $entry['entry_price'] ?? 0),
+            'daily_trend_5d_pct' => $this->calculateDailyTrend($signal['symbol'], $signal['asset_type'] ?? 'stock', $tradingDate),
+            'range_position_60m' => $this->calculateRangePosition($signal['symbol'], $entry['entry_ts_est'], $entry['entry'] ?? $entry['entry_price'] ?? 0),
             'rsi_14_1m' => $entry['rsi'] ?? null,
             'suggested_trailing_stop' => $entry['suggested_trailing_stop'] ?? null,
             'suggested_trailing_stop_pct' => $this->applySuggestedTrailingStopBounds($entry['suggested_trailing_stop_pct'] ?? null),
@@ -626,6 +679,7 @@ class TradeAlertWriterV1
             'dedupe_key' => $dedupeKey,
             'version' => $version,
             'pipeline_run' => $pipelineRun,
+            'query_source' => $entry['query_source'] ?? ($isRealtime ? 'redis' : 'sql'),
             'is_paper' => (bool) config('alpaca.paper_trading', true),
             'is_realtime' => $isRealtime,
             'blacklisted' => SymbolBlacklist::isBlacklisted($signal['symbol']),
@@ -637,7 +691,6 @@ class TradeAlertWriterV1
         try {
             $fadeFeatures = $this->fadeDetection->calculateFadeFeatures(
                 $signal['symbol'],
-                $signal['asset_type'],
                 $entry['entry_ts_est']
             );
 
@@ -662,6 +715,13 @@ class TradeAlertWriterV1
             // However, if the cron (is_realtime=true) lost the race to the continuous backtest
             // loop (is_realtime=false), upgrade the flag so the alert is correctly attributed.
             if (! $inserted) {
+                \Log::channel('redis-scan')->info('[TradeAlertWriter] REJECTED: dedupe collision (insertOrIgnore returned 0)', [
+                    'symbol' => $signal['symbol'] ?? null,
+                    'gate' => 'dedupe',
+                    'pipeline_run' => $pipelineRun,
+                    'dedupe_key' => $dedupeKey,
+                    'is_realtime' => $isRealtime,
+                ]);
                 if ($isRealtime) {
                     $existingAlert = DB::table($tableName)
                         ->where('dedupe_key', $dedupeKey)

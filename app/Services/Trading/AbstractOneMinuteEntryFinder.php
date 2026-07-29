@@ -57,14 +57,12 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      * Core entry logic — subclasses implement this to find the best entry point.
      *
      * @param  string  $symbol  The stock symbol
-     * @param  string  $assetType  'stock' or 'crypto'
      * @param  string  $signalTsEst  The signal timestamp in EST
      * @param  string  $asOfTsEst  The "as of" timestamp in EST
      * @return array|null Entry data array or null if no entry found
      */
     abstract protected function doFindBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array;
@@ -78,13 +76,19 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     final public function findBestLong(
         string $symbol,
-        string $assetType,
         string $signalTsEst,
         string $asOfTsEst,
     ): ?array {
         self::$dbg['called']++;
 
-        $entry = $this->doFindBestLong($symbol, $assetType, $signalTsEst, $asOfTsEst);
+        $entry = $this->doFindBestLong($symbol, $signalTsEst, $asOfTsEst);
+
+        // Handle both wrapper-style and direct-style returns from doFindBestLong().
+        // Wrapper style: ['ok' => bool, 'best_entry' => [...], 'candidates' => [...]]
+        // Direct style:  ['entry_price' => ..., 'stop_loss' => ..., ...]
+        if (is_array($entry) && array_key_exists('best_entry', $entry)) {
+            $entry = $entry['best_entry'];
+        }
 
         if ($entry === null) {
             $this->maybeLogDebug();
@@ -92,17 +96,72 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
             return ['ok' => 0, 'best_entry' => null, 'reason' => 'no_entry'];
         }
 
+        // Guard: if the unwrapped result still signals failure (ok=false or ok=0
+        // from a doFindBestLong that omitted best_entry), propagate it as a no-entry
+        // result instead of silently treating the error array as a valid entry.
+        if (is_array($entry) && isset($entry['ok']) && ! $entry['ok']) {
+            $this->maybeLogDebug();
+
+            return ['ok' => 0, 'best_entry' => null, 'reason' => $entry['error'] ?? $entry['filter_reason'] ?? 'no_entry'];
+        }
+
+        // Guard: if doFindBestLong returned an empty array (no match found,
+        // e.g. raw SQL finders returning []), treat it as no entry.
+        if (is_array($entry) && $entry === []) {
+            $this->maybeLogDebug();
+
+            return ['ok' => 0, 'best_entry' => null, 'reason' => 'empty_result'];
+        }
+
+        // Normalize aliases before validation so subclasses can use either key convention.
+        $entry['entry_price'] = $entry['entry_price'] ?? $entry['entry'] ?? null;
+        $entry['stop_loss'] = $entry['stop_loss'] ?? $entry['stop'] ?? null;
+        $entry['entry_type'] = $entry['entry_type'] ?? $entry['type'] ?? null;
+
         $this->validateEntry($entry, $symbol);
+
+        // ── Compute derived fields from base values ──
+        // All subclasses provide entry_price + stop_loss; the abstract class
+        // computes risk, targets, and trailing stop automatically so every
+        // finder populates the full set of writer-required fields.
+        $entryPrice = (float) ($entry['entry_price'] ?? $entry['entry'] ?? 0);
+        $stopPrice = (float) ($entry['stop_loss'] ?? $entry['stop'] ?? 0);
+
+        if ($entryPrice > 0 && $stopPrice > 0) {
+            $risk = max(1e-9, $entryPrice - $stopPrice);
+            $riskPct = ($risk / $entryPrice) * 100.0;
+
+            $entry['risk_per_share'] = $entry['risk_per_share'] ?? round($risk, 6);
+            $entry['risk_pct'] = $entry['risk_pct'] ?? round($riskPct, 3);
+
+            $entry['targets'] = $entry['targets'] ?? [
+                '1R' => round($entryPrice + $risk, 6),
+                '2R' => round($entryPrice + ($risk * 2), 6),
+                '3R' => round($entryPrice + ($risk * 3), 6),
+            ];
+        }
+
+        if (($entry['suggested_trailing_stop'] ?? null) === null && ($entry['atr'] ?? 0) > 0 && $entryPrice > 0) {
+            $atr = (float) $entry['atr'];
+            $minRiskPct = \App\Services\TradingSettingService::getStopLossAtrMinPct();
+            $maxRiskPct = \App\Services\TradingSettingService::getStopLossAtrMaxPct();
+            $atrMultiplier = \App\Services\TradingSettingService::getStopLossAtrMultiplier();
+            $calculatedPct = (($atr * $atrMultiplier) / $entryPrice) * 100.0;
+            $trailPct = max($minRiskPct, min($maxRiskPct, $calculatedPct));
+            $entry['suggested_trailing_stop'] = round($entryPrice * ($trailPct / 100.0), 6);
+            $entry['suggested_trailing_stop_pct'] = round($trailPct, 3);
+        }
 
         self::$dbg['returned']++;
         $this->maybeLogDebug();
 
-        $entry['entry_ts_est'] = $entry['entry_ts_est'] ?? $asOfTsEst;
+        // Also set short-form aliases so callers can use either naming convention.
         $entry['entry'] = $entry['entry'] ?? $entry['entry_price'] ?? null;
         $entry['stop'] = $entry['stop'] ?? $entry['stop_loss'] ?? null;
         $entry['type'] = $entry['type'] ?? $entry['entry_type'] ?? null;
+
+        $entry['entry_ts_est'] = $entry['entry_ts_est'] ?? $asOfTsEst;
         $entry['symbol'] = $symbol;
-        $entry['asset_type'] = $assetType;
         $entry['signal_ts_est'] = $signalTsEst;
 
         return [
@@ -142,7 +201,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     protected function fetchOneMinuteBars(
         string $symbol,
-        string $assetType,
         string $marketOpen,
         string $asOfTsEst,
     ): array {
@@ -151,13 +209,12 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         return $this->dbSelect('
             SELECT ts_est, `open`, high, low, price AS close, volume
             FROM one_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
     }
 
     /**
@@ -167,7 +224,6 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
      */
     protected function fetchFiveMinuteBarsForAnalysis(
         string $symbol,
-        string $assetType,
         string $marketOpen,
         string $asOfTsEst,
     ): array {
@@ -176,13 +232,12 @@ abstract class AbstractOneMinuteEntryFinder implements OneMinuteEntryFinderContr
         return $this->dbSelect('
             SELECT ts_est, open, high, low, price
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND symbol = ?
+            WHERE symbol = ?
               AND trading_date_est = ?
               AND ts_est >= ?
               AND ts_est <= ?
             ORDER BY ts_est ASC
-        ', [$assetType, $symbol, $tradeDate, $marketOpen, $asOfTsEst]);
+        ', [$symbol, $tradeDate, $marketOpen, $asOfTsEst]);
     }
 
     /**

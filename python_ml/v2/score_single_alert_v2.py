@@ -358,6 +358,8 @@ def main():
        AND stk_open.ts_est     = (
            SELECT MIN(ts_est)
            FROM five_minute_prices
+           WHERE symbol     = ta.symbol
+             AND asset_type = ta.asset_type
              AND DATE(ts_est) = ta.trading_date_est
        )
 

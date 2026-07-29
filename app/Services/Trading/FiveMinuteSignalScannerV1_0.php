@@ -51,7 +51,6 @@ class FiveMinuteSignalScannerV1_0
      * @return array Array of qualifying signals
      */
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         float $minChangeFromOpen = 3.0,
         float $minRelativeVolume = 1.5,
@@ -90,12 +89,11 @@ class FiveMinuteSignalScannerV1_0
     /**
      * Calculate change_from_open and relative_volume for all bars up to asOfTsEst
      */
-    private function calculateMomentumMetrics(string $assetType, string $tradingDate, string $asOfTsEst): void
+    private function calculateMomentumMetrics(string $tradingDate, string $asOfTsEst): void
     {
         // Get opening prices for all symbols today (first 5m bar price)
         $openPrices = DB::table($this->fiveMinuteTable)
             ->select('symbol', DB::raw('MIN(price) as open'))
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '>=', $tradingDate.' 09:30:00')
             ->where('ts_est', '<=', $tradingDate.' 09:35:00')
@@ -106,7 +104,6 @@ class FiveMinuteSignalScannerV1_0
         // Get average volumes for each symbol (from daily_prices or calculate from 5m data)
         $avgVolumes = DB::table('daily_prices')
             ->select('symbol', DB::raw('AVG(volume) as avg_volume'))
-            ->where('asset_type', $assetType)
             ->where('date', '>=', DB::raw("DATE_SUB('$tradingDate', INTERVAL 20 DAY)"))
             ->where('date', '<', $tradingDate)
             ->groupBy('symbol')
@@ -116,7 +113,6 @@ class FiveMinuteSignalScannerV1_0
         // Update change_from_open and relative_volume for bars up to asOfTsEst
         $bars = DB::table($this->fiveMinuteTable)
             ->select('id', 'symbol', 'price', 'volume', 'ts_est')
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '<=', $asOfTsEst)
             ->whereNull('change_from_open') // Only calculate if not already done
@@ -178,7 +174,6 @@ class FiveMinuteSignalScannerV1_0
      * Find stocks currently meeting TradeThatSwing momentum criteria
      */
     private function findMomentumMovers(
-        string $assetType,
         string $tradingDate,
         string $asOfTsEst,
         float $minChangeFromOpen,
@@ -192,7 +187,6 @@ class FiveMinuteSignalScannerV1_0
         // Get latest bar for each symbol at asOfTsEst
         $subquery = DB::table($this->fiveMinuteTable)
             ->select('symbol', DB::raw('MAX(ts_est) as latest_ts'))
-            ->where('asset_type', $assetType)
             ->where('trading_date_est', $tradingDate)
             ->where('ts_est', '<=', $asOfTsEst)
             ->groupBy('symbol');
@@ -218,7 +212,7 @@ class FiveMinuteSignalScannerV1_0
                 DB::raw('AVG(d.high - d.low) as avg_range'),
                 DB::raw('AVG((d.high - d.low) / d.price * 100) as avg_range_pct')
             )
-            ->where('f.asset_type', $assetType)
+            ->where('f.asset_type')
             ->where('f.trading_date_est', $tradingDate)
             ->where('f.change_from_open', '>=', $minChangeFromOpen) // 3%+ change from open
             ->where('f.relative_volume', '>=', $minRelativeVolume) // 1.5x+ relative volume
@@ -233,10 +227,9 @@ class FiveMinuteSignalScannerV1_0
             ->limit($limit)
             ->get();
 
-        return $signals->map(function ($row) use ($assetType) {
+        return $signals->map(function ($row) {
             return [
                 'symbol' => $row->symbol,
-                'asset_type' => $assetType,
                 'signal_type' => 'MOMENTUM_MOVER',
                 'signal_ts_est' => $row->signal_ts_est,
                 'price' => $row->price,

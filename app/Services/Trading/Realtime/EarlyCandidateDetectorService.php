@@ -255,7 +255,6 @@ class EarlyCandidateDetectorService
 
         $candidate = RealtimeTradeCandidate::query()->create([
             'symbol' => $symbol,
-            'asset_type' => $assetType,
             'detected_ts_est' => $nowEst,
             'stale_seconds' => 0,
             'detected_price' => $ask,

@@ -12,10 +12,8 @@ namespace App\Services\Trading;
  * This intentionally avoids extra filtering so the pipeline can alert on the
  * entire universe first and add refinement later.
  */
-class FiveMinuteSignalScannerV2000_0
+class FiveMinuteSignalScannerV2000_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v2000.0';
 
     private string $name = 'Market Movers Universe';
@@ -30,14 +28,27 @@ class FiveMinuteSignalScannerV2000_0
         return $this->name;
     }
 
-    public function scan(
-        string $assetType,
+    /** @return array<string, mixed> */
+    public function scanConfig(): array
+    {
+        return [
+        'min_notional_5m' => 0,
+        'min_atr_pct_5m' => 0,
+        'min_rvol_5m' => 0,
+        'min_move_30m_pct' => 0,
+        'move_bars_5m' => 6,
+        'atr_period_5m' => 14,
+        'rvol_lookback_5m' => 20,
+];
+    }
+
+    protected function doScan(
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
         float $volMult = 1.5,
-        int $limit = 10000
-    ): array {
+        int $limit = 10000, bool $skipCache = false, ?string $symbol = null): array
+    {
         $tradeDate = substr($asOfTsEst, 0, 10);
 
         $universeRows = $this->dbSelect('
@@ -72,7 +83,7 @@ class FiveMinuteSignalScannerV2000_0
         }
 
         $placeholders = implode(',', array_fill(0, count($symbols), '?'));
-        $latestRows = $this->dbSelect("\n            SELECT\n                ranked.symbol,\n                ranked.asset_type,\n                ranked.ts_est,\n                ranked.price AS close_price,\n                ranked.open,\n                ranked.high,\n                ranked.low,\n                ranked.volume,\n                ranked.atr,\n                ranked.atr_pct,\n                ranked.trading_date_est\n            FROM (\n                SELECT\n                    f.symbol,\n                    f.asset_type,\n                    f.ts_est,\n                    f.price,\n                    f.open,\n                    f.high,\n                    f.low,\n                    f.volume,\n                    f.atr,\n                    f.atr_pct,\n                    f.trading_date_est,\n                    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn\n                FROM five_minute_prices f\n                WHERE f.asset_type = ?\n                  AND f.trading_date_est = ?\n                  AND f.ts_est <= ?\n                  AND f.symbol IN ($placeholders)\n            ) ranked\n            WHERE ranked.rn = 1\n            ORDER BY ranked.ts_est DESC, ranked.symbol ASC\n            LIMIT ?\n        ", array_merge([$assetType, $tradeDate, $asOfTsEst], $symbols, [max(1, $limit)]));
+        $latestRows = $this->dbSelect("\n            SELECT\n                ranked.symbol,\n                ranked.ts_est,\n                ranked.price AS close_price,\n                ranked.open,\n                ranked.high,\n                ranked.low,\n                ranked.volume,\n                ranked.atr,\n                ranked.atr_pct,\n                ranked.trading_date_est\n            FROM (\n                SELECT\n                    f.symbol,\n                    f.ts_est,\n                    f.price,\n                    f.open,\n                    f.high,\n                    f.low,\n                    f.volume,\n                    f.atr,\n                    f.atr_pct,\n                    f.trading_date_est,\n                    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn\n                FROM five_minute_prices f\n                WHERE f.asset_type = ?\n                  AND f.trading_date_est = ?\n                  AND f.ts_est <= ?\n                  AND f.symbol IN ($placeholders)\n            ) ranked\n            WHERE ranked.rn = 1\n            ORDER BY ranked.ts_est DESC, ranked.symbol ASC\n            LIMIT ?\n        ", array_merge(['stock', $tradeDate, $asOfTsEst], $symbols, [max(1, $limit)]));
 
         if (empty($latestRows)) {
             return [];
@@ -98,7 +109,7 @@ class FiveMinuteSignalScannerV2000_0
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $bar->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => 'MOMO_5D_UNIVERSE',
                 'signal_ts_est' => (string) $bar->ts_est,
                 'score' => $score,
@@ -117,6 +128,12 @@ class FiveMinuteSignalScannerV2000_0
                     'lookback_minutes' => $lookbackMinutes,
                     'min_move_pct' => $minMovePct,
                     'vol_mult' => $volMult,
+                    'move_30m_pct' => null,
+                    'rvol_5m' => null,
+                    'atr_pct_5m' => $bar->atr_pct !== null ? (float) $bar->atr_pct : null,
+                    'notional_last5m' => (float) $bar->close_price * (float) $bar->volume,
+                    'spy_move_30m_pct' => null,
+                    'signal_age_seconds' => 0,
                 ],
             ];
 

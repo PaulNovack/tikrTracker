@@ -61,7 +61,6 @@ class FiveMinuteSignalScannerV2100_0
     }
 
     public function scan(
-        string $assetType,
         string $asOfTsEst,
         int $lookbackMinutes = 60,
         float $minMovePct = 0.4,
@@ -83,7 +82,7 @@ class FiveMinuteSignalScannerV2100_0
         $roughRows = $this->dbSelect(''
             ."SELECT\n"
             ."    f.symbol,\n"
-            ."    f.asset_type,\n"
+            .",\n"
             ."    f.trading_date_est,\n"
             ."    MIN(f.low) AS rough_day_low,\n"
             ."    MAX(f.high) AS rough_day_high,\n"
@@ -99,11 +98,11 @@ class FiveMinuteSignalScannerV2100_0
             ."  AND f.low > 0\n"
             ."  AND f.price IS NOT NULL\n"
             ."  AND f.price > 0\n"
-            ."GROUP BY f.symbol, f.asset_type, f.trading_date_est\n"
+            ."GROUP BY f.symbol, f.trading_date_est\n"
             ."HAVING rough_range_pct >= ?\n"
             ."ORDER BY rough_range_pct DESC, day_volume DESC, symbol ASC\n"
             ."LIMIT {$safeUniverseLimit}",
-            [$assetType, $tradeDate, $this->target5Pct]
+            [$tradeDate, $this->target5Pct]
         );
 
         if (empty($roughRows)) {
@@ -131,12 +130,10 @@ class FiveMinuteSignalScannerV2100_0
             WITH latest_ts AS (
                 SELECT
                     f.symbol,
-                    f.asset_type,
                     f.trading_date_est,
                     MAX(f.ts_est) AS signal_ts_est
                 FROM five_minute_prices f
-                WHERE f.asset_type = ?
-                  AND f.trading_date_est = ?
+    WHERE f.trading_date_est = ?
                   AND f.ts_est <= ?
                   AND f.ts_est >= DATE_SUB(?, INTERVAL {$safeLookbackMinutes} MINUTE)
                   AND f.trading_time_est BETWEEN '09:30:00' AND '11:00:00'
@@ -147,14 +144,12 @@ class FiveMinuteSignalScannerV2100_0
                   AND f.symbol IN ({$symbolPlaceholders})
                 GROUP BY
                     f.symbol,
-                    f.asset_type,
                     f.trading_date_est
             ),
 
             latest_raw AS (
                 SELECT
                     f.symbol,
-                    f.asset_type,
                     f.trading_date_est,
                     f.ts_est AS signal_ts_est,
                     f.price AS close_price,
@@ -175,9 +170,7 @@ class FiveMinuteSignalScannerV2100_0
                     ((f.price - f.open) / NULLIF(f.open, 0)) * 100 AS bar_move_pct
                 FROM latest_ts lt
                 JOIN five_minute_prices f
-                  ON f.symbol = lt.symbol
-                 AND f.asset_type = lt.asset_type
-                 AND f.trading_date_est = lt.trading_date_est
+                  ON f.symbol = lt.symbol AND f.trading_date_est = lt.trading_date_est
                  AND f.ts_est = lt.signal_ts_est
             ),
 
@@ -203,14 +196,11 @@ class FiveMinuteSignalScannerV2100_0
                     END AS volume_ratio
                 FROM top_latest tl
                 LEFT JOIN five_minute_prices pv
-                  ON pv.symbol = tl.symbol
-                 AND pv.asset_type = tl.asset_type
-                 AND pv.trading_date_est = tl.trading_date_est
+                  ON pv.symbol = tl.symbol AND pv.trading_date_est = tl.trading_date_est
                  AND pv.ts_est < tl.signal_ts_est
                  AND pv.ts_est >= DATE_SUB(tl.signal_ts_est, INTERVAL 60 MINUTE)
                 GROUP BY
                     tl.symbol,
-                    tl.asset_type,
                     tl.trading_date_est,
                     tl.signal_ts_est,
                     tl.close_price,
@@ -237,7 +227,6 @@ class FiveMinuteSignalScannerV2100_0
             entry_candidates AS (
                 SELECT
                     c.symbol,
-                    c.asset_type,
                     c.trading_date_est,
                     c.signal_ts_est,
                     c.close_price AS signal_price,
@@ -266,9 +255,7 @@ class FiveMinuteSignalScannerV2100_0
 
                 FROM candidates c
                 JOIN one_minute_prices e
-                  ON e.symbol = c.symbol
-                 AND e.asset_type = c.asset_type
-                 AND e.trading_date_est = c.trading_date_est
+                  ON e.symbol = c.symbol AND e.trading_date_est = c.trading_date_est
                  AND e.ts_est > c.signal_ts_est
                  AND e.ts_est <= DATE_ADD(c.signal_ts_est, INTERVAL 15 MINUTE)
 
@@ -281,7 +268,6 @@ class FiveMinuteSignalScannerV2100_0
             future_stats AS (
                 SELECT
                     ec.symbol,
-                    ec.asset_type,
                     ec.trading_date_est,
                     ec.signal_ts_est,
                     ec.signal_price,
@@ -326,9 +312,7 @@ class FiveMinuteSignalScannerV2100_0
 
                 FROM entry_candidates ec
                 JOIN one_minute_prices fp
-                  ON fp.symbol = ec.symbol
-                 AND fp.asset_type = ec.asset_type
-                 AND fp.trading_date_est = ec.trading_date_est
+                  ON fp.symbol = ec.symbol AND fp.trading_date_est = ec.trading_date_est
                  AND fp.ts_est > ec.entry_ts_est
                  AND fp.ts_est <= DATE_ADD(ec.entry_ts_est, INTERVAL 300 MINUTE)
 
@@ -338,7 +322,6 @@ class FiveMinuteSignalScannerV2100_0
 
                 GROUP BY
                     ec.symbol,
-                    ec.asset_type,
                     ec.trading_date_est,
                     ec.signal_ts_est,
                     ec.signal_price,
@@ -386,7 +369,6 @@ class FiveMinuteSignalScannerV2100_0
             signal_agg AS (
                 SELECT
                     el.symbol,
-                    el.asset_type,
                     el.trading_date_est,
                     el.signal_ts_est,
 
@@ -419,14 +401,12 @@ class FiveMinuteSignalScannerV2100_0
                 FROM entry_labels el
                 GROUP BY
                     el.symbol,
-                    el.asset_type,
                     el.trading_date_est,
                     el.signal_ts_est
             )
 
             SELECT
                 sa.symbol,
-                sa.asset_type,
                 sa.trading_date_est,
                 sa.signal_ts_est,
                 sa.signal_price,
@@ -486,7 +466,7 @@ class FiveMinuteSignalScannerV2100_0
         ";
 
         $bindings = array_merge(
-            [$assetType, $tradeDate, $asOfTsEst, $asOfTsEst],
+            [$tradeDate, $asOfTsEst, $asOfTsEst],
             $symbols,
             [$minMovePct, $volMult]
         );
@@ -501,7 +481,7 @@ class FiveMinuteSignalScannerV2100_0
         foreach ($rows as $row) {
             $finalSymbols[] = (string) $row->symbol;
         }
-        $runContextBySymbol = $this->queryRunContexts(array_values(array_unique($finalSymbols)), $assetType, $tradeDate);
+        $runContextBySymbol = $this->queryRunContexts(array_values(array_unique($finalSymbols)), $tradeDate);
 
         $out = [];
 
@@ -525,7 +505,6 @@ class FiveMinuteSignalScannerV2100_0
 
             $out[] = [
                 'symbol' => $symbol,
-                'asset_type' => (string) $row->asset_type,
                 'signal_type' => 'FORWARD_5PCT_RUNNER_5M',
                 'signal_ts_est' => (string) $row->signal_ts_est,
                 'score' => $score,
@@ -592,7 +571,7 @@ class FiveMinuteSignalScannerV2100_0
      * @param  array<int,string>  $symbols
      * @return array<string,array<string,mixed>> keyed by symbol
      */
-    private function queryRunContexts(array $symbols, string $assetType, string $tradeDate): array
+    private function queryRunContexts(array $symbols, string $tradeDate): array
     {
         $symbols = array_values(array_unique(array_filter($symbols)));
         if (empty($symbols)) {
@@ -604,14 +583,12 @@ class FiveMinuteSignalScannerV2100_0
         $bars = $this->dbSelect("
             SELECT
                 symbol,
-                asset_type,
                 trading_date_est,
                 ts_est,
                 high,
                 low
             FROM five_minute_prices
-            WHERE asset_type = ?
-              AND trading_date_est = ?
+            WHERE trading_date_est = ?
               AND symbol IN ({$symbolPlaceholders})
               AND trading_time_est BETWEEN '09:30:00' AND '16:00:00'
               AND high IS NOT NULL
@@ -619,7 +596,7 @@ class FiveMinuteSignalScannerV2100_0
               AND low IS NOT NULL
               AND low > 0
             ORDER BY symbol ASC, ts_est ASC
-        ", array_merge([$assetType, $tradeDate], $symbols));
+        ", array_merge([$tradeDate], $symbols));
 
         $contexts = [];
         $currentSymbol = null;

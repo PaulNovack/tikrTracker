@@ -68,6 +68,16 @@ class TradePipelineRunD extends Command
 
         $scanner = app($scannerClass);
         $finder = app($finderClass);
+
+        // ── Redis gate ──
+        if (config('trading.pipelines.d.use_redis', false)) {
+            $msg = 'Pipeline D: Redis scanning active — SQL pipeline exiting (bar-events:consume handles alerts).';
+            $this->info($msg);
+            // \Log::channel('redis-scan')->info($msg);
+
+            return 0;
+        }
+
         $isFullTable = (bool) $this->option('fulltable')
             && ((bool) $this->option('backtest') || (bool) $this->option('rolling-window'));
 
@@ -99,9 +109,7 @@ class TradePipelineRunD extends Command
 
         // No time offset needed for live scanning - pipelines run every minute
         // so they will naturally catch signals within 1 minute of data availability
-        $signals = $scanner->scan(
-            $assetType,
-            $asOfTsEst,
+        $signals = $scanner->scan($asOfTsEst,
             (int) $this->option('lookback'),
             (float) $this->option('minMove'),
             (float) $this->option('volMult'),
@@ -332,9 +340,7 @@ class TradePipelineRunD extends Command
                 $asOfTsEst = date('Y-m-d H:i:s', $t);
 
                 // No time offset needed - historical data is already fully synced
-                $signals = $scanner->scan(
-                    $assetType,
-                    $asOfTsEst,
+                $signals = $scanner->scan($asOfTsEst,
                     (int) $this->option('lookback'),
                     (float) $this->option('minMove'),
                     (float) $this->option('volMult'),

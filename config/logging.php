@@ -121,6 +121,22 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'redis-scan' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/redis-scan.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'bar-events' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/bar-events.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
         'external-buy' => [
             'driver' => 'daily',
             'path' => storage_path('logs/external-buy.log'),

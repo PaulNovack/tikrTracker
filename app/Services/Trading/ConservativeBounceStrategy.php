@@ -257,7 +257,6 @@ class ConservativeBounceStrategy
     private function getQualitySymbols(): array
     {
         return DB::table('asset_info')
-            ->where('asset_type', 'stock')
             ->whereNull('deleted_at')
             ->where('1_min', 1)  // Only volatile stocks
             ->where('over_1mil', 1)  // Only liquid stocks
@@ -269,7 +268,6 @@ class ConservativeBounceStrategy
     {
         return DB::table('five_minute_prices')
             ->where('symbol', $symbol)
-            ->where('asset_type', 'stock')
             ->where('ts_est', '<=', $asOfTime)
             ->orderBy('ts_est', 'desc')
             ->limit($limit)

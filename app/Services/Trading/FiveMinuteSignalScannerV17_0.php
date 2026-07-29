@@ -4,7 +4,6 @@ namespace App\Services\Trading;
 
 use App\Services\GainersLosersAnalysisService;
 use App\Services\Market\BestPerformers5mService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -13,18 +12,16 @@ use Illuminate\Support\Facades\DB;
  * Purpose: Experiment with loosened filters to find more signals without sacrificing quality
  * Changes TBD
  */
-class FiveMinuteSignalScannerV17_0
+class FiveMinuteSignalScannerV17_0 extends AbstractSignalScanner
 {
-    use HasPriceTables;
-
     private string $version = 'v17.0';
 
     private string $name = 'Base Pattern';
 
     // ── Scanner Configuration (public so entry finders can read) ──
-    public int $activeWindowMinutes = 30;
+    public int $activeWindowMinutes;
 
-    public string $benchmarkSymbol = 'QQQM';
+    public string $benchmarkSymbol;
 
     /** @return array<string, mixed> */
     public function scanConfig(): array
@@ -32,13 +29,24 @@ class FiveMinuteSignalScannerV17_0
         return [
             'active_window_minutes' => $this->activeWindowMinutes,
             'benchmark_symbol' => $this->benchmarkSymbol,
+            // v17 SQL-style gates — looser than default UsesRedisForScanning gates
+            'min_notional_5m' => 0,        // no notional filter (SQL v17 doesn't filter by notional)
+            'min_atr_pct_5m' => 0,          // no ATR filter
+            'min_rvol_5m' => 0,             // no RVOL filter (SQL v17 uses move + vol ratio differently)
+            'min_move_30m_pct' => 0,        // no 30m move filter (SQL v17 uses N-bar move)
+            'move_bars_5m' => max(2, (int) floor($this->activeWindowMinutes / 5)),
+            'atr_period_5m' => 14,
+            'rvol_lookback_5m' => 20,
         ];
     }
 
     public function __construct(
         private readonly BestPerformers5mService $bestPerformersService,
         private readonly GainersLosersAnalysisService $gainersLosersService
-    ) {}
+    ) {
+        $this->activeWindowMinutes = (int) env('TRADING_V17_ACTIVE_WINDOW_MINUTES', 30);
+        $this->benchmarkSymbol = env('TRADING_MARKET_BENCHMARK_SYMBOL', 'QQQM');
+    }
 
     public function getVersion(): string
     {
@@ -82,38 +90,10 @@ class FiveMinuteSignalScannerV17_0
      *   ['symbol'=>'TQQQ','asset_type'=>'stock','signal_type'=>'MOMO_5M','signal_ts_est'=>'YYYY-mm-dd HH:MM:SS', 'score'=>...],
      * ]
      */
-    public function scan(string $assetType, string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 1.2, float $volMult = 3.5, int $limit = 60): array
+    protected function doScan(string $asOfTsEst, int $lookbackMinutes = 60, float $minMovePct = 1.2, float $volMult = 3.5, int $limit = 60, bool $skipCache = false, ?string $symbol = null): array
     {
         // Step 1: Universe from intraday_universe (pre-built, fast, cached 8h)
-        $universeCacheKey = "scan_v17_0:universe_symbols:{$assetType}";
-        $symbols = Cache::get($universeCacheKey);
-        if ($symbols === null) {
-            $symbols = DB::table('intraday_universe')
-                ->select('symbol')
-                ->where('asset_type', $assetType)
-                ->orderBy('symbol')
-                ->pluck('symbol')
-                ->all();
-
-            // Add market movers to universe if enabled
-            $moversLimit = (int) config('trading.market_movers.pipeline_i', 0);
-            if ($moversLimit > 0) {
-                $movers = app(\App\Services\MarketMoversService::class)->getTodaysTopMoversFromCache(null, $moversLimit);
-                $symbols = array_values(array_unique(array_merge($symbols, $movers)));
-            }
-
-            // Add 4-bar 1-min up streak symbols from Redis
-            $redisSymbols = \Illuminate\Support\Facades\Redis::get('last_4_1min_up:symbols');
-            if ($redisSymbols) {
-                $streakSymbols = json_decode($redisSymbols, true);
-                if (is_array($streakSymbols) && $streakSymbols !== []) {
-                    $symbols = array_values(array_unique(array_merge($symbols, $streakSymbols)));
-                }
-            }
-
-            // Cache for 8 hours — universe only needs to be refreshed once per trading day
-            Cache::put($universeCacheKey, $symbols, 28800);
-        }
+        $symbols = $this->buildIntradayUniverse('scan_v17_0:universe_symbols', 'trading.market_movers.pipeline_i', $asOfTsEst);
 
         // If no symbols found, return empty
         if (empty($symbols)) {
@@ -128,46 +108,40 @@ class FiveMinuteSignalScannerV17_0
 WITH last_bar AS (
   SELECT
     symbol,
-    asset_type,
     MAX(ts_est) AS last_ts_est
   FROM five_minute_prices
-  WHERE asset_type = ?
-    AND symbol IN ($placeholders)
+
+    WHERE symbol IN ($placeholders)
     AND ts_est <= ?
     AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 ),
 bars AS (
   SELECT
     f.symbol,
-    f.asset_type,
     f.ts_est,
     f.price AS close,
     f.volume,
-    ROW_NUMBER() OVER (PARTITION BY f.symbol, f.asset_type ORDER BY f.ts_est DESC) AS rn
+    ROW_NUMBER() OVER (PARTITION BY f.symbol ORDER BY f.ts_est DESC) AS rn
   FROM five_minute_prices f
   INNER JOIN last_bar lb
-    ON lb.symbol = f.symbol AND lb.asset_type = f.asset_type
-  WHERE f.asset_type = ?
-    AND f.symbol IN ($placeholders)
+    ON lb.symbol = f.symbol AND f.symbol IN ($placeholders)
     AND f.ts_est <= ?
     AND f.ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
 ),
 agg AS (
   SELECT
     symbol,
-    asset_type,
     MAX(CASE WHEN rn = 1 THEN ts_est END) AS signal_ts_est,
     MAX(CASE WHEN rn = 1 THEN close END)  AS last_close,
     MAX(CASE WHEN rn = 1 THEN volume END) AS last_vol,
     MAX(CASE WHEN rn = 1 + ? THEN close END) AS prev_close,
     AVG(volume) AS avg_vol
   FROM bars
-  GROUP BY symbol, asset_type
+  GROUP BY symbol
 )
 SELECT
   symbol,
-  asset_type,
   signal_ts_est,
   last_close,
   prev_close,
@@ -191,12 +165,12 @@ LIMIT ?
 
         // Build parameter array: symbols twice (for two IN clauses) + other params
         $params = array_merge(
-            [$assetType],           // asset_type (first occurrence)
+            [],           // asset_type (first occurrence)
             $symbols,               // symbols (first IN clause)
             [$asOfTsEst],          // as_of (first occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
             [$activeWindow],       // active_window (now configurable)
-            [$assetType],          // asset_type (second occurrence)
+            [],          // asset_type (second occurrence)
             $symbols,              // symbols (second IN clause)
             [$asOfTsEst],          // as_of (second occurrence)
             [$asOfTsEst],          // as_of for DATE_SUB
@@ -231,20 +205,22 @@ LIMIT ?
 
             $out[] = [
                 'symbol' => (string) $r->symbol,
-                'asset_type' => (string) $r->asset_type,
+                'asset_type' => 'stock',
                 'signal_type' => 'MOMO_5M',
                 'signal_ts_est' => (string) $r->signal_ts_est,
                 'score' => round($score, 3),
+                'atr' => null,
+                'atr_pct' => 0.0,
                 'meta' => [
-                    'move_pct' => round($stockMovePct, 3),
-                    'vol_ratio' => round((float) $r->vol_ratio, 3),
-                    'last_close' => (float) $r->last_close,
-                    'prev_close' => (float) $r->prev_close,
-                    'pct_7d' => $pct7d !== null ? round($pct7d, 2) : null, // 7-day performance
-                    'spy_move_pct' => round($spyMovePct, 3), // v12.0: SPY comparison
-                    'relative_strength' => $spyMovePct > 0 ? round($stockMovePct / $spyMovePct, 2) : null, // v12.0: RS ratio
-                    'universe_filtered' => true, // Indicates top performer filtering was used
-                    'universe_size' => count($symbols), // How many symbols in filtered universe
+                    'move_30m_pct' => round($stockMovePct, 3),
+                    'rvol_5m' => round((float) $r->vol_ratio, 3),
+                    'atr_pct_5m' => 0.0,
+                    'notional_last5m' => 0.0,
+                    'spy_move_30m_pct' => round($spyMovePct, 3),
+                    'universe_size' => count($symbols),
+                    'signal_age_seconds' => 0,
+                    'version' => $this->version,
+                    'current_price' => (float) $r->last_close,
                 ],
             ];
         }
@@ -260,18 +236,18 @@ LIMIT ?
         $benchmarkSymbol = config('trading.market_benchmark_symbol', 'QQQM');
         $nback = max(2, (int) floor($lookbackMinutes / 5));
 
-        $sql = "
+        $sql = '
             SELECT 
                 price AS last_close,
                 LAG(price, ?) OVER (ORDER BY ts_est) AS prev_close
             FROM five_minute_prices
             WHERE symbol = ?
-                AND asset_type = 'stock'
+
                 AND ts_est <= ?
                 AND ts_est >= DATE_SUB(?, INTERVAL ? MINUTE)
             ORDER BY ts_est DESC
             LIMIT 1
-        ";
+        ';
 
         $result = DB::selectOne($sql, [$nback, $benchmarkSymbol, $asOfTsEst, $asOfTsEst, $lookbackMinutes]);
 
