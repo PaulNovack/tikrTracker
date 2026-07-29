@@ -25,52 +25,51 @@ class BarEventConsumer
         $this->ensureGroup($group, $client);
 
         while (true) {
-            $error = false;
-            $messages = $client->executeRaw([
-                'XREADGROUP', 'GROUP', $group, $consumer,
-                'COUNT', $batchSize,
-                'BLOCK', 5000,
-                'STREAMS', self::STREAM_KEY, '>',
-            ], $error);
+            try {
+                $error = false;
+                $messages = $client->executeRaw([
+                    'XREADGROUP', 'GROUP', $group, $consumer,
+                    'COUNT', $batchSize,
+                    'BLOCK', 5000,
+                    'STREAMS', self::STREAM_KEY, '>',
+                ], $error);
 
-            if ($error || empty($messages)) {
-                continue;
-            }
-
-            foreach ($messages as $streamEntry) {
-                if (! is_array($streamEntry) || count($streamEntry) < 2) {
-                    continue;
-                }
-                [, $entries] = $streamEntry;
-                if (! is_array($entries)) {
+                if ($error || empty($messages)) {
                     continue;
                 }
 
-                foreach ($entries as $entry) {
-                    $id = $entry[0] ?? null;
-                    $rawFields = $entry[1] ?? [];
-                    if ($id === null) {
+                foreach ($messages as $streamEntry) {
+                    if (! is_array($streamEntry) || count($streamEntry) < 2) {
+                        continue;
+                    }
+                    [, $entries] = $streamEntry;
+                    if (! is_array($entries)) {
                         continue;
                     }
 
-                    $fields = [];
-                    $rawCount = count($rawFields);
-                    for ($i = 0; $i + 1 < $rawCount; $i += 2) {
-                        $fields[$rawFields[$i]] = $rawFields[$i + 1];
-                    }
+                    foreach ($entries as $entry) {
+                        $id = $entry[0] ?? null;
+                        $rawFields = $entry[1] ?? [];
+                        if ($id === null) {
+                            continue;
+                        }
 
-                    try {
+                        $fields = [];
+                        $rawCount = count($rawFields);
+                        for ($i = 0; $i + 1 < $rawCount; $i += 2) {
+                            $fields[$rawFields[$i]] = $rawFields[$i + 1];
+                        }
+
                         $this->handleMessage($id, $fields);
-                    } catch (\Throwable $e) {
-                        \Log::channel('bar-events')->error('[BarConsumer] Message handling failed', [
-                            'id' => $id,
-                            'symbol' => $fields['symbol'] ?? 'unknown',
-                            'type' => $fields['type'] ?? 'unknown',
-                            'error' => $e->getMessage(),
-                        ]);
+                        Redis::xack(self::STREAM_KEY, $group, $id);
                     }
-                    Redis::xack(self::STREAM_KEY, $group, $id);
                 }
+            } catch (\Throwable $e) {
+                \Log::channel('bar-events')->error('[BarConsumer] Connection error, reconnecting in 1s', [
+                    'error' => $e->getMessage(),
+                ]);
+                sleep(1);
+                $client = Redis::connection()->client();
             }
         }
     }
