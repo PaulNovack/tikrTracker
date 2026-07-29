@@ -57,9 +57,6 @@ class EvaluateBarJob implements ShouldQueue
      */
     private function process5m(): void
     {
-        $passedCount = 0;
-        $totalVersions = count($this->versions);
-
         foreach ($this->versions as $version) {
             if (! $this->passesGates($version['gates_5m'] ?? [])) {
                 continue;
@@ -95,24 +92,6 @@ class EvaluateBarJob implements ShouldQueue
                 120,
                 json_encode($candidate, JSON_THROW_ON_ERROR)
             );
-
-            $passedCount++;
-
-            \Log::channel('redis-scan')->info('[EvaluateBarJob] 5m passed', [
-                'symbol' => $this->symbol,
-                'version' => $version['pipeline_letter'],
-                'version_str' => $version['version_string'],
-                'score' => round($score, 2),
-            ]);
-        }
-
-        if ($totalVersions > 0) {
-            \Log::channel('redis-scan')->info('[EvaluateBarJob] 5m scan complete', [
-                'symbol' => $this->symbol,
-                'passed' => $passedCount,
-                'total' => $totalVersions,
-                'ts_est' => $this->tsEst,
-            ]);
         }
     }
 
@@ -123,12 +102,6 @@ class EvaluateBarJob implements ShouldQueue
     private function process1m(): void
     {
         foreach ($this->versions as $version) {
-            // Skip disabled pipelines silently — no log spam
-            $pipelineLetter = $version['pipeline_letter'];
-            if (! \App\Services\TradingSettingService::isPipelineRunCronEnabled($pipelineLetter)) {
-                continue;
-            }
-
             $key = "rt:candidate:{$version['id']}:stock:{$this->symbol}";
             $candidateJson = Redis::get($key);
             if (! $candidateJson) {
@@ -150,26 +123,12 @@ class EvaluateBarJob implements ShouldQueue
 
             // Check 1m entry gates
             if (! $this->passesGates($version['gates_1m'] ?? [])) {
-                \Log::channel('redis-scan')->debug('[EvaluateBarJob] 1m gates failed', [
-                    'symbol' => $this->symbol,
-                    'version' => $version['pipeline_letter'],
-                    'ts_est' => $this->tsEst,
-                    'vstring' => $version['version_string'],
-                    'gates_sample' => array_slice($this->gates, 0, 12),
-                ]);
-
                 continue;
             }
 
             // Build entry from pre-computed gate values (Redis-only, no legacy finder)
             $entry = $this->buildEntry($candidate, $version);
             if ($entry === null) {
-                \Log::channel('redis-scan')->debug('[EvaluateBarJob] buildEntry returned null', [
-                    'symbol' => $this->symbol,
-                    'version' => $version['pipeline_letter'],
-                    'ts_est' => $this->tsEst,
-                ]);
-
                 continue;
             }
 
@@ -192,14 +151,6 @@ class EvaluateBarJob implements ShouldQueue
                 pipelineRun: $candidate['pipeline_letter'],
                 isRealtime: true,
             );
-
-            \Log::channel('redis-scan')->info('[EvaluateBarJob] Alert written', [
-                'symbol' => $this->symbol,
-                'version' => $version['pipeline_letter'],
-                'alert_id' => $alertId,
-                'ts_est' => $this->tsEst,
-                'entry_type' => $entry['entry_type'] ?? 'unknown',
-            ]);
         }
     }
 
@@ -300,7 +251,6 @@ class EvaluateBarJob implements ShouldQueue
             // whitespace
             if ($c === ' ' || $c === "\t") {
                 $i++;
-
                 continue;
             }
 
@@ -312,7 +262,6 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'number', 'value' => (float) $num];
-
                 continue;
             }
 
@@ -324,26 +273,18 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'identifier', 'value' => $id];
-
                 continue;
             }
 
             // operators and punctuation
             switch ($c) {
-                case '+': $tokens[] = ['type' => 'op', 'value' => '+'];
-                    break;
-                case '-': $tokens[] = ['type' => 'op', 'value' => '-'];
-                    break;
-                case '*': $tokens[] = ['type' => 'op', 'value' => '*'];
-                    break;
-                case '/': $tokens[] = ['type' => 'op', 'value' => '/'];
-                    break;
-                case '(': $tokens[] = ['type' => 'lparen'];
-                    break;
-                case ')': $tokens[] = ['type' => 'rparen'];
-                    break;
-                case ',': $tokens[] = ['type' => 'comma'];
-                    break;
+                case '+': $tokens[] = ['type' => 'op', 'value' => '+']; break;
+                case '-': $tokens[] = ['type' => 'op', 'value' => '-']; break;
+                case '*': $tokens[] = ['type' => 'op', 'value' => '*']; break;
+                case '/': $tokens[] = ['type' => 'op', 'value' => '/']; break;
+                case '(': $tokens[] = ['type' => 'lparen']; break;
+                case ')': $tokens[] = ['type' => 'rparen']; break;
+                case ',': $tokens[] = ['type' => 'comma']; break;
                 default:
                     // skip unexpected characters
                     break;
@@ -428,7 +369,6 @@ class EvaluateBarJob implements ShouldQueue
             if ($token['type'] === 'lparen') {
                 $result = $parseExpression();
                 $close = $advance(); // consume ')'
-
                 return $result;
             }
 
