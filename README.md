@@ -1,3 +1,6 @@
+This branch is in beta early development requires a lot of changes to be complete
+
+
 # TikrTracker
 
 TikrTracker is an automated algorithmic stock trading and analysis platform built with **Laravel 12**, **React 19 / Inertia v2**, and **Tailwind CSS v4**. It integrates with the **Alpaca Markets API** for live  trading and provides a comprehensive suite of market data pipelines, backtesting engines, ML-based signal scoring, and real-time dashboards.
