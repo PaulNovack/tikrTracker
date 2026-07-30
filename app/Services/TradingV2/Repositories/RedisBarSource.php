@@ -6,10 +6,15 @@ use App\Services\TradingV2\Contracts\BarSourceInterface;
 
 /**
  * Reads bars from rt:bars:* sorted sets (Redis).
- * Used for live/realtime path — zero MySQL.
+ * Falls back to MySQL when Redis data is stale or missing.
  */
 class RedisBarSource implements BarSourceInterface
 {
+    /**
+     * Fallback MySQL bar source for when Redis data is stale or missing.
+     * Lazily instantiated to avoid DB connections during normal Redis path.
+     */
+    private ?MySqlBarSource $mysqlFallback = null;
     /**
      * {@inheritDoc}
      */
@@ -40,7 +45,25 @@ class RedisBarSource implements BarSourceInterface
         $raw = \Illuminate\Support\Facades\Redis::connection('rt')->zrangebyscore($key, $minEpoch, $maxEpoch, ['limit' => [0, $limit]]);
 
         if (empty($raw)) {
-            return [];
+            \Log::channel('redis-scan')->warning('[RedisBarSource] Redis returned empty bars — falling back to MySQL', [
+                'timeframe' => $timeframe,
+                'symbol' => $symbol,
+                'redis_key' => $key,
+                'minEpoch' => $minEpoch,
+                'maxEpoch' => $maxEpoch,
+                'fromEst' => $fromTsEst,
+                'toEst' => $toTsEst,
+            ]);
+
+            $this->mysqlFallback ??= new MySqlBarSource;
+            $mysqlBars = $this->mysqlFallback->getBarsRange($timeframe, $symbol, $fromTsEst, $toTsEst, $limit);
+
+            \Log::channel('redis-scan')->info('[RedisBarSource] MySQL fallback result', [
+                'symbol' => $symbol,
+                'bars_found' => count($mysqlBars),
+            ]);
+
+            return $mysqlBars;
         }
 
         return array_map(function ($json) {
