@@ -75,6 +75,12 @@ class EvaluateBarJob implements ShouldQueue
                 continue;
             }
 
+            \Log::channel('redis-scan')->debug('[EvaluateBarJob] 5m candidate stored', [
+                'symbol' => $this->symbol,
+                'version' => $version['pipeline_letter'],
+                'score' => round($score, 2),
+            ]);
+
             $candidate = [
                 'symbol' => $this->symbol,
                 'signal_ts_est' => $this->tsEst,
@@ -123,12 +129,24 @@ class EvaluateBarJob implements ShouldQueue
 
             // Check 1m entry gates
             if (! $this->passesGates($version['gates_1m'] ?? [])) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] 1m gates failed', [
+                    'symbol' => $this->symbol,
+                    'version' => $version['pipeline_letter'],
+                    'ts_est' => $this->tsEst,
+                ]);
+
                 continue;
             }
 
             // Build entry from pre-computed gate values (Redis-only, no legacy finder)
             $entry = $this->buildEntry($candidate, $version);
             if ($entry === null) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] buildEntry returned null', [
+                    'symbol' => $this->symbol,
+                    'version' => $version['pipeline_letter'],
+                    'ts_est' => $this->tsEst,
+                ]);
+
                 continue;
             }
 
@@ -183,10 +201,22 @@ class EvaluateBarJob implements ShouldQueue
             }
 
             // Range gate
-            if ($min !== null && $value < $min) {
+            if ($min !== null && $value < (float) $min) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate below min', [
+                    'gate' => $gate,
+                    'value' => $value,
+                    'min' => $min,
+                ]);
+
                 return false;
             }
-            if ($max !== null && $value > $max) {
+            if ($max !== null && $value > (float) $max) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate above max', [
+                    'gate' => $gate,
+                    'value' => $value,
+                    'max' => $max,
+                ]);
+
                 return false;
             }
         }

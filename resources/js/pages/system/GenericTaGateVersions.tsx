@@ -26,7 +26,7 @@ const ALL_5M_GATES = [
     'pullback_depth_pct', 'directional_changes_max', 'distance_from_high_atr',
     'higher_low_count', 'closes_near_high_count', 'vwap_violation_count',
     'range_contraction', 'market_weakness', 'benchmark_below_vwap',
-    'rsi', 'entry_score_min', 'entry_score_min', 'entry_score_max',
+    'rsi', 'entry_score_min', 'entry_score_max',
     'opening_range_width_pct', 'opening_range_bar_count', 'breakout_detected',
     'net_progress_pct', 'move_from_open_pct', 'dist_to_hod_pct',
     'distance_from_ema9_atr', 'vwap_distance_min', 'sum_vol_5m',
