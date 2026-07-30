@@ -98,8 +98,9 @@ services:
       --collation-server=utf8mb4_0900_ai_ci
       --default-time-zone=+00:00
       --innodb-buffer-pool-size=512M
-      --tmp-table-size=536870912
-      --max-heap-table-size=536870912
+      --tmp_table_size=536870912
+      --max_heap_table_size=536870912
+      --tmpdir=/tmp
     volumes:
       # Persistent MySQL data volume
       - mysql-data:/var/lib/mysql

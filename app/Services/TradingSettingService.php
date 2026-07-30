@@ -171,14 +171,8 @@ class TradingSettingService
         $dbKey = "trading.pipeline_{$pipeline}.ml_threshold";
 
         $dbValue = self::getRaw($dbKey);
-        if ($dbValue !== null) {
-            return (float) $dbValue;
-        }
 
-        $configKey = "trading.auto_alpaca_orders.ml_threshold_pipeline_{$pipeline}";
-        $configValue = config($configKey);
-
-        return $configValue !== null ? (float) $configValue : null;
+        return $dbValue !== null ? (float) $dbValue : null;
     }
 
     public static function getPipelineMlThresholdOverride(string $pipeline): ?float
