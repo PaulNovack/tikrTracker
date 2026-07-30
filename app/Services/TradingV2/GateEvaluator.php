@@ -216,6 +216,18 @@ class GateEvaluator
 
             // ── EMA Alignment (incremental, matches V1) ──
             'ema9_above_ema21_1m' => (int) ($last['ema9'] > $last['ema21']),
+            'ema9' => round($last['ema9'], 4),
+            'ema21' => round($last['ema21'], 4),
+            'ema_spread_pct' => $last['ema21'] != 0 ? round((($last['ema9'] - $last['ema21']) / $last['ema21']) * 100, 4) : 0,
+
+            // ── RSI-14 (matches V1 formula) ──
+            'rsi' => round($this->computeRsi($bars, 14), 2),
+
+            // ── Session high ──
+            'hod' => round($hod, 2),
+
+            // ── Notional ──
+            'notional' => round($close * $last['volume'], 2),
 
             // ── Time / Data Quality ──
             'min_bars' => $count,

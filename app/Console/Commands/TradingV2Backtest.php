@@ -265,6 +265,11 @@ class TradingV2Backtest extends Command
                         $roomToHodPct = $g1m->get('room_to_hod_pct') ?? 0;
 
                         $entryType = $classifier->classify($g1m->toArray());
+
+                        // Grab ALL 1m gate values to populate ML feature columns
+                        // that TradeAlertWriterV1 maps from $entry into trade_alerts
+                        $g1mVals = $g1m->toArray();
+
                         $entryData = [
                             'entry_price' => round($price, 2),
                             'stop_loss' => round($stopPrice, 2),
@@ -288,6 +293,22 @@ class TradingV2Backtest extends Command
                             'vol_ratio' => round($volRatio, 2),
                             'above_vwap_pct' => round($aboveVwapPct, 3),
                             'room_to_run_pct' => round($roomToHodPct, 3),
+                            // --- ML feature fields (map GateEvaluator names to entry field names) ---
+                            'room_to_hod_pct' => $g1mVals['room_to_hod_pct'] ?? null,
+                            'above_vwap_entry_pct' => $g1mVals['above_vwap_entry_pct'] ?? null,
+                            'entry_body_pct' => $g1mVals['body_pct'] ?? null,
+                            'entry_close_position' => $g1mVals['close_position'] ?? null,
+                            'entry_volume_ratio' => $g1mVals['vol_ratio_1m'] ?? null,
+                            'entry_notional_1m' => $g1mVals['notional_1m'] ?? null,
+                            'rsi' => $g1mVals['rsi'] ?? null,
+                            // 5m choppiness fields (from the 5m gates)
+                            'five_min_directional_changes' => $g5m->get('directional_changes'),
+                            'five_min_green_bar_pct' => $g5m->get('green_bar_pct'),
+                            'five_min_net_progress' => $g5m->get('net_progress_pct'),
+                            'consolidation_bars' => $g5m->get('consolidation_bars'),
+                            'breakout_volume_ratio' => $g5m->get('breakout_volume_ratio'),
+                            // Entry score sub-components (matches V1 computeEntryScoreComponents)
+                            ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g1mVals, ['ts_est' => $tsEst])),
                         ];
                     }
 
@@ -307,7 +328,10 @@ class TradingV2Backtest extends Command
                                 'score' => $c['score'],
                                 'atr' => $entryData['atr'] ?? $g1m->get('atr') ?? 0,
                                 'atr_pct' => $entryData['atr_pct'] ?? $g1m->get('atr_pct') ?? 0,
-                                'meta' => $g1m->toArray(),
+                                'meta' => array_merge(
+                                    $g5m->toArray(),
+                                    $g1m->toArray(),
+                                ),
                             ],
                             entry: array_merge($entryData, ['query_source' => 'v2-backtest']),
                             asOfTsEst: $tsEst,

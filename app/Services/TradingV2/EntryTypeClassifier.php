@@ -140,4 +140,91 @@ class EntryTypeClassifier
 
         return null;
     }
+
+    // ══════════════════════════════════════════════════════════
+    // ENTRY SCORE COMPONENTS (matches V1 computeEntryScoreComponents)
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Compute all six entry sub-score components from gate values.
+     *
+     * Matches the V1 OneMinuteEntryFinderV27_0::computeEntryScoreComponents()
+     * which feeds into the trade_alerts ML feature columns:
+     *
+     *   entry_spread_strength  — EMA9/EMA21 spread quality  (0-1)
+     *   entry_vwap_dist_score  — VWAP distance sweet spot   (0-1)
+     *   entry_atr_score        — ATR% sweet spot            (0-1)
+     *   entry_vol_score        — Volume ratio quality        (0-1)
+     *   entry_candle_score     — Candle body quality         (0-1)
+     *   entry_time_bonus       — Early-entry bonus           (0-10)
+     *
+     * @param  array<string, float|int|null>  $g  Gate values (1m eval output)
+     * @return array{entry_spread_strength:float,entry_vwap_dist_score:float,entry_atr_score:float,
+     *               entry_vol_score:float,entry_candle_score:float,entry_time_bonus:float}
+     */
+    public static function computeScoreComponents(array $g): array
+    {
+        $price = (float) ($g['price'] ?? 0);
+        if ($price <= 0) {
+            return [
+                'entry_spread_strength' => 0.0,
+                'entry_vwap_dist_score' => 0.0,
+                'entry_atr_score' => 0.0,
+                'entry_vol_score' => 0.0,
+                'entry_candle_score' => 0.0,
+                'entry_time_bonus' => 0.0,
+            ];
+        }
+
+        // EMA9/EMA21 spread (trend quality) — from 1m incremental EMA
+        $emaF = (float) ($g['ema9'] ?? 0);
+        $emaS = (float) ($g['ema21'] ?? 0);
+        $spreadRaw = ($emaS > 0) ? ($emaF - $emaS) / $emaS : 0;
+        $spreadStrength = max(0, min(1, ($spreadRaw - 0.0005) / (0.0030 - 0.0005)));
+
+        // VWAP distance (sweet spot 0.05%–0.30% above)
+        $vwapDist = (float) ($g['above_vwap_entry_pct'] ?? 0);
+        $vwapDistRaw = abs($vwapDist) / 100.0;
+        $vwapDistScore = max(0, 1 - ($vwapDistRaw / 0.0030));
+
+        // ATR% at entry (sweet spot 0.08%–0.50%)
+        $atrPct = (float) ($g['atr_pct'] ?? 0);
+        $atrScore = max(0, min(1, ($atrPct - 0.08) / (0.20 - 0.08)))
+            * (1 - max(0, min(1, ($atrPct - 0.50) / (1.50 - 0.50))));
+
+        // Volume ratio (sweet spot 0.8–2.5x)
+        $volRatio = (float) ($g['vol_ratio_1m'] ?? $g['rvol_ratio'] ?? 0);
+        $volScore = max(0, min(1, ($volRatio - 0.8) / (2.5 - 0.8)));
+
+        // Candle body quality (sweet spot 0.05%–0.30% body/open)
+        $bodyPctRaw = (float) ($g['body_pct'] ?? 0);
+        $candleScore = max(0, min(1, ($bodyPctRaw - 0.05) / (0.30 - 0.05)));
+
+        // Upper wick penalty
+        $upperWickFrac = (float) ($g['upper_wick_fraction'] ?? 0);
+        if ($upperWickFrac > 0.50) {
+            $candleScore *= 0.6;
+        }
+
+        // Time bonus (prefer early entries)
+        $timeBonus = 0;
+        $ts = (string) ($g['ts_est'] ?? '');
+        if ($ts !== '') {
+            $hour = (int) substr($ts, 11, 2);
+            if ($hour >= 9 && $hour < 10) {
+                $timeBonus = 10;
+            } elseif ($hour >= 10 && $hour < 11) {
+                $timeBonus = 5;
+            }
+        }
+
+        return [
+            'entry_spread_strength' => round($spreadStrength, 6),
+            'entry_vwap_dist_score' => round($vwapDistScore, 6),
+            'entry_atr_score' => round($atrScore, 6),
+            'entry_vol_score' => round($volScore, 6),
+            'entry_candle_score' => round($candleScore, 6),
+            'entry_time_bonus' => $timeBonus,
+        ];
+    }
 }

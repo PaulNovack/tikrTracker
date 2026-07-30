@@ -281,6 +281,7 @@ class EvaluateBarJob implements ShouldQueue
             // whitespace
             if ($c === ' ' || $c === "\t") {
                 $i++;
+
                 continue;
             }
 
@@ -292,6 +293,7 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'number', 'value' => (float) $num];
+
                 continue;
             }
 
@@ -303,18 +305,26 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'identifier', 'value' => $id];
+
                 continue;
             }
 
             // operators and punctuation
             switch ($c) {
-                case '+': $tokens[] = ['type' => 'op', 'value' => '+']; break;
-                case '-': $tokens[] = ['type' => 'op', 'value' => '-']; break;
-                case '*': $tokens[] = ['type' => 'op', 'value' => '*']; break;
-                case '/': $tokens[] = ['type' => 'op', 'value' => '/']; break;
-                case '(': $tokens[] = ['type' => 'lparen']; break;
-                case ')': $tokens[] = ['type' => 'rparen']; break;
-                case ',': $tokens[] = ['type' => 'comma']; break;
+                case '+': $tokens[] = ['type' => 'op', 'value' => '+'];
+                    break;
+                case '-': $tokens[] = ['type' => 'op', 'value' => '-'];
+                    break;
+                case '*': $tokens[] = ['type' => 'op', 'value' => '*'];
+                    break;
+                case '/': $tokens[] = ['type' => 'op', 'value' => '/'];
+                    break;
+                case '(': $tokens[] = ['type' => 'lparen'];
+                    break;
+                case ')': $tokens[] = ['type' => 'rparen'];
+                    break;
+                case ',': $tokens[] = ['type' => 'comma'];
+                    break;
                 default:
                     // skip unexpected characters
                     break;
@@ -399,6 +409,7 @@ class EvaluateBarJob implements ShouldQueue
             if ($token['type'] === 'lparen') {
                 $result = $parseExpression();
                 $close = $advance(); // consume ')'
+
                 return $result;
             }
 
@@ -542,9 +553,31 @@ class EvaluateBarJob implements ShouldQueue
             'vol_ratio' => round($volRatio, 2),
             'above_vwap_pct' => round($aboveVwapPct, 3),
             'room_to_run_pct' => round($room, 3),
+
+            // ── ML feature fields (map GateEvaluator gate names → entry field names) ──
+            // Room-to-run
+            'room_to_hod_pct' => $g['room_to_hod_pct'] ?? null,
+            'room_to_hod_atr' => $g['room_to_hod_atr'] ?? null,
+            // VWAP entry distance
+            'above_vwap_entry_pct' => $g['above_vwap_entry_pct'] ?? null,
+            // Entry quality
+            'rsi' => $g['rsi'] ?? null,
+            'entry_body_pct' => $g['body_pct'] ?? null,
+            'entry_close_position' => $g['close_position'] ?? null,
+            'entry_volume_ratio' => $g['vol_ratio_1m'] ?? null,
+            'entry_notional_1m' => $g['notional_1m'] ?? null,
+            // 5m choppiness / quality (from 5m evaluation gates stored in candidate)
+            'five_min_directional_changes' => $candidate['gates']['directional_changes'] ?? null,
+            'five_min_green_bar_pct' => $candidate['gates']['green_bar_pct'] ?? null,
+            'five_min_net_progress' => $candidate['gates']['net_progress_pct'] ?? null,
+            'consolidation_bars' => $candidate['gates']['consolidation_bars'] ?? null,
+            'breakout_volume_ratio' => $candidate['gates']['breakout_volume_ratio'] ?? null,
+            // Entry score sub-components (matches V1 computeEntryScoreComponents)
+            ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g, ['ts_est' => $this->tsEst])),
+
             // Additional
             'query_source' => 'redis',
-            'entry_meta' => $g,
+            'meta' => $g,
         ];
     }
 }
