@@ -640,7 +640,7 @@ class BarBufferService:
         """
         try:
             r = cls._get_redis()
-            prefix = os.environ.get("REDIS_PREFIX", "tikrtracker-database-")
+            prefix = os.environ.get("REDIS_PREFIX", "")
             pipe = r.pipeline(transaction=False)
             for bar in batch:
                 key = f"{prefix}stream:bar:{bar['symbol']}"
@@ -671,7 +671,7 @@ class BarBufferService:
                     if ts_str:
                         ts_epoch = int(datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
                         date_str = datetime.fromtimestamp(ts_epoch, tz=_EST).strftime("%Y%m%d")
-                        bar_key = f"{prefix}rt:bars:1m:{date_str}:stock:{bar["symbol"].upper()}"
+                        bar_key = f"rt:bars:1m:{date_str}:stock:{bar["symbol"].upper()}"
                         payload = {"ts": ts_epoch, "ts_est": bar.get("ts_est", ts_str), "symbol": bar["symbol"].upper(), "open": round(float(bar.get("open", bar["price"])), 4), "high": round(float(bar.get("high", bar["price"])), 4), "low": round(float(bar.get("low", bar["price"])), 4), "close": round(float(bar["price"]), 4), "volume": int(bar.get("volume", 0) or 0), "vwap": round(float(bar.get("vwap", bar["price"])), 4), "is_final": True, "source": "alpaca_stream"}
                         payload_json = json.dumps(payload)
                         pipe.zremrangebyscore(bar_key, ts_epoch, ts_epoch)
