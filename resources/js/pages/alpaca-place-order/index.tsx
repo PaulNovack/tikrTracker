@@ -280,6 +280,18 @@ const csrfToken = (): string =>
                         </div>
                     </div>
 
+                    <div>
+                        <label className="mb-1 block text-sm font-medium">Notes (optional)</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            rows={3}
+                            className="w-full rounded-md border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
+                            placeholder="Why are you entering this trade?"
+                            maxLength={5000}
+                        />
+                    </div>
+
                     <div className="flex gap-3 pt-2">
                         <button
                             type="submit"

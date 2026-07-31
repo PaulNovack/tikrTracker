@@ -70,6 +70,9 @@ launch_job "Hybrid Big-Move Breakout" "C-$(date +%Y-%m-%d_%H).log" \
 
 # B — Elite Multi-Day Momentum
 # Queries DB for the earliest analyzed B alert to auto-determine start date.
+# Precompute the model path OUTSIDE the bash -c subshell so the nested
+# command substitution with escaped quotes can't collapse to an empty string.
+MODEL_OUT_B="$(get_pipeline_model_path "B" "python_ml/v2/models/winner_model_pipeline_b.joblib")"
 launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
     MYSQL_CMD=\$(get_mysql_cmd)
     DEFAULT_START_DATE=\$(\$MYSQL_CMD -e \"
@@ -84,7 +87,7 @@ launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
         --pipeline B --win-threshold 2.0 --actual-fill-weight 20.0 \
         --eval-on-actual-only --start \"\$DEFAULT_START_DATE\" --end \"$TODAY\" \
         --test-size 0.2 --train-full \
-        --model-out \"$(get_pipeline_model_path \"B\" \"python_ml/v2/models/winner_model_pipeline_b.joblib\")\"
+        --model-out \"$MODEL_OUT_B\"
 "
 
 # E — Trend Continuation

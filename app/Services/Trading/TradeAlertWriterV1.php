@@ -700,6 +700,7 @@ class TradeAlertWriterV1
             'is_paper' => (bool) config('alpaca.paper_trading', true),
             'is_realtime' => $isRealtime,
             'blacklisted' => SymbolBlacklist::isBlacklisted($signal['symbol']),
+            'notes' => $entry['notes'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
         ];

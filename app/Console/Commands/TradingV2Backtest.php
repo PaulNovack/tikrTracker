@@ -25,6 +25,9 @@ class TradingV2Backtest extends Command
 
     public function handle(AlertVersionRepository $versionRepo): int
     {
+        // Clear any cached bars from a previous run so we always read fresh data.
+        MySqlBarSource::clearCache();
+
         $mysqlSource = new MySqlBarSource((bool) $this->option('fulltable'));
         $evaluator = new GateEvaluator($mysqlSource);
         $classifier = new EntryTypeClassifier;
@@ -36,7 +39,11 @@ class TradingV2Backtest extends Command
         $to = $this->option('to') ?: "{$today} 16:00:00";
         $step = (int) $this->option('step');
 
-        $versions = $versionRepo->getActiveDb();
+        // Use the cached version config when available (invalidated on every
+        // gate change via GenericTaGateVersionsController), falling back to a
+        // direct DB read if Redis is unavailable. This avoids a redundant
+        // MySQL query on each backtest run.
+        $versions = $versionRepo->getActive();
         if ($p = $this->option('pipeline')) {
             $versions = array_values(array_filter($versions, fn ($v) => $v['pipeline_letter'] === strtoupper($p)));
         }
@@ -329,6 +336,19 @@ class TradingV2Backtest extends Command
                                 'atr' => $entryData['atr'] ?? $g1m->get('atr') ?? 0,
                                 'atr_pct' => $entryData['atr_pct'] ?? $g1m->get('atr_pct') ?? 0,
                                 'meta' => array_merge(
+                                    // Map GateEvaluator 5m gate names to the field names
+                                    // TradeAlertWriterV1::upsertAlert() reads from signal meta
+                                    // for the ML feature columns (move_30m_pct, rvol_5m,
+                                    // atr_pct_5m, notional_last5m, spy_move_30m_pct, etc).
+                                    [
+                                        'move_30m_pct' => $g5m->get('move_30m_pct'),
+                                        'rvol_5m' => $g5m->get('rvol_ratio'),
+                                        'atr_pct_5m' => $g5m->get('atr_pct'),
+                                        'notional_last5m' => $g5m->get('notional'),
+                                        'pct_nd' => $g5m->get('pct_nd'),
+                                        'spy_move_30m_pct' => $g5m->get('benchmark_move_15m'),
+                                        'universe_size' => $g5m->get('universe_size'),
+                                    ],
                                     $g5m->toArray(),
                                     $g1m->toArray(),
                                 ),

@@ -53,12 +53,27 @@ class EvaluateBarJob implements ShouldQueue
     }
 
     /**
+     * Build a consistent log context array including symbol, pipeline, and timeframe.
+     */
+    private function logContext(array $version, string $event): array
+    {
+        return [
+            'event' => $event,
+            'symbol' => $this->symbol,
+            'ts_est' => $this->tsEst,
+            'timeframe' => $this->timeframe,
+            'pipeline' => $version['pipeline_letter'] ?? null,
+            'version' => $version['version_string'] ?? null,
+        ];
+    }
+
+    /**
      * 5m bar: check scanner gates, store candidates for passing versions.
      */
     private function process5m(): void
     {
         foreach ($this->versions as $version) {
-            if (! $this->passesGates($version['gates_5m'] ?? [])) {
+            if (! $this->passesGates($version['gates_5m'] ?? [], $version)) {
                 continue;
             }
 
@@ -75,9 +90,7 @@ class EvaluateBarJob implements ShouldQueue
                 continue;
             }
 
-            \Log::channel('redis-scan')->debug('[EvaluateBarJob] 5m candidate stored', [
-                'symbol' => $this->symbol,
-                'version' => $version['pipeline_letter'],
+            \Log::channel('redis-scan')->debug('[EvaluateBarJob] 5m candidate stored', $this->logContext($version, 'candidate_stored') + [
                 'score' => round($score, 2),
             ]);
 
@@ -128,12 +141,8 @@ class EvaluateBarJob implements ShouldQueue
             }
 
             // Check 1m entry gates
-            if (! $this->passesGates($version['gates_1m'] ?? [])) {
-                \Log::channel('redis-scan')->debug('[EvaluateBarJob] 1m gates failed', [
-                    'symbol' => $this->symbol,
-                    'version' => $version['pipeline_letter'],
-                    'ts_est' => $this->tsEst,
-                ]);
+            if (! $this->passesGates($version['gates_1m'] ?? [], $version)) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] 1m gates failed', $this->logContext($version, 'gates_1m_failed'));
 
                 continue;
             }
@@ -152,6 +161,7 @@ class EvaluateBarJob implements ShouldQueue
 
             // Write alert via TradeAlertWriterV1 (existing, well-tested code)
             $writer = app(\App\Services\Trading\TradeAlertWriterV1::class);
+            $candidateGates = $candidate['gates'] ?? [];
             $alertId = $writer->upsertAlert(
                 signal: [
                     'symbol' => $this->symbol,
@@ -161,7 +171,21 @@ class EvaluateBarJob implements ShouldQueue
                     'score' => $candidate['score'],
                     'atr' => $candidate['atr'],
                     'atr_pct' => $candidate['atr_pct'],
-                    'meta' => $candidate['gates'] ?? [],
+                    // Map GateEvaluator 5m gate names to the field names that
+                    // TradeAlertWriterV1::upsertAlert() reads from signal meta
+                    // for the ML feature columns.
+                    'meta' => array_merge(
+                        [
+                            'move_30m_pct' => $candidateGates['move_30m_pct'] ?? null,
+                            'rvol_5m' => $candidateGates['rvol_ratio'] ?? null,
+                            'atr_pct_5m' => $candidateGates['atr_pct'] ?? null,
+                            'notional_last5m' => $candidateGates['notional'] ?? null,
+                            'pct_nd' => $candidateGates['pct_nd'] ?? null,
+                            'spy_move_30m_pct' => $candidateGates['benchmark_move_15m'] ?? null,
+                            'universe_size' => $candidateGates['universe_size'] ?? null,
+                        ],
+                        $candidateGates,
+                    ),
                 ],
                 entry: $entry,
                 asOfTsEst: $this->tsEst,
@@ -180,7 +204,7 @@ class EvaluateBarJob implements ShouldQueue
      * - If max is set: value must be <= max
      * - If both null: boolean check (value must be truthy)
      */
-    private function passesGates(array $thresholds): bool
+    private function passesGates(array $thresholds, array $version = []): bool
     {
         foreach ($thresholds as $gate => $cfg) {
             $value = $this->gates[$gate] ?? null;
@@ -194,6 +218,11 @@ class EvaluateBarJob implements ShouldQueue
             // Boolean gate: both null means "must be truthy"
             if ($min === null && $max === null) {
                 if (! $value) {
+                    \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate bool false', $this->logContext($version, 'gate_bool_false') + [
+                        'gate' => $gate,
+                        'value' => $value,
+                    ]);
+
                     return false;
                 }
 
@@ -202,7 +231,7 @@ class EvaluateBarJob implements ShouldQueue
 
             // Range gate
             if ($min !== null && $value < (float) $min) {
-                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate below min', [
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate below min', $this->logContext($version, 'gate_below_min') + [
                     'gate' => $gate,
                     'value' => $value,
                     'min' => $min,
@@ -211,7 +240,7 @@ class EvaluateBarJob implements ShouldQueue
                 return false;
             }
             if ($max !== null && $value > (float) $max) {
-                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate above max', [
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate above max', $this->logContext($version, 'gate_above_max') + [
                     'gate' => $gate,
                     'value' => $value,
                     'max' => $max,
