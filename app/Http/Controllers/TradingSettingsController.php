@@ -17,11 +17,13 @@ use Inertia\Response;
 
 class TradingSettingsController extends Controller
 {
-    /** @var list<string> */
-    private const PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'x', 'manual', 'external'];
-
-    /** @var list<string> */
-    private const MAX_AGE_PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'manual', 'external'];
+    /**
+     * @return list<string>
+     */
+    private function getPipelineLetters(): array
+    {
+        return TradingSettingService::getActivePipelineLetters();
+    }
 
     /**
      * Show the trading settings page.
@@ -100,7 +102,7 @@ class TradingSettingsController extends Controller
                 'max_pct_below_high' => TradingSettingService::getBenchmarkMaxPctBelowHigh(),
                 'pipeline_overrides' => TradingSettingService::getAllPipelineBenchmarkVwapGateOverrides(),
             ],
-            'pipelines' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
+            'pipelines' => collect($this->getPipelineLetters())->mapWithKeys(fn ($p) => [
                 $p => [
                     'run_cron' => TradingSettingService::isPipelineRunCronEnabled($p),
                     'live_rescore_enabled' => TradingSettingService::getPipelineLiveRescoreOverride($p),
@@ -113,10 +115,10 @@ class TradingSettingsController extends Controller
             'pipelineMinAuc' => TradingSettingService::getMinAuc(),
             'pipelineMinPrecisionAtK' => TradingSettingService::getMinPrecisionAt10(),
             'pipelineMinAvgPnl' => TradingSettingService::getMinAvgPnl(),
-            'maxAgeSettings' => collect(self::MAX_AGE_PIPELINES)->mapWithKeys(fn ($p) => [
+            'maxAgeSettings' => collect($this->getPipelineLetters())->mapWithKeys(fn ($p) => [
                 $p => TradingSettingService::getPipelineMaxAgeMinutes($p),
             ])->all(),
-            'mlThresholds' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
+            'mlThresholds' => collect($this->getPipelineLetters())->mapWithKeys(fn ($p) => [
                 $p => TradingSettingService::getPipelineMlThreshold($p),
             ])->all(),
             'timeSlots' => TradingSettingService::getTimeSlots(),
@@ -463,7 +465,7 @@ class TradingSettingsController extends Controller
         $pipelineChanges = [];
 
         foreach ($validated['pipelines'] as $pipeline => $pipelineSettings) {
-            if (! in_array($pipeline, self::PIPELINES, strict: true)) {
+            if (! in_array($pipeline, $this->getPipelineLetters(), strict: true)) {
                 continue;
             }
 
@@ -586,7 +588,7 @@ class TradingSettingsController extends Controller
         $changes = [];
 
         foreach ($validated['ml_thresholds'] as $pipeline => $threshold) {
-            if (! in_array($pipeline, self::PIPELINES, strict: true)) {
+            if (! in_array($pipeline, $this->getPipelineLetters(), strict: true)) {
                 continue;
             }
 
@@ -624,7 +626,7 @@ class TradingSettingsController extends Controller
         $changes = [];
 
         foreach ($validated['max_age_minutes'] as $pipeline => $maxAgeMinutes) {
-            if (! in_array($pipeline, self::MAX_AGE_PIPELINES, strict: true)) {
+            if (! in_array($pipeline, $this->getPipelineLetters(), strict: true)) {
                 continue;
             }
 

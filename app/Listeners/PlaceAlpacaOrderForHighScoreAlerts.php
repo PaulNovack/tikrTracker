@@ -1015,12 +1015,13 @@ class PlaceAlpacaOrderForHighScoreAlerts
                     'stop_price' => $stopPrice, // Store initial stop for trailing stop logic
                 ]);
 
-                // Update the alert's entry price and stop price with the current market price used for the order
+                // Update the alert's entry price, stop price, and position size with the actual values used for the order
                 DB::connection('mysql')->table($event->tableName)
                     ->where('id', $event->alertId)
                     ->update([
                         'entry' => $entry,
                         'stop' => $stopPrice,
+                        'calculated_position_size' => round($qty * $entry, 2),
                         'updated_at' => now(),
                     ]);
 

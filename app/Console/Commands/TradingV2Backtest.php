@@ -25,6 +25,9 @@ class TradingV2Backtest extends Command
 
     public function handle(AlertVersionRepository $versionRepo): int
     {
+        // Clear any cached bars from a previous run so we always read fresh data.
+        MySqlBarSource::clearCache();
+
         $mysqlSource = new MySqlBarSource((bool) $this->option('fulltable'));
         $evaluator = new GateEvaluator($mysqlSource);
         $classifier = new EntryTypeClassifier;
@@ -36,7 +39,11 @@ class TradingV2Backtest extends Command
         $to = $this->option('to') ?: "{$today} 16:00:00";
         $step = (int) $this->option('step');
 
-        $versions = $versionRepo->getActiveDb();
+        // Use the cached version config when available (invalidated on every
+        // gate change via GenericTaGateVersionsController), falling back to a
+        // direct DB read if Redis is unavailable. This avoids a redundant
+        // MySQL query on each backtest run.
+        $versions = $versionRepo->getActive();
         if ($p = $this->option('pipeline')) {
             $versions = array_values(array_filter($versions, fn ($v) => $v['pipeline_letter'] === strtoupper($p)));
         }
@@ -265,6 +272,11 @@ class TradingV2Backtest extends Command
                         $roomToHodPct = $g1m->get('room_to_hod_pct') ?? 0;
 
                         $entryType = $classifier->classify($g1m->toArray());
+
+                        // Grab ALL 1m gate values to populate ML feature columns
+                        // that TradeAlertWriterV1 maps from $entry into trade_alerts
+                        $g1mVals = $g1m->toArray();
+
                         $entryData = [
                             'entry_price' => round($price, 2),
                             'stop_loss' => round($stopPrice, 2),
@@ -288,6 +300,22 @@ class TradingV2Backtest extends Command
                             'vol_ratio' => round($volRatio, 2),
                             'above_vwap_pct' => round($aboveVwapPct, 3),
                             'room_to_run_pct' => round($roomToHodPct, 3),
+                            // --- ML feature fields (map GateEvaluator names to entry field names) ---
+                            'room_to_hod_pct' => $g1mVals['room_to_hod_pct'] ?? null,
+                            'above_vwap_entry_pct' => $g1mVals['above_vwap_entry_pct'] ?? null,
+                            'entry_body_pct' => $g1mVals['body_pct'] ?? null,
+                            'entry_close_position' => $g1mVals['close_position'] ?? null,
+                            'entry_volume_ratio' => $g1mVals['vol_ratio_1m'] ?? null,
+                            'entry_notional_1m' => $g1mVals['notional_1m'] ?? null,
+                            'rsi' => $g1mVals['rsi'] ?? null,
+                            // 5m choppiness fields (from the 5m gates)
+                            'five_min_directional_changes' => $g5m->get('directional_changes'),
+                            'five_min_green_bar_pct' => $g5m->get('green_bar_pct'),
+                            'five_min_net_progress' => $g5m->get('net_progress_pct'),
+                            'consolidation_bars' => $g5m->get('consolidation_bars'),
+                            'breakout_volume_ratio' => $g5m->get('breakout_volume_ratio'),
+                            // Entry score sub-components (matches V1 computeEntryScoreComponents)
+                            ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g1mVals, ['ts_est' => $tsEst])),
                         ];
                     }
 
@@ -307,7 +335,23 @@ class TradingV2Backtest extends Command
                                 'score' => $c['score'],
                                 'atr' => $entryData['atr'] ?? $g1m->get('atr') ?? 0,
                                 'atr_pct' => $entryData['atr_pct'] ?? $g1m->get('atr_pct') ?? 0,
-                                'meta' => $g1m->toArray(),
+                                'meta' => array_merge(
+                                    // Map GateEvaluator 5m gate names to the field names
+                                    // TradeAlertWriterV1::upsertAlert() reads from signal meta
+                                    // for the ML feature columns (move_30m_pct, rvol_5m,
+                                    // atr_pct_5m, notional_last5m, spy_move_30m_pct, etc).
+                                    [
+                                        'move_30m_pct' => $g5m->get('move_30m_pct'),
+                                        'rvol_5m' => $g5m->get('rvol_ratio'),
+                                        'atr_pct_5m' => $g5m->get('atr_pct'),
+                                        'notional_last5m' => $g5m->get('notional'),
+                                        'pct_nd' => $g5m->get('pct_nd'),
+                                        'spy_move_30m_pct' => $g5m->get('benchmark_move_15m'),
+                                        'universe_size' => $g5m->get('universe_size'),
+                                    ],
+                                    $g5m->toArray(),
+                                    $g1m->toArray(),
+                                ),
                             ],
                             entry: array_merge($entryData, ['query_source' => 'v2-backtest']),
                             asOfTsEst: $tsEst,

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Runtime-mutable trading settings backed by the `settings` DB table.
@@ -52,7 +53,34 @@ class TradingSettingService
     private const CACHE_TTL = 60;
 
     /** @var list<string> */
-    private const PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'x', 'manual', 'external'];
+    private const FALLBACK_PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'x', 'manual', 'external'];
+
+    /**
+     * Get all active pipeline letters from the alert_versions table.
+     * Falls back to the hardcoded list if the table is empty.
+     *
+     * @return list<string>
+     */
+    public static function getActivePipelineLetters(): array
+    {
+        $fromDb = DB::table('alert_versions')
+            ->distinct()
+            ->orderBy('pipeline_letter')
+            ->pluck('pipeline_letter')
+            ->map(fn (string $l) => strtolower($l))
+            ->values()
+            ->toArray();
+
+        if ($fromDb !== []) {
+            // Merge with any fallback pipelines not in the table
+            return array_values(array_unique([
+                ...$fromDb,
+                ...array_filter(self::FALLBACK_PIPELINES, fn (string $p) => ! in_array($p, $fromDb, true)),
+            ]));
+        }
+
+        return self::FALLBACK_PIPELINES;
+    }
 
     /** @var array<string, array{db_key: string, config_key: string, default: int}> */
     private const PIPELINE_MAX_AGE_SETTINGS = [
@@ -127,7 +155,7 @@ class TradingSettingService
     {
         $min = self::getGlobalMlThreshold();
 
-        foreach (self::PIPELINES as $pipeline) {
+        foreach (self::getActivePipelineLetters() as $pipeline) {
             $baseline = self::getPipelineMlThresholdBaseline($pipeline);
             if ($baseline !== null && $baseline < $min) {
                 $min = $baseline;
@@ -143,14 +171,8 @@ class TradingSettingService
         $dbKey = "trading.pipeline_{$pipeline}.ml_threshold";
 
         $dbValue = self::getRaw($dbKey);
-        if ($dbValue !== null) {
-            return (float) $dbValue;
-        }
 
-        $configKey = "trading.auto_alpaca_orders.ml_threshold_pipeline_{$pipeline}";
-        $configValue = config($configKey);
-
-        return $configValue !== null ? (float) $configValue : null;
+        return $dbValue !== null ? (float) $dbValue : null;
     }
 
     public static function getPipelineMlThresholdOverride(string $pipeline): ?float
@@ -184,7 +206,7 @@ class TradingSettingService
      */
     public static function getAllPipelineMlThresholds(): array
     {
-        return collect(self::PIPELINES)
+        return collect(self::getActivePipelineLetters())
             ->mapWithKeys(fn (string $pipeline) => [strtoupper($pipeline) => self::getPipelineMlThreshold($pipeline)])
             ->all();
     }
@@ -201,7 +223,7 @@ class TradingSettingService
      */
     public static function getAllPipelineAuc(): array
     {
-        return collect(self::PIPELINES)
+        return collect(self::getActivePipelineLetters())
             ->mapWithKeys(fn (string $p) => [$p => self::getPipelineAuc($p)])
             ->all();
     }
@@ -218,7 +240,7 @@ class TradingSettingService
      */
     public static function getAllPrecisionAtK(): array
     {
-        return collect(self::PIPELINES)
+        return collect(self::getActivePipelineLetters())
             ->mapWithKeys(fn (string $p) => [$p => self::getPrecisionAtK($p)])
             ->all();
     }
@@ -261,7 +283,7 @@ class TradingSettingService
      */
     public static function getAllPipelineMlUpdatedAt(): array
     {
-        return collect(self::PIPELINES)
+        return collect(self::getActivePipelineLetters())
             ->mapWithKeys(fn (string $p) => [$p => self::getPipelineMlUpdatedAt($p)])
             ->all();
     }
@@ -782,7 +804,7 @@ class TradingSettingService
      */
     public static function getAllPipelineDisplayNames(): array
     {
-        return collect(self::PIPELINES)
+        return collect(self::getActivePipelineLetters())
             ->mapWithKeys(fn (string $p) => [$p => self::getPipelineDisplayName($p)])
             ->all();
     }
@@ -1084,7 +1106,7 @@ class TradingSettingService
     }
 
     /** @var list<string> */
-    private const SLIPPAGE_PIPELINES = ['a', 'b', 'c', 'd', 'f', 'h', 'k', 'n', 'o'];
+    private const FALLBACK_SLIPPAGE_PIPELINES = ['a', 'b', 'c', 'd', 'f', 'h', 'k', 'n', 'o'];
 
     public static function getPipelineSlippageOverride(string $pipeline): ?float
     {
@@ -1107,7 +1129,11 @@ class TradingSettingService
      */
     public static function getAllPipelineSlippageOverrides(): array
     {
-        return collect(self::SLIPPAGE_PIPELINES)
+        $pipelines = self::getActivePipelineLetters();
+        // Only include pipelines that have slippage override support
+        $slippagePipelines = array_values(array_intersect($pipelines, self::FALLBACK_SLIPPAGE_PIPELINES));
+
+        return collect($slippagePipelines)
             ->mapWithKeys(fn (string $p) => [$p => self::getPipelineSlippageOverride($p)])
             ->all();
     }
@@ -1191,7 +1217,7 @@ class TradingSettingService
     }
 
     /** @var list<string> */
-    private const BENCHMARK_VWAP_PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'manual', 'external'];  // order must match self::PIPELINES
+    private const FALLBACK_BENCHMARK_VWAP_PIPELINES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 'manual', 'external'];
 
     public static function getPipelineBenchmarkVwapGateOverride(string $pipeline): ?bool
     {
@@ -1213,7 +1239,9 @@ class TradingSettingService
      */
     public static function getAllPipelineBenchmarkVwapGateOverrides(): array
     {
-        return collect(self::BENCHMARK_VWAP_PIPELINES)
+        $pipelines = self::getActivePipelineLetters();
+
+        return collect($pipelines)
             ->mapWithKeys(fn (string $p) => [$p => self::getPipelineBenchmarkVwapGateOverride($p)])
             ->all();
     }

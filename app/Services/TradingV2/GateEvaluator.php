@@ -69,6 +69,7 @@ class GateEvaluator
 
             // ── Momentum ──
             'move_30m_pct' => round($this->computeMove($bars, 6), 4),
+            'move_rvol_composite' => round($this->computeMove($bars, 6) * $this->computeRvol($bars, 20), 4),
             'move_from_open_pct' => round($this->computeMoveFromOpen($bars), 4),
             'net_progress_pct' => round($this->computeNetProgress($bars), 4),
             'three_bar_gain_pct' => round($this->computeThreeBarGain($bars), 4),
@@ -216,6 +217,18 @@ class GateEvaluator
 
             // ── EMA Alignment (incremental, matches V1) ──
             'ema9_above_ema21_1m' => (int) ($last['ema9'] > $last['ema21']),
+            'ema9' => round($last['ema9'], 4),
+            'ema21' => round($last['ema21'], 4),
+            'ema_spread_pct' => $last['ema21'] != 0 ? round((($last['ema9'] - $last['ema21']) / $last['ema21']) * 100, 4) : 0,
+
+            // ── RSI-14 (matches V1 formula) ──
+            'rsi' => round($this->computeRsi($bars, 14), 2),
+
+            // ── Session high ──
+            'hod' => round($hod, 2),
+
+            // ── Notional ──
+            'notional' => round($close * $last['volume'], 2),
 
             // ── Time / Data Quality ──
             'min_bars' => $count,
@@ -793,13 +806,11 @@ class GateEvaluator
      */
     public function isLunchWindow(string $tsEst): bool
     {
-        $ts = strtotime($tsEst.' America/New_York');
-        if ($ts === false) {
-            return false;
-        }
-        $minutes = (int) date('H', $ts) * 60 + (int) date('i', $ts);
+        // Extract EST hour/minute directly from the timestamp string
+        // to avoid UTC conversion issues.
+        $minutes = (int) substr($tsEst, 11, 2) * 60 + (int) substr($tsEst, 14, 2);
 
-        return $minutes >= 690 && $minutes <= 810;
+        return $minutes >= 690 && $minutes <= 810; // 11:30-13:30 EST
     }
 
     /**

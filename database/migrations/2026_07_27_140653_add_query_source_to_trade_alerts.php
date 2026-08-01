@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('trade_alerts', function (Blueprint $table) {
-            $table->string('query_source', 10)->nullable()->after('pipeline_run')->comment('redis or sql — identifies which data source generated the alert');
+            $table->string('query_source', 50)->nullable()->after('pipeline_run')->comment('redis or sql — identifies which data source generated the alert');
         });
     }
 

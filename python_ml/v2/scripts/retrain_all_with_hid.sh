@@ -70,21 +70,24 @@ launch_job "Hybrid Big-Move Breakout" "C-$(date +%Y-%m-%d_%H).log" \
 
 # B — Elite Multi-Day Momentum
 # Queries DB for the earliest analyzed B alert to auto-determine start date.
+# Compute everything OUTSIDE the bash -c subshell so the nested command
+# substitution with escaped quotes can't collapse to empty values.
+MODEL_OUT_B="$(get_pipeline_model_path "B" "python_ml/v2/models/winner_model_pipeline_b.joblib")"
+MYSQL_CMD_B="$(get_mysql_cmd)"
+DEFAULT_START_DATE_B="$($MYSQL_CMD_B -e "
+    SELECT DATE(MIN(entry_ts_est))
+    FROM trade_alerts
+    WHERE pipeline_run='B'
+      AND analyzed = 1
+      AND pnl_percent IS NOT NULL
+" 2>/dev/null)"
+DEFAULT_START_DATE_B="${DEFAULT_START_DATE_B:-$(date -d '12 months ago' +%Y-%m-%d)}"
 launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
-    MYSQL_CMD=\$(get_mysql_cmd)
-    DEFAULT_START_DATE=\$(\$MYSQL_CMD -e \"
-        SELECT DATE(MIN(entry_ts_est))
-        FROM trade_alerts
-        WHERE pipeline_run='B'
-          AND analyzed = 1
-          AND pnl_percent IS NOT NULL
-    \" 2>/dev/null)
-    DEFAULT_START_DATE=\${DEFAULT_START_DATE:-\$(date -d '12 months ago' +%Y-%m-%d)}
     $TRAINER \
         --pipeline B --win-threshold 2.0 --actual-fill-weight 20.0 \
-        --eval-on-actual-only --start \"\$DEFAULT_START_DATE\" --end \"$TODAY\" \
+        --eval-on-actual-only --start \"$DEFAULT_START_DATE_B\" --end \"$TODAY\" \
         --test-size 0.2 --train-full \
-        --model-out \"$(get_pipeline_model_path \"B\" \"python_ml/v2/models/winner_model_pipeline_b.joblib\")\"
+        --model-out \"$MODEL_OUT_B\"
 "
 
 # E — Trend Continuation

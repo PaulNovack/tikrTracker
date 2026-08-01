@@ -20,13 +20,13 @@ const breadcrumbs: BreadcrumbItem[] = [
 // ALL known gate names from COMPREHENSIVE_GATE_LIST.md
 const ALL_5M_GATES = [
     'notional', 'price', 'atr_pct', 'rvol_ratio', 'move_30m_pct',
-    'rs_ratio', 'signal_age_seconds', 'above_vwap', 'ema9_above_ema21',
+    'move_rvol_composite', 'rs_ratio', 'signal_age_seconds', 'above_vwap', 'ema9_above_ema21',
     'ema_spread_pct', 'ema9_slope_positive', 'green_close', 'green_bar_pct',
     'multi_day_green_count', 'yesterday_move_pct', 'yesterday_vol_mult',
     'pullback_depth_pct', 'directional_changes_max', 'distance_from_high_atr',
     'higher_low_count', 'closes_near_high_count', 'vwap_violation_count',
     'range_contraction', 'market_weakness', 'benchmark_below_vwap',
-    'rsi', 'entry_score_min', 'entry_score_min', 'entry_score_max',
+    'rsi', 'entry_score_min', 'entry_score_max',
     'opening_range_width_pct', 'opening_range_bar_count', 'breakout_detected',
     'net_progress_pct', 'move_from_open_pct', 'dist_to_hod_pct',
     'distance_from_ema9_atr', 'vwap_distance_min', 'sum_vol_5m',
@@ -282,50 +282,85 @@ function round3(val: string): number | null {
 /** ALL gates for a timeframe — checkbox to enable, min/max inputs */
 function GateEditor({ versionId, timeframe, gates, allGates }: { versionId: number; timeframe: string; gates: GateRow[]; allGates: string[] }) {
     const gateMap = new Map(gates.map((g) => [g.gate_name, g]));
+
+    // Local "saved" values — updated from server props but also on fetch success.
+    // This allows the UI to reflect persisted values immediately without a page reload.
+    const [savedValues, setSavedValues] = useState(() => {
+        const init: Record<string, { min: string; max: string; enabled: boolean }> = {};
+        for (const g of gates) {
+            init[g.gate_name] = {
+                min: g.threshold_min !== undefined && g.threshold_min !== null ? String(g.threshold_min) : '',
+                max: g.threshold_max !== undefined && g.threshold_max !== null ? String(g.threshold_max) : '',
+                enabled: g.enabled,
+            };
+        }
+        return init;
+    });
     const [saving, setSaving] = useState<string | null>(null);
 
     // Local editing state so number inputs can accept typing and spinner arrows.
     // Keyed by gate name, synced back to server on blur.
     const [localValues, setLocalValues] = useState<Record<string, { min: string; max: string }>>({});
 
-    const saveGate = (name: string, enabled: boolean, min: string, max: string) => {
-        setSaving(name);
-        router.post(`/generic-ta-gate-versions/${versionId}/gates`, {
-            timeframe,
-            gate_name: name,
-            enabled,
-            threshold_min: min === '' ? null : round3(min),
-            threshold_max: max === '' ? null : round3(max),
-        }, {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                setSaving(null);
-                // Clear local state after successful save
-                setLocalValues((prev) => {
-                    const next = { ...prev };
-                    delete next[name];
-                    return next;
-                });
-            },
-            onError: () => setSaving(null),
+    const csrfToken = (): string =>
+        document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+
+    const saveGate = async (name: string, enabled: boolean, min: string, max: string) => {
+        // Optimistically update the UI immediately so checkboxes and inputs
+        // reflect the new value without waiting for the server round-trip.
+        setSavedValues((prev) => ({
+            ...prev,
+            [name]: { min, max, enabled },
+        }));
+        setLocalValues((prev) => {
+            const next = { ...prev };
+            delete next[name];
+            return next;
         });
+        setSaving(name);
+        try {
+            const res = await fetch(`/generic-ta-gate-versions/${versionId}/gates`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+                body: JSON.stringify({
+                    timeframe,
+                    gate_name: name,
+                    enabled,
+                    threshold_min: min === '' ? null : round3(min),
+                    threshold_max: max === '' ? null : round3(max),
+                }),
+            });
+            setSaving(null);
+            // On failure, revert to the previous server value by reloading.
+            if (!res.ok) {
+                router.reload({ preserveScroll: true });
+            }
+        } catch {
+            setSaving(null);
+        }
     };
 
     return (
         <div className="space-y-1">
             {allGates.map((name) => {
                 const existing = gateMap.get(name);
-                const enabled = existing?.enabled ?? false;
+                // Use savedValues (updated on every successful save) rather than
+                // stale server props, so the UI reflects the last persisted state.
+                const sv = savedValues[name];
+                const enabled = sv?.enabled ?? existing?.enabled ?? false;
                 const serverMin = existing?.threshold_min !== undefined && existing?.threshold_min !== null
                     ? String(existing.threshold_min) : '';
                 const serverMax = existing?.threshold_max !== undefined && existing?.threshold_max !== null
                     ? String(existing.threshold_max) : '';
 
-                // Use local values if being edited, otherwise fall back to server values
+                // Use local values if being edited, otherwise use saved values
                 const local = localValues[name];
-                const min = local !== undefined ? local.min : serverMin;
-                const max = local !== undefined ? local.max : serverMax;
+                const min = local !== undefined ? local.min : (sv ? sv.min : serverMin);
+                const max = local !== undefined ? local.max : (sv ? sv.max : serverMax);
 
                 return (
                     <div key={name} className="flex items-center gap-2 rounded py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800/50">

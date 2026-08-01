@@ -198,7 +198,7 @@ class TradeAlertsController extends Controller
                 : null;
             $freshnessCarbon = ($entryCarbon && $entryCarbon->gt($signalCarbon)) ? $entryCarbon : $signalCarbon;
             $createdCarbon = \Carbon\Carbon::parse($alert->created_at)->setTimezone('America/New_York');
-            $diffSeconds = $signalCarbon->diffInSeconds($createdCarbon);
+            $diffSeconds = $freshnessCarbon->diffInSeconds($createdCarbon);
             $minutes = floor($diffSeconds / 60);
             $seconds = $diffSeconds % 60;
             $stalenessFormatted = sprintf('%dm %ds', $minutes, $seconds);

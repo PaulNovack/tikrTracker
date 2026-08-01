@@ -53,12 +53,27 @@ class EvaluateBarJob implements ShouldQueue
     }
 
     /**
+     * Build a consistent log context array including symbol, pipeline, and timeframe.
+     */
+    private function logContext(array $version, string $event): array
+    {
+        return [
+            'event' => $event,
+            'symbol' => $this->symbol,
+            'ts_est' => $this->tsEst,
+            'timeframe' => $this->timeframe,
+            'pipeline' => $version['pipeline_letter'] ?? null,
+            'version' => $version['version_string'] ?? null,
+        ];
+    }
+
+    /**
      * 5m bar: check scanner gates, store candidates for passing versions.
      */
     private function process5m(): void
     {
         foreach ($this->versions as $version) {
-            if (! $this->passesGates($version['gates_5m'] ?? [])) {
+            if (! $this->passesGates($version['gates_5m'] ?? [], $version)) {
                 continue;
             }
 
@@ -74,6 +89,10 @@ class EvaluateBarJob implements ShouldQueue
             if ($scoreMax !== null && $score > (float) $scoreMax) {
                 continue;
             }
+
+            \Log::channel('redis-scan')->debug('[EvaluateBarJob] 5m candidate stored', $this->logContext($version, 'candidate_stored') + [
+                'score' => round($score, 2),
+            ]);
 
             $candidate = [
                 'symbol' => $this->symbol,
@@ -122,18 +141,27 @@ class EvaluateBarJob implements ShouldQueue
             }
 
             // Check 1m entry gates
-            if (! $this->passesGates($version['gates_1m'] ?? [])) {
+            if (! $this->passesGates($version['gates_1m'] ?? [], $version)) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] 1m gates failed', $this->logContext($version, 'gates_1m_failed'));
+
                 continue;
             }
 
             // Build entry from pre-computed gate values (Redis-only, no legacy finder)
             $entry = $this->buildEntry($candidate, $version);
             if ($entry === null) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] buildEntry returned null', [
+                    'symbol' => $this->symbol,
+                    'version' => $version['pipeline_letter'],
+                    'ts_est' => $this->tsEst,
+                ]);
+
                 continue;
             }
 
             // Write alert via TradeAlertWriterV1 (existing, well-tested code)
             $writer = app(\App\Services\Trading\TradeAlertWriterV1::class);
+            $candidateGates = $candidate['gates'] ?? [];
             $alertId = $writer->upsertAlert(
                 signal: [
                     'symbol' => $this->symbol,
@@ -143,7 +171,21 @@ class EvaluateBarJob implements ShouldQueue
                     'score' => $candidate['score'],
                     'atr' => $candidate['atr'],
                     'atr_pct' => $candidate['atr_pct'],
-                    'meta' => $candidate['gates'] ?? [],
+                    // Map GateEvaluator 5m gate names to the field names that
+                    // TradeAlertWriterV1::upsertAlert() reads from signal meta
+                    // for the ML feature columns.
+                    'meta' => array_merge(
+                        [
+                            'move_30m_pct' => $candidateGates['move_30m_pct'] ?? null,
+                            'rvol_5m' => $candidateGates['rvol_ratio'] ?? null,
+                            'atr_pct_5m' => $candidateGates['atr_pct'] ?? null,
+                            'notional_last5m' => $candidateGates['notional'] ?? null,
+                            'pct_nd' => $candidateGates['pct_nd'] ?? null,
+                            'spy_move_30m_pct' => $candidateGates['benchmark_move_15m'] ?? null,
+                            'universe_size' => $candidateGates['universe_size'] ?? null,
+                        ],
+                        $candidateGates,
+                    ),
                 ],
                 entry: $entry,
                 asOfTsEst: $this->tsEst,
@@ -162,7 +204,7 @@ class EvaluateBarJob implements ShouldQueue
      * - If max is set: value must be <= max
      * - If both null: boolean check (value must be truthy)
      */
-    private function passesGates(array $thresholds): bool
+    private function passesGates(array $thresholds, array $version = []): bool
     {
         foreach ($thresholds as $gate => $cfg) {
             $value = $this->gates[$gate] ?? null;
@@ -176,6 +218,11 @@ class EvaluateBarJob implements ShouldQueue
             // Boolean gate: both null means "must be truthy"
             if ($min === null && $max === null) {
                 if (! $value) {
+                    \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate bool false', $this->logContext($version, 'gate_bool_false') + [
+                        'gate' => $gate,
+                        'value' => $value,
+                    ]);
+
                     return false;
                 }
 
@@ -183,10 +230,22 @@ class EvaluateBarJob implements ShouldQueue
             }
 
             // Range gate
-            if ($min !== null && $value < $min) {
+            if ($min !== null && $value < (float) $min) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate below min', $this->logContext($version, 'gate_below_min') + [
+                    'gate' => $gate,
+                    'value' => $value,
+                    'min' => $min,
+                ]);
+
                 return false;
             }
-            if ($max !== null && $value > $max) {
+            if ($max !== null && $value > (float) $max) {
+                \Log::channel('redis-scan')->debug('[EvaluateBarJob] Gate above max', $this->logContext($version, 'gate_above_max') + [
+                    'gate' => $gate,
+                    'value' => $value,
+                    'max' => $max,
+                ]);
+
                 return false;
             }
         }
@@ -251,6 +310,7 @@ class EvaluateBarJob implements ShouldQueue
             // whitespace
             if ($c === ' ' || $c === "\t") {
                 $i++;
+
                 continue;
             }
 
@@ -262,6 +322,7 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'number', 'value' => (float) $num];
+
                 continue;
             }
 
@@ -273,18 +334,26 @@ class EvaluateBarJob implements ShouldQueue
                     $i++;
                 }
                 $tokens[] = ['type' => 'identifier', 'value' => $id];
+
                 continue;
             }
 
             // operators and punctuation
             switch ($c) {
-                case '+': $tokens[] = ['type' => 'op', 'value' => '+']; break;
-                case '-': $tokens[] = ['type' => 'op', 'value' => '-']; break;
-                case '*': $tokens[] = ['type' => 'op', 'value' => '*']; break;
-                case '/': $tokens[] = ['type' => 'op', 'value' => '/']; break;
-                case '(': $tokens[] = ['type' => 'lparen']; break;
-                case ')': $tokens[] = ['type' => 'rparen']; break;
-                case ',': $tokens[] = ['type' => 'comma']; break;
+                case '+': $tokens[] = ['type' => 'op', 'value' => '+'];
+                    break;
+                case '-': $tokens[] = ['type' => 'op', 'value' => '-'];
+                    break;
+                case '*': $tokens[] = ['type' => 'op', 'value' => '*'];
+                    break;
+                case '/': $tokens[] = ['type' => 'op', 'value' => '/'];
+                    break;
+                case '(': $tokens[] = ['type' => 'lparen'];
+                    break;
+                case ')': $tokens[] = ['type' => 'rparen'];
+                    break;
+                case ',': $tokens[] = ['type' => 'comma'];
+                    break;
                 default:
                     // skip unexpected characters
                     break;
@@ -369,6 +438,7 @@ class EvaluateBarJob implements ShouldQueue
             if ($token['type'] === 'lparen') {
                 $result = $parseExpression();
                 $close = $advance(); // consume ')'
+
                 return $result;
             }
 
@@ -512,9 +582,31 @@ class EvaluateBarJob implements ShouldQueue
             'vol_ratio' => round($volRatio, 2),
             'above_vwap_pct' => round($aboveVwapPct, 3),
             'room_to_run_pct' => round($room, 3),
+
+            // ── ML feature fields (map GateEvaluator gate names → entry field names) ──
+            // Room-to-run
+            'room_to_hod_pct' => $g['room_to_hod_pct'] ?? null,
+            'room_to_hod_atr' => $g['room_to_hod_atr'] ?? null,
+            // VWAP entry distance
+            'above_vwap_entry_pct' => $g['above_vwap_entry_pct'] ?? null,
+            // Entry quality
+            'rsi' => $g['rsi'] ?? null,
+            'entry_body_pct' => $g['body_pct'] ?? null,
+            'entry_close_position' => $g['close_position'] ?? null,
+            'entry_volume_ratio' => $g['vol_ratio_1m'] ?? null,
+            'entry_notional_1m' => $g['notional_1m'] ?? null,
+            // 5m choppiness / quality (from 5m evaluation gates stored in candidate)
+            'five_min_directional_changes' => $candidate['gates']['directional_changes'] ?? null,
+            'five_min_green_bar_pct' => $candidate['gates']['green_bar_pct'] ?? null,
+            'five_min_net_progress' => $candidate['gates']['net_progress_pct'] ?? null,
+            'consolidation_bars' => $candidate['gates']['consolidation_bars'] ?? null,
+            'breakout_volume_ratio' => $candidate['gates']['breakout_volume_ratio'] ?? null,
+            // Entry score sub-components (matches V1 computeEntryScoreComponents)
+            ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g, ['ts_est' => $this->tsEst])),
+
             // Additional
             'query_source' => 'redis',
-            'entry_meta' => $g,
+            'meta' => $g,
         ];
     }
 }

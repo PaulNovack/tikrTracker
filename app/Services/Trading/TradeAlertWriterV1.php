@@ -27,6 +27,14 @@ class TradeAlertWriterV1
     private bool $backtestMode = false;
 
     /**
+     * When set (in backtest mode), all date-sensitive checks use this
+     * timestamp instead of now(). The caller passes asOfTsEst to ensure
+     * backtest alerts aren't rejected by freshness or ML-duplicate gates.
+     * created_at / updated_at still use the real wall clock.
+     */
+    private ?string $backtestNowOverride = null;
+
+    /**
      * Look up the FinBERT sentiment_score_1_100 (0-100) for a symbol
      * and map it to the configured boost value.
      *
@@ -134,10 +142,17 @@ class TradeAlertWriterV1
     /**
      * Set backtest mode — suppresses ML scoring job dispatch so backtest runs
      * don't flood the queue and delay live alert processing.
+     *
+     * When $backtestNowOverrideTsEst is provided, all time-sensitive gates
+     * (freshness, ML-duplicate skip) use that historical timestamp as their
+     * "now" reference, and all date/time alert-data fields except
+     * created_at/updated_at are overridden with that historical value.
+     * Pass the caller's $asOfTsEst to keep everything aligned.
      */
-    public function setBacktestMode(bool $backtestMode): void
+    public function setBacktestMode(bool $backtestMode, ?string $backtestNowOverrideTsEst = null): void
     {
         $this->backtestMode = $backtestMode;
+        $this->backtestNowOverride = $backtestNowOverrideTsEst;
     }
 
     private function shouldRunMlScoringSync(bool $isRealtime, string $pipelineRun): bool
@@ -431,7 +446,8 @@ class TradeAlertWriterV1
         // Centralized run_cron gate: if pipeline is disabled, block alert creation
         // regardless of caller (live, backtest, manual, stream watcher, etc.).
         // EvaluateBarJob already skips disabled pipelines silently; this is a safety net.
-        if (! TradingSettingService::isPipelineRunCronEnabled($pipelineRun)) {
+        // Skip this gate in backtest mode — we want to backtest ALL pipelines.
+        if (! $this->backtestMode && ! TradingSettingService::isPipelineRunCronEnabled($pipelineRun)) {
             \Log::channel('scheduled')->debug("[TradeAlertWriter] Pipeline {$pipelineRun} disabled (run_cron=0) — alert suppressed.", [
                 'symbol' => $signal['symbol'] ?? null,
                 'pipeline' => $pipelineRun,
@@ -524,8 +540,9 @@ class TradeAlertWriterV1
 
         // SKIP_NEXT_ALERT_AFTER_ML_PASSED_MINUTES: suppress duplicate alerts for the same
         // symbol when a recent alert already passed ML scoring (passed_ml = 1).
+        // Skip in backtest mode — backtest runs should not be affected by real-time ML results.
         $skipMinutes = TradingSettingService::getSkipNextAlertAfterMlPassedMinutes();
-        if ($skipMinutes > 0) {
+        if (! $this->backtestMode && $skipMinutes > 0) {
             $skipCutoff = now()->subMinutes($skipMinutes);
             $recentPassedAlert = DB::table('trade_alerts')
                 ->where('symbol', $signal['symbol'])
@@ -624,7 +641,7 @@ class TradeAlertWriterV1
 
             'atr' => $entry['atr'] ?? null,
             'atr_pct' => $entry['atr_pct'] ?? null,
-            'daily_trend_5d_pct' => $this->calculateDailyTrend($signal['symbol'], $signal['asset_type'] ?? 'stock', $tradingDate),
+            'daily_trend_5d_pct' => $this->calculateDailyTrend($signal['symbol'], $tradingDate),
             'range_position_60m' => $this->calculateRangePosition($signal['symbol'], $entry['entry_ts_est'], $entry['entry'] ?? $entry['entry_price'] ?? 0),
             'rsi_14_1m' => $entry['rsi'] ?? null,
             'suggested_trailing_stop' => $entry['suggested_trailing_stop'] ?? null,
@@ -683,6 +700,7 @@ class TradeAlertWriterV1
             'is_paper' => (bool) config('alpaca.paper_trading', true),
             'is_realtime' => $isRealtime,
             'blacklisted' => SymbolBlacklist::isBlacklisted($signal['symbol']),
+            'notes' => $entry['notes'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
         ];

@@ -140,8 +140,8 @@ class AlpacaPlaceOrderController extends Controller
             'shares' => 'required|integer|min:0',
             'entry_price' => 'required|numeric|min:0',
             'stop_price' => 'nullable|numeric|min:0',
-            'pipeline_run' => 'nullable|string|max:5',
             'pipeline_run' => 'nullable|string|max:10',
+            'notes' => 'nullable|string|max:5000',
         ]);
 
         $symbol = strtoupper($data['symbol']);
@@ -298,6 +298,7 @@ class AlpacaPlaceOrderController extends Controller
                 'suggested_trailing_stop' => $suggestedTrailingStop,
                 'suggested_trailing_stop_pct' => $suggestedTrailingStopPct,
                 'targets' => $targets,
+                'notes' => $notes,
             ];
 
             $alertId = $this->alertWriter->upsertAlert(

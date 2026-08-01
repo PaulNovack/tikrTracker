@@ -13,13 +13,13 @@ Artisan::command('inspire', function () {
 // Record CPU temperature every minute for the temp-chart page
 Schedule::command('cpu:record-temperature')
     ->everyMinute()
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->runInBackground();
 
 // ML scoring catch-up: scores any today alerts the concurrent backtests inserted before the live pipeline ran
 Schedule::command('trade:dispatch-ml-scoring --age=10 --limit=50 --no-interaction')
     ->everyThirtySeconds()
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->runInBackground();
 
 // Calculate 5-minute indicators before market open
@@ -27,7 +27,7 @@ Schedule::command('indicators:calculate-5m --days=2 --chunk=100 --no-interaction
     ->dailyAt('08:00')
     ->timezone('America/New_York')
     ->name('calculate-5m-indicators-premarket')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Calculate RSI & Bollinger Bands before market open (8:00 AM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting indicators:calculate-5m premarket');
@@ -45,7 +45,7 @@ Schedule::command('redis:hydrate-bars')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('hydrate-bars-premarket')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Warm up Redis bar caches before market open (8:00 AM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting redis:hydrate-bars premarket');
@@ -63,7 +63,7 @@ Schedule::command('indicators:calculate-5m --days=1 --chunk=200 --no-interaction
     ->dailyAt('16:30')
     ->timezone('America/New_York')
     ->name('calculate-5m-indicators-postmarket')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Calculate RSI & Bollinger Bands after market close (4:30 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting indicators:calculate-5m postmarket');
@@ -78,7 +78,7 @@ Schedule::command('market-movers:populate --days=1 --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('populate-market-movers')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Populate market movers data at 5:00 PM CST (6:00 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting market-movers:populate');
@@ -96,7 +96,7 @@ Schedule::command('universe:generate-quality --limit=750 --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('generate-quality-universe')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Generate 60-day quality-scored trading universe in Redis after market close')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting universe:generate-quality');
@@ -115,7 +115,7 @@ Schedule::command('analyze:ml-thresholds --days=120 --min-trades=1 --top=5 --max
     ->timezone('America/New_York')
     ->when(fn () => TradingSettingService::isNightlyAnalyzeThresholdsEnabled())
     ->name('analyze-ml-thresholds-postmarket')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Recalculate the stable ML baseline after market close (6:00 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting analyze:ml-thresholds postmarket');
@@ -132,7 +132,7 @@ Schedule::command('analyze:ml-thresholds --days=7 --min-trades=1 --top=5 --max_p
     ->timezone('America/New_York')
     ->when(fn () => TradingSettingService::isNightlyAnalyzeThresholdsEnabled())
     ->name('analyze-ml-thresholds-postmarket-7d')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Recalculate the 7-day ML baseline after market close (6:20 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting analyze:ml-thresholds (7d)');
@@ -150,7 +150,7 @@ Schedule::command('trading:backfill-one-minute-prices-full --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('backfill-one-minute-prices-full')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Backfill one_minute_prices_full table nightly at 8:00 PM EST');
 
 // Backfill five_minute_prices_full daily at 9:00 PM EST
@@ -159,7 +159,7 @@ Schedule::command('trading:backfill-five-minute-prices-full --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('backfill-five-minute-prices-full')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Backfill five_minute_prices_full table nightly at 9:00 PM EST');
 
 // Intraday risk check: every 15 minutes from 9:45 AM – 2:30 PM ET.
@@ -171,7 +171,7 @@ Schedule::command('trading:intraday-risk-check --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('trading-intraday-risk-check')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Intraday P&L check: disable orders if cumulative closed loss exceeds halt limit')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting trading:intraday-risk-check');
@@ -190,7 +190,7 @@ Schedule::command('trading:auto-risk-check --mode=risk --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('trading-auto-risk-check-post-close')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Auto risk check after close: switch to paper on bad days')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting trading:auto-risk-check (risk mode)');
@@ -211,7 +211,7 @@ Schedule::command('trading:auto-risk-check --mode=resume --no-interaction')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('trading-auto-risk-check-pre-open')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Auto risk check before open: resume live trading when paper is profitable')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting trading:auto-risk-check (resume mode)');
@@ -226,7 +226,7 @@ Schedule::command('trading:auto-risk-check --mode=resume --no-interaction')
 // Scan for stocks with 4 consecutive up 1-minute bars
 Schedule::command('scan:last-4-1min-up --no-interaction')
     ->everyMinute()
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->runInBackground()
     ->name('scan-last-4-1min-up')
     ->description('Scan for stocks with 4 consecutive up 1-min bars');
@@ -237,7 +237,7 @@ Schedule::command('scan:last-4-1min-up --no-interaction')
 Schedule::command('scan:three-white-soldiers-live --no-interaction')
     ->everyMinute()
     ->weekdays()
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->runInBackground()
     ->name('scan-three-white-soldiers-live')
     ->description('Scan for Three Advancing White Soldiers patterns every minute (24/7 weekdays)')
@@ -256,7 +256,7 @@ Schedule::command('news:fetch-stock --no-interaction')
     ->dailyAt('02:00')
     ->timezone('America/New_York')
     ->name('fetch-stock-news-nightly')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Fetch FinBERT-scored news for all intraday_universe symbols nightly at 2:00 AM EST')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting news:fetch-stock');
@@ -303,7 +303,7 @@ Schedule::call(function () {
     ->timezone('America/New_York')
     ->weekdays()
     ->name('analyze-trade-alerts-all-pipelines-postmarket')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Analyze all pipeline trade alerts with ATR exits after market close (5:00 PM ET)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting analyze:trade-alerts-atr-immediate post-market for all pipelines');
@@ -316,7 +316,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-a stock --top=50 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-a-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -337,7 +337,7 @@ Schedule::call(function () {
 //         Log::channel('scheduled')->info('[Scheduler] Completed trade:pipeline-b command');
 //     })
 //     ->name('trade-pipeline-b-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -346,7 +346,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-c stock --top=50 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-c-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -361,7 +361,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-d stock --top=50 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-d-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -376,7 +376,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-e stock --top=50 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-e-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -391,7 +391,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-f stock --top=25 --lookback=15 --before=8 --after=10 --stale=8 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-f-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -406,7 +406,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-g stock --top=25 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-g-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -442,7 +442,7 @@ Schedule::call(function () {
 // Schedule::command('trade:pipeline-i stock --top=50 --lookback=15 --stale=8 --before=6 --no-interaction')
 //     ->everyMinute()
 //     ->name('trade-pipeline-i-live')
-//     ->withoutOverlapping()
+//     ->withoutOverlapping(5)
 //     ->runInBackground()
 //     ->between('13:30', '20:00')
 //     ->weekdays()
@@ -625,7 +625,7 @@ Schedule::command('database:backup')
 Schedule::command('market:yfinance-hourly-continuous-sync --hours=48 --batch-size=300')
     ->cron('15 * * * 1-5')
     ->name('hourly-continuous-sync')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Hourly continuous sync at :15 past every hour (weekdays only)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting hourly continuous sync', [
@@ -652,7 +652,7 @@ Schedule::command('market:yfinance-hourly-continuous-sync --hours=48 --batch-siz
 Schedule::command('market:warm-hourly-prices-cache')
     ->cron('20 * * * 1-5')
     ->name('hourly-cache-warming')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Warm hourly prices cache at :20 past every hour (weekdays only)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting hourly cache warming', [
@@ -679,7 +679,7 @@ Schedule::command('market:warm-hourly-prices-cache')
 Schedule::command('app:check-price-alerts')
     ->cron('3-58/5 * * * *')
     ->name('price-alerts-check')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Check price alerts every 5 minutes with 3-minute offset')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting price alerts check', [
@@ -706,7 +706,7 @@ Schedule::command('market:generate-daily-prices --days=3')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('daily-prices-generation')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Generate daily_prices from Alpaca 5-minute data (4:15 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting daily prices generation', [
@@ -732,7 +732,7 @@ Schedule::command('market:generate-daily-prices --days=3')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('daily-prices-generation')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Generate daily_prices from Alpaca 5-minute data (4:15 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting daily prices generation', [
@@ -759,7 +759,7 @@ Schedule::command('market:generate-daily-prices --days=3')
 Schedule::command('market:warm-page-caches')
     ->cron('8-58/10 * * * *')
     ->name('page-cache-warming')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Warm page caches every 10 minutes with 8-minute offset')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting page cache warming', [
@@ -946,10 +946,12 @@ Schedule::command('alpaca:sync-5m --hours=1 --chunk=200 --feed=iex')
 // Update trailing stop losses every minute during market hours
 Schedule::command('alpaca:update-trailing-stops')
     ->everyMinute()
-    ->between('13:30', '20:00')
+    ->timezone('America/New_York')
+    ->between('09:30', '16:30')
     ->weekdays()
     ->name('update-trailing-stop-losses')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
+    ->runInBackground()
     ->description('Update trailing stop losses to 1% below current price')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting alpaca:update-trailing-stops');
@@ -968,7 +970,7 @@ Schedule::command('alpaca:sell-all-positions')
     ->dailyAt('19:45')
     ->weekdays()
     ->name('sell-all-positions-eod')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Sell all Alpaca positions at end of day (3:45 PM EDT)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting alpaca:sell-all-positions (primary)');
@@ -987,7 +989,7 @@ Schedule::command('alpaca:sell-all-positions')
     ->dailyAt('19:50')
     ->weekdays()
     ->name('sell-all-positions-eod-backup1')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Sell all Alpaca positions - BACKUP 1 (3:50 PM EDT)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting alpaca:sell-all-positions (backup 1)');
@@ -1001,7 +1003,7 @@ Schedule::command('alpaca:sell-all-positions')
     ->dailyAt('19:55')
     ->weekdays()
     ->name('sell-all-positions-eod-backup2')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Sell all Alpaca positions - BACKUP 2 (3:55 PM EDT)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting alpaca:sell-all-positions (backup 2)');
@@ -1016,7 +1018,7 @@ Schedule::command('eligible:generate')
     ->timezone('America/New_York')
     ->weekdays()
     ->name('generate-eligible-symbols')
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->description('Generate eligible symbols with money filters for next trading day (5:00 PM EST)')
     ->before(function () {
         Log::channel('scheduled')->info('[Scheduler] Starting eligible:generate command');
