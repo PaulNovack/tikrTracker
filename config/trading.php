@@ -377,6 +377,32 @@ return [
         'max_retries' => (int) env('TRADING_ML_MAX_RETRIES', 3),
         'buy_threshold' => (float) env('TRADING_ML_BUY_THRESHOLD', 0.45),  // Calibrated: 61.3% win rate at this threshold
         'bell_threshold' => (float) env('SCORE_BELL', 0.60),  // Lowered from 0.70 to match new calibration
+
+        // Default ML training win threshold (% PnL that defines a "winner").
+        // DB overrides (trading.pipeline_{letter}.win_threshold) take precedence — see TradingSettingService.
+        'win_threshold' => (float) env('TRADING_ML_WIN_THRESHOLD', 1.5),
+
+        // Per-pipeline ML training win-threshold overrides (DB-backed via TradingSettingService).
+        // These are fallback defaults only — the active values come from the settings DB table.
+        'win_threshold_pipeline_a' => null,
+        'win_threshold_pipeline_b' => null,
+        'win_threshold_pipeline_c' => null,
+        'win_threshold_pipeline_d' => null,
+        'win_threshold_pipeline_e' => null,
+        'win_threshold_pipeline_f' => null,
+        'win_threshold_pipeline_g' => null,
+        'win_threshold_pipeline_h' => null,
+        'win_threshold_pipeline_i' => null,
+        'win_threshold_pipeline_j' => null,
+        'win_threshold_pipeline_k' => null,
+        'win_threshold_pipeline_l' => null,
+        'win_threshold_pipeline_m' => null,
+        'win_threshold_pipeline_n' => null,
+        'win_threshold_pipeline_o' => null,
+        'win_threshold_pipeline_p' => null,
+        'win_threshold_pipeline_q' => null,
+        'win_threshold_pipeline_r' => null,
+        'win_threshold_pipeline_s' => null,
     ],
 
     /*

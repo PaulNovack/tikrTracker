@@ -96,8 +96,8 @@ train_pipeline() {
 
   $TRAINER \
     --pipeline "$PIPELINE" \
-    --win-threshold 2.0 \
-    --actual-fill-weight 20.0 \
+    --win-threshold 1.5 \
+    --actual-fill-weight 1.0 \
     --eval-on-actual-only \
     --split-mode day \
     --start "$START_DATE" \

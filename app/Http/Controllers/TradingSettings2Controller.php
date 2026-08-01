@@ -57,6 +57,10 @@ class TradingSettings2Controller extends Controller
                 'moderate_negative' => (float) TradingSettingService::get('trading.news_sentiment.moderate_negative', '-0.010'),
                 'strong_negative' => (float) TradingSettingService::get('trading.news_sentiment.strong_negative', '-0.020'),
             ],
+            'mlWinThresholds' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
+                $p => TradingSettingService::getPipelineMlWinThreshold($p),
+            ])->all(),
+            'globalMlWinThreshold' => TradingSettingService::getMlWinThreshold(),
         ]);
     }
 
@@ -113,6 +117,55 @@ class TradingSettings2Controller extends Controller
         Log::info('[TradingSettings2] News sentiment scores updated by '.auth()->user()?->email, $validated);
 
         return back()->with('status', 'news-sentiment-updated');
+    }
+
+    /**
+     * Update per-pipeline ML training win thresholds (the % PnL that defines a
+     * "winner" label for the XGBoost trainer). Used by the retrain scripts.
+     */
+    public function updateWinThresholds(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'global_win_threshold' => ['nullable', 'numeric', 'min:0.1', 'max:10'],
+            'win_thresholds' => ['required', 'array'],
+            'win_thresholds.*' => ['required', 'numeric', 'min:0.1', 'max:10'],
+        ]);
+
+        $changes = [];
+
+        if (isset($validated['global_win_threshold'])) {
+            $old = TradingSettingService::getMlWinThreshold();
+            $new = round((float) $validated['global_win_threshold'], 3);
+            TradingSettingService::set('trading.ml_win_threshold', (string) $new);
+            if ((string) $old !== (string) $new) {
+                $changes['global'] = ['from' => $old, 'to' => $new];
+            }
+        }
+
+        foreach ($validated['win_thresholds'] as $pipeline => $threshold) {
+            $pipeline = strtolower((string) $pipeline);
+            if (! in_array($pipeline, self::PIPELINES, strict: true)) {
+                continue;
+            }
+
+            $old = TradingSettingService::getPipelineMlWinThreshold($pipeline);
+            $new = round((float) $threshold, 3);
+            TradingSettingService::set("trading.pipeline_{$pipeline}.win_threshold", (string) $new);
+
+            if ((string) $old !== (string) $new) {
+                $changes[strtoupper($pipeline)] = ['from' => $old, 'to' => $new];
+            }
+        }
+
+        if ($changes !== []) {
+            Log::info('[TradingSettings2] ML win thresholds updated by '.auth()->user()?->email, [
+                'changes' => $changes,
+            ]);
+        }
+
+        return back()->with('status', 'win-thresholds-updated');
     }
 
     /**

@@ -19,8 +19,8 @@ echo ""
 
 python python_ml/v2/v2/train_stock_winner_model_v2.py train \
   --pipeline P \
-  --win-threshold 2.0 \
-  --actual-fill-weight 20.0 \
+  --win-threshold 1.5 \
+  --actual-fill-weight 1.0 \
   --eval-on-actual-only \
   --split-mode day \
   --start "$START_DATE" \

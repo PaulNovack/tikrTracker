@@ -94,12 +94,12 @@ if [[ "${FORCE_SMALL_DATA}" != "1" ]]; then
 fi
 
 # Train Pipeline L specific model
-# Fix: actual-fill-weight 20x (honors real data over BT-simulated),
+# Fix: actual-fill-weight 1.0 (no boost — equal weighting for real vs BT-simulated fills),
 # eval-on-actual-only gives honest metrics on live-fill performance
 python python_ml/v2/v2/train_stock_winner_model_v2.py train \
   --pipeline L \
-  --win-threshold 2.0 \
-  --actual-fill-weight 20.0 \
+  --win-threshold 1.5 \
+  --actual-fill-weight 1.0 \
   --eval-on-actual-only \
   --start "$START_DATE" \
   --end "$END_DATE" \

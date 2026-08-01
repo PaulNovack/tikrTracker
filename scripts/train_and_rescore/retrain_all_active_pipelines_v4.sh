@@ -53,8 +53,8 @@ launch_job \
     "K.log" \
     $TRAINER \
         --pipeline K \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -68,8 +68,8 @@ launch_job \
     "L.log" \
     $TRAINER \
         --pipeline L \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -83,8 +83,8 @@ launch_job \
     "J.log" \
     $TRAINER \
         --pipeline J \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -98,8 +98,8 @@ launch_job \
     "HID.log" \
     $TRAINER \
         --pipeline H,I,D \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -113,8 +113,8 @@ launch_job \
     "F.log" \
     $TRAINER \
         --pipeline F \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -128,8 +128,8 @@ launch_job \
     "E.log" \
     $TRAINER \
         --pipeline E \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \
@@ -143,8 +143,8 @@ launch_job \
     "N.log" \
     $TRAINER \
         --pipeline N \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --start 2024-01-01 \
         --end "$TODAY" \
@@ -157,8 +157,8 @@ launch_job \
     "B.log" \
     $TRAINER \
         --pipeline B \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --split-mode day \
         --start 2024-01-01 \

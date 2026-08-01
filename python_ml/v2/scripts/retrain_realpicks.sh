@@ -37,7 +37,7 @@ echo ""
 $TRAINER \
     --pipeline "$ALL_PIPELINES" \
     --actual-fills-only \
-    --win-threshold 2.0 \
+    --win-threshold 1.5 \
     --actual-fill-weight 1.0 \
     --eval-on-actual-only \
     --split-mode day \

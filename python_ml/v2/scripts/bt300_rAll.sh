@@ -34,8 +34,8 @@ echo ""
 
 $TRAINER \
     --pipeline "$ALL_PIPELINES" \
-    --actual-fill-weight 20.0 \
-    --win-threshold 2.0 \
+    --actual-fill-weight 1.0 \
+    --win-threshold 1.5 \
     --eval-on-actual-only \
     --split-mode day \
     --start "$(date -d '90 days ago' +%Y-%m-%d)" \

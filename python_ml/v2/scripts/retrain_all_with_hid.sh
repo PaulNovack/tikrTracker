@@ -53,7 +53,7 @@ launch_job() {
 # A — Momentum Continuation (v90.1)
 launch_job "Momentum Continuation" "A-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline A --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline A --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -62,7 +62,7 @@ launch_job "Momentum Continuation" "A-$(date +%Y-%m-%d_%H).log" \
 # C — Hybrid Big-Move Breakout (v600.0)
 launch_job "Hybrid Big-Move Breakout" "C-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline C --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline C --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -84,7 +84,7 @@ DEFAULT_START_DATE_B="$($MYSQL_CMD_B -e "
 DEFAULT_START_DATE_B="${DEFAULT_START_DATE_B:-$(date -d '12 months ago' +%Y-%m-%d)}"
 launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
     $TRAINER \
-        --pipeline B --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline B --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --start \"$DEFAULT_START_DATE_B\" --end \"$TODAY\" \
         --test-size 0.2 --train-full \
         --model-out \"$MODEL_OUT_B\"
@@ -93,7 +93,7 @@ launch_job "Elite Multi-Day Momentum" "B-$(date +%Y-%m-%d_%H).log" bash -c "
 # E — Trend Continuation
 launch_job "Trend Continuation" "E-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline E --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline E --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -102,7 +102,7 @@ launch_job "Trend Continuation" "E-$(date +%Y-%m-%d_%H).log" \
 # F — Risk-Off / Bear Market
 launch_job "Risk-Off / Bear Market" "F-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline F --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline F --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -111,7 +111,7 @@ launch_job "Risk-Off / Bear Market" "F-$(date +%Y-%m-%d_%H).log" \
 # H+I+D — Combined High-Momentum, Intraday Reversal, Day Range Breakout
 launch_job "Combined H+I+D" "HID-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline H,I,D --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline H,I,D --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -120,7 +120,7 @@ launch_job "Combined H+I+D" "HID-$(date +%Y-%m-%d_%H).log" \
 # J — Higher-Low Breakout (Recent 4% Movers)
 launch_job "Higher-Low Breakout" "J-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline J --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline J --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --top-k 10 --train-full \
@@ -129,7 +129,7 @@ launch_job "Higher-Low Breakout" "J-$(date +%Y-%m-%d_%H).log" \
 # K — Scarcity Leaders
 launch_job "Scarcity Leaders" "K-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline K --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline K --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -138,7 +138,7 @@ launch_job "Scarcity Leaders" "K-$(date +%Y-%m-%d_%H).log" \
 # L — Early Momentum
 launch_job "Early Momentum" "L-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline L --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline L --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -147,7 +147,7 @@ launch_job "Early Momentum" "L-$(date +%Y-%m-%d_%H).log" \
 # N — Market Movers Momentum
 launch_job "Market Movers Momentum" "N-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline N --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline N --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -156,7 +156,7 @@ launch_job "Market Movers Momentum" "N-$(date +%Y-%m-%d_%H).log" \
 # G — Oversold Bounce (v210.0) — small dataset, use LR baseline to avoid overfitting
 launch_job "Oversold Bounce" "G-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline G --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline G --win-threshold 1.5 --actual-fill-weight 1.0 \
         --baseline \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
@@ -166,7 +166,7 @@ launch_job "Oversold Bounce" "G-$(date +%Y-%m-%d_%H).log" \
 # M — Tight Stops Clean Trend (v1400.0)
 launch_job "Tight Stops Clean Trend" "M-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline M --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline M --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -175,7 +175,7 @@ launch_job "Tight Stops Clean Trend" "M-$(date +%Y-%m-%d_%H).log" \
 # O — Opening Range Breakout (v1500.0)
 launch_job "Opening Range Breakout" "O-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline O --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline O --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -184,7 +184,7 @@ launch_job "Opening Range Breakout" "O-$(date +%Y-%m-%d_%H).log" \
 # P — Oversold Bounce (v210.1) — research only, no model path yet
 launch_job "Forward-Looking 2H Runner" "P-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline P --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline P --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
@@ -193,7 +193,7 @@ launch_job "Forward-Looking 2H Runner" "P-$(date +%Y-%m-%d_%H).log" \
 # Q — Volume-First (v27.0)
 launch_job "Volume-First" "Q-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline Q --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline Q --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
         --test-size 0.2 --top-k 10 --train-full \
@@ -202,7 +202,7 @@ launch_job "Volume-First" "Q-$(date +%Y-%m-%d_%H).log" \
 # R — Backtest-Optimized ML (v3100.0) — small dataset, use LR baseline to avoid overfitting
 launch_job "Backtest-Optimized ML" "R-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
-        --pipeline R --win-threshold 2.0 --actual-fill-weight 20.0 \
+        --pipeline R --win-threshold 1.5 --actual-fill-weight 1.0 \
         --baseline \
         --eval-on-actual-only --split-mode day \
         --start 2025-10-01 --end "$TODAY" \
