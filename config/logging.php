@@ -129,6 +129,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'gate-rejections' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/gate-rejections.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'bar-events' => [
             'driver' => 'daily',
             'path' => storage_path('logs/bar-events.log'),

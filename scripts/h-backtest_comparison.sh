@@ -184,7 +184,7 @@ process_date() {
     # V25.2: Gap-down reversal / VWAP reclaim / EMA9 pullback scanner
     # timeFrom=09:35 covers the earliest allowed entry window (entry finder gate: 9:35-11:15 + 14:00-15:55)
     # step=5 approximates the production everyMinute() schedule without excessive runtime
-    php artisan trade:pipeline-h stock \
+    TRADING_PIPELINE_H_USE_REDIS=false php artisan trade:pipeline-h stock \
         --backtest \
         --from="$date" \
         --to="$date" \

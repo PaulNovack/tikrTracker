@@ -54,6 +54,7 @@ for PIPE in "${PIPELINES[@]}"; do
   if php artisan analyze:trade-alerts-atr-immediate \
     --algo-version="$ALGO_VERSION" \
     --pipeline="$PIPE" \
+    --win-threshold=1.5 \
     --write-results \
     --show-details \
     --use-full-tables; then

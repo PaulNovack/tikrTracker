@@ -155,8 +155,8 @@ class FiveMinuteSignalScannerV90_1 extends AbstractSignalScanner
                 WHERE date < ? AND asset_type = ?
             )
 
-            WHERE symbol IN ($placeholders)
-        ", array_merge([$tradeDate], $symbols));
+            AND symbol IN ($placeholders)
+        ", array_merge([$tradeDate, $assetType], $symbols));
 
         $yesterdayHighBySymbol = [];
         foreach ($yesterdayHighs as $row) {

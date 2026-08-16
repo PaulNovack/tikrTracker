@@ -14,6 +14,8 @@ class AlpacaMarketDataService
 {
     private Client $http;
 
+    private const VALID_FEEDS = ['iex', 'sip'];
+
     public function __construct()
     {
         $base = rtrim(config('alpaca.data_base', 'https://data.alpaca.markets'), '/');
@@ -96,7 +98,7 @@ class AlpacaMarketDataService
             'start' => $startUtc->toIso8601String(),
             'end' => $endUtc->toIso8601String(),
             'limit' => $limit,
-            'feed' => $feed ?: config('alpaca.feed', 'iex'),
+            'feed' => $this->normalizeFeed($feed),
         ];
 
         if ($pageToken) {
@@ -129,7 +131,7 @@ class AlpacaMarketDataService
             'start' => $startUtc->toIso8601String(),
             'end' => $endUtc->toIso8601String(),
             'limit' => $limit,
-            'feed' => $feed ?: config('alpaca.feed', 'iex'),
+            'feed' => $this->normalizeFeed($feed),
         ];
 
         if ($pageToken) {
@@ -162,7 +164,7 @@ class AlpacaMarketDataService
             'start' => $startUtc->toIso8601String(),
             'end' => $endUtc->toIso8601String(),
             'limit' => $limit,
-            'feed' => $feed ?: config('alpaca.feed', 'iex'),
+            'feed' => $this->normalizeFeed($feed),
             'adjustment' => 'all', // Use adjusted bars (splits, dividends)
         ];
 
@@ -177,5 +179,22 @@ class AlpacaMarketDataService
             'bars' => $json['bars'] ?? [],
             'next_page_token' => $json['next_page_token'] ?? null,
         ];
+    }
+
+    private function normalizeFeed(?string $feed): string
+    {
+        $candidate = strtolower(trim((string) ($feed ?: config('alpaca.feed', 'iex'))));
+
+        if (in_array($candidate, self::VALID_FEEDS, true)) {
+            return $candidate;
+        }
+
+        $fallback = strtolower(trim((string) config('alpaca.feed', 'iex')));
+
+        if (in_array($fallback, self::VALID_FEEDS, true)) {
+            return $fallback;
+        }
+
+        return 'iex';
     }
 }

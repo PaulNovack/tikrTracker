@@ -19,6 +19,7 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         {--write-results : Write analysis results back to trade_alerts table}
         {--only-unanalyzed : Skip alerts that already have exit_price set}
         {--use-full-tables : Use one_minute_prices_full for price lookup}
+        {--win-threshold=1.5 : Minimum pnl_percent to count as a WIN. Anything below this (including any negative) is a LOSS. Default 1.5%.}
     ';
 
     protected $description = 'Analyze trade alerts performance using ATR stops IMMEDIATELY from entry (no profit requirement)';
@@ -28,6 +29,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     private int $winners = 0;
 
     private int $losers = 0;
+
+    private float $winThreshold = 1.5;
 
     private float $totalPnL = 0.0;
 
@@ -52,6 +55,7 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         $useFullTables = (bool) $this->option('use-full-tables');
         $writeResults = (bool) $this->option('write-results');
         $onlyUnanalyzed = (bool) $this->option('only-unanalyzed');
+        $this->winThreshold = (float) $this->option('win-threshold');
         $oneMinuteTable = $useFullTables ? 'one_minute_prices_full' : 'one_minute_prices';
 
         // Determine which table to query based on pipeline config
@@ -297,7 +301,11 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
             return null;  // Skip this trade - likely bad data
         }
 
-        $isWinner = $pnlPercent > 0;
+        // A trade only counts as a WIN if pnl_percent reaches the win threshold
+        // (default 1.5%). Anything below — including any small positive like +0.3% —
+        // is counted as a LOSS. This matches the training script's definition so
+        // backtest analysis and model labels agree.
+        $isWinner = $pnlPercent >= $this->winThreshold;
 
         $riskAdjustedReturn = $riskPct > 0 ? ($pnlPercent / $riskPct) : 0.0;
 

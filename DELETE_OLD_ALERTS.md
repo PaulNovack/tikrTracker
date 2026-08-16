@@ -24,7 +24,7 @@ Delete all not actually traded in alpaca
 
 ```sql
 DELETE FROM trade_alerts AS ta
-  AND NOT EXISTS (
+  where NOT EXISTS (
       SELECT 1
       FROM alpaca_orders AS ao
       WHERE ao.trade_alert_id = ta.id

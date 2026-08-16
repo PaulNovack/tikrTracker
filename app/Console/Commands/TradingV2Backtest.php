@@ -8,9 +8,19 @@ use App\Services\TradingV2\Repositories\AlertVersionRepository;
 use App\Services\TradingV2\Repositories\MySqlBarSource;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TradingV2Backtest extends Command
 {
+    /**
+     * Max rejection log entries per pipeline per backtest run. Capped to keep
+     * the gate-rejections log a manageable size even on long multi-month runs.
+     */
+    private const MAX_REJECTION_LOGS_PER_PIPELINE = 15000;
+
+    /** @var array<string, int> pipeline_letter => rejection count for this run */
+    private array $rejectionCounts = [];
+
     protected $signature = 'trading:v2-backtest
         {--symbol= : Single symbol (omit for intraday_universe)}
         {--from= : Start date/time EST (default: today 09:30)}
@@ -18,6 +28,7 @@ class TradingV2Backtest extends Command
         {--step=5 : Step interval in minutes}
         {--pipeline= : Filter to one pipeline letter (e.g. H)}
         {--fulltable : Use five_minute_prices_full / one_minute_prices_full}
+        {--no-log-rejections : Skip clearing+writing the gate-rejections log for this run}
         {--write : Write alerts to trade_alerts table (is_realtime=0)}
         {--use-entry-finder : Use legacy OneMinuteEntryFinder for entry classification instead of EntryTypeClassifier}';
 
@@ -27,6 +38,15 @@ class TradingV2Backtest extends Command
     {
         // Clear any cached bars from a previous run so we always read fresh data.
         MySqlBarSource::clearCache();
+
+        // The gate-rejections log is the primary dataset for blocked-candidate
+        // analysis. By default we clear it at the start of each backtest so the
+        // file only ever contains rejections from the most recent run. Pass
+        // --no-log-rejections to skip both the clear and the logging.
+        $logRejections = ! (bool) $this->option('no-log-rejections');
+        if ($logRejections) {
+            $this->clearGateRejectionLog();
+        }
 
         $mysqlSource = new MySqlBarSource((bool) $this->option('fulltable'));
         $evaluator = new GateEvaluator($mysqlSource);
@@ -132,6 +152,14 @@ class TradingV2Backtest extends Command
 
                 $g5m = $evaluator->evaluate5m($s, $tsEst);
                 if ($g5m->isEmpty()) {
+                    $this->logGateRejection($v, '5m', $s, $tsEst, [
+                        'gate' => 'min_bars',
+                        'reason' => 'insufficient_5m_data',
+                        'value' => 0,
+                        'min' => 8,
+                        'max' => null,
+                    ], $g5m->toArray());
+
                     continue;
                 }
 
@@ -161,18 +189,38 @@ class TradingV2Backtest extends Command
                 }
 
                 foreach ($versions as $v) {
-                    if (! $this->passes($g5m->toArray(), $v['gates_5m'] ?? [])) {
+                    $g5mVals = $g5m->toArray();
+                    $firstFailure = $this->firstGateFailure($g5mVals, $v['gates_5m'] ?? []);
+                    if ($firstFailure !== null) {
+                        $this->logGateRejection($v, '5m', $s, $tsEst, $firstFailure, $g5mVals);
+
                         continue;
                     }
-                    $score = $this->score($g5m->toArray(), $v['scanner_score_formula']);
+                    $score = $this->score($g5mVals, $v['scanner_score_formula']);
 
                     // entry_score_min / entry_score_max gate (checked against computed score)
                     $scoreMin = $v['gates_5m']['entry_score_min']['threshold_min'] ?? null;
                     $scoreMax = $v['gates_5m']['entry_score_min']['threshold_max'] ?? null;
                     if ($scoreMin !== null && $score < (float) $scoreMin) {
+                        $this->logGateRejection($v, '5m', $s, $tsEst, [
+                            'gate' => 'entry_score_min',
+                            'reason' => 'gate_below_min',
+                            'value' => $score,
+                            'min' => $scoreMin,
+                            'max' => $scoreMax,
+                        ], $g5mVals);
+
                         continue;
                     }
                     if ($scoreMax !== null && $score > (float) $scoreMax) {
+                        $this->logGateRejection($v, '5m', $s, $tsEst, [
+                            'gate' => 'entry_score_min',
+                            'reason' => 'gate_above_max',
+                            'value' => $score,
+                            'min' => $scoreMin,
+                            'max' => $scoreMax,
+                        ], $g5mVals);
+
                         continue;
                     }
 
@@ -190,6 +238,14 @@ class TradingV2Backtest extends Command
 
                 $g1m = $evaluator->evaluate1m($s, $tsEst);
                 if ($g1m->isEmpty()) {
+                    $this->logGateRejection($v, '1m', $s, $tsEst, [
+                        'gate' => 'min_bars',
+                        'reason' => 'insufficient_1m_data',
+                        'value' => 0,
+                        'min' => 2,
+                        'max' => null,
+                    ], $g1m->toArray());
+
                     continue;
                 }
 
@@ -221,7 +277,11 @@ class TradingV2Backtest extends Command
                         }
                     }
 
-                    if (! $this->passes($g1m->toArray(), $v['gates_1m'] ?? [])) {
+                    $g1mVals = $g1m->toArray();
+                    $firstFailure = $this->firstGateFailure($g1mVals, $v['gates_1m'] ?? []);
+                    if ($firstFailure !== null) {
+                        $this->logGateRejection($v, '1m', $s, $tsEst, $firstFailure, $g1mVals);
+
                         continue;
                     }
 
@@ -394,31 +454,113 @@ class TradingV2Backtest extends Command
         return self::SUCCESS;
     }
 
-    private function passes(array $gates, array $thresholds): bool
+    /**
+     * Truncate the gate-rejections log so it only contains data from the most
+     * recent backtest run. The daily driver writes to gate-rejections-YYYY-MM-DD.log;
+     * we remove all matching files (including today's) to start fresh.
+     */
+    private function clearGateRejectionLog(): void
+    {
+        $patterns = [
+            storage_path('logs/gate-rejections-*.log'),
+            storage_path('logs/gate-rejections.log'),
+        ];
+
+        $cleared = 0;
+        foreach ($patterns as $pattern) {
+            foreach (glob($pattern) ?: [] as $file) {
+                @unlink($file);
+                $cleared++;
+            }
+        }
+
+        if ($cleared > 0) {
+            $this->line("  Cleared {$cleared} gate-rejection log file(s)");
+        }
+    }
+
+    private function logGateRejection(array $version, string $timeframe, string $symbol, string $tsEst, array $failure, ?array $gateValues = null): void
+    {
+        if ((bool) $this->option('no-log-rejections')) {
+            return;
+        }
+
+        $pipeline = $version['pipeline_letter'] ?? '?';
+        $count = $this->rejectionCounts[$pipeline] ?? 0;
+        if ($count >= self::MAX_REJECTION_LOGS_PER_PIPELINE) {
+            return;
+        }
+        $this->rejectionCounts[$pipeline] = $count + 1;
+
+        Log::channel('gate-rejections')->debug('[TradingV2Backtest] gate rejected', [
+            'pipeline' => $pipeline,
+            'version' => $version['version_string'] ?? null,
+            'timeframe' => $timeframe,
+            'symbol' => $symbol,
+            'ts_est' => $tsEst,
+            'gate' => $failure['gate'] ?? null,
+            'reason' => $failure['reason'] ?? null,
+            'value' => $failure['value'] ?? null,
+            'min' => $failure['min'] ?? null,
+            'max' => $failure['max'] ?? null,
+            // Full snapshot of every computed gate value at this bar, so blocked
+            // candidates can be analyzed later without re-querying bar data.
+            'gate_values' => $gateValues ?? null,
+        ]);
+    }
+
+    private function firstGateFailure(array $gates, array $thresholds): ?array
     {
         foreach ($thresholds as $gate => $cfg) {
             $value = $gates[$gate] ?? null;
             if ($value === null) {
                 continue;
             }
+
             $min = $cfg['threshold_min'] ?? null;
             $max = $cfg['threshold_max'] ?? null;
+
             if ($min === null && $max === null) {
                 if (! $value) {
-                    return false;
+                    return [
+                        'gate' => $gate,
+                        'reason' => 'gate_bool_false',
+                        'value' => $value,
+                        'min' => null,
+                        'max' => null,
+                    ];
                 }
 
                 continue;
             }
+
             if ($min !== null && $value < $min) {
-                return false;
+                return [
+                    'gate' => $gate,
+                    'reason' => 'gate_below_min',
+                    'value' => $value,
+                    'min' => $min,
+                    'max' => $max,
+                ];
             }
+
             if ($max !== null && $value > $max) {
-                return false;
+                return [
+                    'gate' => $gate,
+                    'reason' => 'gate_above_max',
+                    'value' => $value,
+                    'min' => $min,
+                    'max' => $max,
+                ];
             }
         }
 
-        return true;
+        return null;
+    }
+
+    private function passes(array $gates, array $thresholds): bool
+    {
+        return $this->firstGateFailure($gates, $thresholds) === null;
     }
 
     private function score(array $gates, ?string $formula): float

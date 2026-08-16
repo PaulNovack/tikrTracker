@@ -589,6 +589,11 @@ export function AppSidebar() {
                               href: '/generic-ta-gate-versions',
                               icon: Database,
                           },
+                          {
+                              title: 'Gate Snapshots',
+                              href: '/generic-ta-gate-versions/snapshots',
+                              icon: History,
+                          },
                       ],
                   },
                   {

@@ -83,6 +83,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('generic-ta-gate-versions/{id}/clone', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'clone'])->name('generic-ta-gate-versions.clone');
     Route::post('generic-ta-gate-versions/{versionId}/gates', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'upsertGate'])->name('generic-ta-gate-versions.gates.upsert');
     Route::delete('generic-ta-gate-versions/gates/{gateId}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'destroyGate'])->name('generic-ta-gate-versions.gates.destroy');
+
+    // ── Gate version snapshots ──
+    Route::get('generic-ta-gate-versions/snapshots', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshots'])->name('generic-ta-gate-versions.snapshots');
+    Route::post('generic-ta-gate-versions/{id}/snapshot', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshot'])->name('generic-ta-gate-versions.snapshot');
+    Route::post('generic-ta-gate-versions/snapshot-all', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshotAll'])->name('generic-ta-gate-versions.snapshot-all');
+    Route::post('generic-ta-gate-versions/snapshots/{snapshotId}/restore', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'restore'])->name('generic-ta-gate-versions.snapshot.restore');
+    Route::delete('generic-ta-gate-versions/snapshots/{snapshotId}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'deleteSnapshot'])->name('generic-ta-gate-versions.snapshot.delete');
 });
 
 // Trading Settings (admin only)

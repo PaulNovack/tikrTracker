@@ -501,7 +501,7 @@ class GateEvaluator
         }
         $close = end($bars)['close'] ?? 0;
 
-        return $hod > 0 ? (($hod - $close) / $hod) * 100 : 0.0;
+        return $close > 0 ? (($hod - $close) / $close) * 100 : 0.0;
     }
 
     /**

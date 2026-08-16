@@ -55,7 +55,7 @@ launch_job "Momentum Continuation" "A-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline A --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "A" "python_ml/v2/models/winner_model_momentum.joblib")"
 
@@ -64,7 +64,7 @@ launch_job "Hybrid Big-Move Breakout" "C-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline C --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "C" "python_ml/v2/models/winner_model_breakouts.joblib")"
 
@@ -95,7 +95,7 @@ launch_job "Trend Continuation" "E-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline E --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "E" "python_ml/v2/models/winner_model_pipeline_e.joblib")"
 
@@ -104,7 +104,7 @@ launch_job "Risk-Off / Bear Market" "F-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline F --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "F" "python_ml/v2/models/winner_model_pipeline_f.joblib")"
 
@@ -113,7 +113,7 @@ launch_job "Combined H+I+D" "HID-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline H,I,D --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "H" "python_ml/v2/models/winner_model_pipeline_hid.joblib")"
 
@@ -122,7 +122,7 @@ launch_job "Higher-Low Breakout" "J-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline J --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --top-k 10 --train-full \
         --model-out "$(get_pipeline_model_path "J" "python_ml/v2/models/winner_model_pipeline_j.joblib")"
 
@@ -131,7 +131,7 @@ launch_job "Scarcity Leaders" "K-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline K --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "K" "python_ml/v2/models/winner_model_pipeline_k.joblib")"
 
@@ -140,7 +140,7 @@ launch_job "Early Momentum" "L-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline L --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "L" "python_ml/v2/models/winner_model_pipeline_l.joblib")"
 
@@ -149,7 +149,7 @@ launch_job "Market Movers Momentum" "N-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline N --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "N" "python_ml/v2/models/winner_model_pipeline_n.joblib")"
 
@@ -159,7 +159,7 @@ launch_job "Oversold Bounce" "G-$(date +%Y-%m-%d_%H).log" \
         --pipeline G --win-threshold 1.5 --actual-fill-weight 1.0 \
         --baseline \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "G" "python_ml/v2/models/winner_model_pipeline_g.joblib")"
 
@@ -168,7 +168,7 @@ launch_job "Tight Stops Clean Trend" "M-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline M --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "M" "python_ml/v2/models/winner_model_pipeline_m.joblib")"
 
@@ -177,7 +177,7 @@ launch_job "Opening Range Breakout" "O-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline O --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "O" "python_ml/v2/models/winner_model_pipeline_o.joblib")"
 
@@ -186,7 +186,7 @@ launch_job "Forward-Looking 2H Runner" "P-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline P --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "P" "python_ml/v2/models/winner_model_pipeline_p.joblib")"
 
@@ -195,7 +195,7 @@ launch_job "Volume-First" "Q-$(date +%Y-%m-%d_%H).log" \
     $TRAINER \
         --pipeline Q --win-threshold 1.5 --actual-fill-weight 1.0 \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --top-k 10 --train-full \
         --model-out "$(get_pipeline_model_path "Q" "python_ml/v2/models/winner_model_pipeline_q.joblib")"
 
@@ -205,7 +205,7 @@ launch_job "Backtest-Optimized ML" "R-$(date +%Y-%m-%d_%H).log" \
         --pipeline R --win-threshold 1.5 --actual-fill-weight 1.0 \
         --baseline \
         --eval-on-actual-only --split-mode day \
-        --start 2025-10-01 --end "$TODAY" \
+        --start 2025-06-01 --end "$TODAY" \
         --test-size 0.2 --train-full \
         --model-out "$(get_pipeline_model_path "R" "python_ml/v2/models/winner_model_pipeline_R.joblib")"
 

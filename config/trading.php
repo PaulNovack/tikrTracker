@@ -332,6 +332,8 @@ return [
         'pipeline_m_model_path' => env('TRADING_ML_PIPELINE_M_MODEL_PATH', null),
         'pipeline_n_model_path' => env('TRADING_ML_PIPELINE_N_MODEL_PATH', null),
         'pipeline_o_model_path' => env('TRADING_ML_PIPELINE_O_MODEL_PATH', null),
+        'pipeline_p_model_path' => env('TRADING_ML_PIPELINE_P_MODEL_PATH', null),
+        'pipeline_q_model_path' => env('TRADING_ML_PIPELINE_Q_MODEL_PATH', null),
         'pipeline_r_model_path' => env('TRADING_ML_PIPELINE_R_MODEL_PATH', null),
 
         // Per-pipeline scorer scripts — override the default score_single_alert_v2.py

@@ -820,7 +820,8 @@ class TradeAlertWriterV1
             // Removed excessive insert success logging - only log for important pipelines
             // Log successful insert for F pipeline only (others are too noisy)
             if ($pipelineRun === 'F') {
-                \Log::info("[TradeAlertWriter] Inserted: {$signal['symbol']} | {$entry['type']} | {$entry['entry_ts_est']} | Pipeline {$pipelineRun} | Table={$tableName}");
+                $entryType = $entry['entry_type'] ?? $entry['type'] ?? 'UNKNOWN';
+                \Log::info("[TradeAlertWriter] Inserted: {$signal['symbol']} | {$entryType} | {$entry['entry_ts_est']} | Pipeline {$pipelineRun} | Table={$tableName}");
             }
 
             // Dispatch ML scoring job (async, won't block alert creation)
