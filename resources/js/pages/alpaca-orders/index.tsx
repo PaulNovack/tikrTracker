@@ -291,7 +291,7 @@ export default function AlpacaOrdersIndex({
         
         const position = positions[order.symbol];
         if (position && position.qty_available === 0 && position.qty > 0) {
-            return 'Sell (stop active)';
+            return 'Sell';
         }
         return 'Sell';
     };

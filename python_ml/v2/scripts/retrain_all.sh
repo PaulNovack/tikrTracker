@@ -194,7 +194,7 @@ if should_run_pipeline "A"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "A" "python_ml/v2/models/winner_model_momentum.joblib")"
+            --model-out "$(get_pipeline_model_path "A" "python_ml/v2/models/winner_model_A.joblib")"
 fi
 
 # C — Hybrid Big-Move Breakout (v600.0)
@@ -205,7 +205,7 @@ if should_run_pipeline "C"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "C" "python_ml/v2/models/winner_model_breakouts.joblib")"
+            --model-out "$(get_pipeline_model_path "C" "python_ml/v2/models/winner_model_C.joblib")"
 fi
 
 # B — Elite Multi-Day Momentum
@@ -230,7 +230,7 @@ if should_run_pipeline "B"; then
             --pipeline B --win-threshold 1.5 --actual-fill-weight 1.0 \
             --eval-on-actual-only --start "$PIPELINE_START" --end "$PIPELINE_END" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "B" "python_ml/v2/models/winner_model_pipeline_b.joblib")"
+            --model-out "$(get_pipeline_model_path "B" "python_ml/v2/models/winner_model_B.joblib")"
 fi
 
 # E — Trend Continuation
@@ -241,7 +241,7 @@ if should_run_pipeline "E"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "E" "python_ml/v2/models/winner_model_pipeline_e.joblib")"
+            --model-out "$(get_pipeline_model_path "E" "python_ml/v2/models/winner_model_E.joblib")"
 fi
 
 # F — Risk-Off / Bear Market
@@ -252,7 +252,7 @@ if should_run_pipeline "F"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "F" "python_ml/v2/models/winner_model_pipeline_f.joblib")"
+            --model-out "$(get_pipeline_model_path "F" "python_ml/v2/models/winner_model_F.joblib")"
 fi
 
 # H — High-Momentum Breakout (separate model)
@@ -263,7 +263,7 @@ if should_run_pipeline "H"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "H" "python_ml/v2/models/winner_model_pipeline_h.joblib")"
+            --model-out "$(get_pipeline_model_path "H" "python_ml/v2/models/winner_model_H.joblib")"
 fi
 
 # I — Intraday Reversal (separate model)
@@ -274,7 +274,7 @@ if should_run_pipeline "I"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "I" "python_ml/v2/models/winner_model_pipeline_i.joblib")"
+            --model-out "$(get_pipeline_model_path "I" "python_ml/v2/models/winner_model_I.joblib")"
 fi
 
 # D — Day Range Breakout (separate model)
@@ -285,7 +285,7 @@ if should_run_pipeline "D"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "D" "python_ml/v2/models/winner_model_pipeline_d.joblib")"
+            --model-out "$(get_pipeline_model_path "D" "python_ml/v2/models/winner_model_D.joblib")"
 fi
 
 # J — Higher-Low Breakout (Recent 4% Movers)
@@ -296,7 +296,7 @@ if should_run_pipeline "J"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2025-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --top-k 10 --train-full \
-            --model-out "$(get_pipeline_model_path "J" "python_ml/v2/models/winner_model_pipeline_j.joblib")"
+            --model-out "$(get_pipeline_model_path "J" "python_ml/v2/models/winner_model_J.joblib")"
 fi
 
 # K — Scarcity Leaders
@@ -307,7 +307,7 @@ if should_run_pipeline "K"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "K" "python_ml/v2/models/winner_model_pipeline_k.joblib")"
+            --model-out "$(get_pipeline_model_path "K" "python_ml/v2/models/winner_model_K.joblib")"
 fi
 
 # L — Early Momentum
@@ -318,7 +318,7 @@ if should_run_pipeline "L"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "L" "python_ml/v2/models/winner_model_pipeline_l.joblib")"
+            --model-out "$(get_pipeline_model_path "L" "python_ml/v2/models/winner_model_L.joblib")"
 fi
 
 # N — Market Movers Momentum
@@ -328,7 +328,7 @@ if should_run_pipeline "N"; then
             --pipeline N --win-threshold 1.5 --actual-fill-weight 1.0 \
             --eval-on-actual-only --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "N" "python_ml/v2/models/winner_model_pipeline_n.joblib")"
+            --model-out "$(get_pipeline_model_path "N" "python_ml/v2/models/winner_model_M.joblib")"
 fi
 
 # G — Oversold Bounce (v210.0) — small dataset, use LR baseline to avoid overfitting
@@ -340,7 +340,7 @@ if should_run_pipeline "G"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "G" "python_ml/v2/models/winner_model_pipeline_g.joblib")"
+            --model-out "$(get_pipeline_model_path "G" "python_ml/v2/models/winner_model_G.joblib")"
 fi
 
 # M — Tight Stops Clean Trend (v1400.0)
@@ -351,7 +351,7 @@ if should_run_pipeline "M"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "M" "python_ml/v2/models/winner_model_pipeline_m.joblib")"
+            --model-out "$(get_pipeline_model_path "M" "python_ml/v2/models/winner_model_M.joblib")"
 fi
 
 # O — Opening Range Breakout (v1500.0)
@@ -362,7 +362,7 @@ if should_run_pipeline "O"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "O" "python_ml/v2/models/winner_model_pipeline_o.joblib")"
+            --model-out "$(get_pipeline_model_path "O" "python_ml/v2/models/winner_model_O.joblib")"
 fi
 
 # P — Oversold Bounce (v210.1) — research only, no model path yet
@@ -373,7 +373,7 @@ if should_run_pipeline "P"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "P" "python_ml/v2/models/winner_model_pipeline_p.joblib")"
+            --model-out "$(get_pipeline_model_path "P" "python_ml/v2/models/winner_model_P.joblib")"
 fi
 
 # Q — Volume-First (v27.0)
@@ -384,7 +384,7 @@ if should_run_pipeline "Q"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2025-06-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --top-k 10 --train-full \
-            --model-out "$(get_pipeline_model_path "Q" "python_ml/v2/models/winner_model_pipeline_q.joblib")"
+            --model-out "$(get_pipeline_model_path "Q" "python_ml/v2/models/winner_model_Q.joblib")"
 fi
 
 # R — Backtest-Optimized ML (v3100.0) — small dataset, use LR baseline to avoid overfitting
@@ -396,7 +396,7 @@ if should_run_pipeline "R"; then
             --eval-on-actual-only --split-mode day \
             --start "$(resolve_start_date "2024-01-01")" --end "$(resolve_end_date)" \
             --test-size 0.2 --train-full \
-            --model-out "$(get_pipeline_model_path "R" "python_ml/v2/models/winner_model_pipeline_R.joblib")"
+            --model-out "$(get_pipeline_model_path "R" "python_ml/v2/models/winner_model_R.joblib")"
 fi
 
 echo ""

@@ -1,0 +1,525 @@
+======================================================================
+Analyzing ALL 17 active alert versions (v3 discovery)
+======================================================================
+
+======================================================================
+A / v90.1 (id=231) — v3 discovery
+======================================================================
+
+======================================================================
+Version: A/v90.1  (id=231)
+Signal type: MOMENTUM_BREAKOUT
+Enabled: yes
+Scanner score formula: move30m*0.4+rvolRatio*0.4+atrPct*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  1.1000
+  override:  n/a
+  global:    n/a
+  effective: 1.1000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 173
+  win rate:      9.25%   (win = pnl >= 1.5%)
+  avg pnl:       0.313%
+  median pnl:     0.210%
+  ml_win_prob:    mean 0.5783 | median 0.5783
+======================================================================
+BLOCKING GATES — A/v90.1 (total trades: 173)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+version                      gate   current suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct          warning
+A/v90.1                5m atr_pct     0.3→3         —              96         55.5              47.9             55.8            0.235              None                 
+A/v90.1      5m vwap_distance_min min 0.189         —              65         37.6              26.2             66.7           -0.113              None                 
+A/v90.1           5m move_30m_pct   1.007→8         —              47         27.2              27.7             60.3           -0.126              None                 
+A/v90.1             5m rvol_ratio   min 1.2         —              34         19.7              23.5             58.3           -0.169              None                 
+A/v90.1 5m distance_from_high_atr max 1.031         —              31         17.9              25.8             57.0           -0.276              None                 
+A/v90.1                    5m rsi    max 80 max→89.77              31         17.9              54.8             50.7            0.227              None ⚠ BLOCKS WINNERS
+A/v90.1       5m net_progress_pct  min 1.62         —              26         15.0              26.9             55.8           -0.101              None                 
+A/v90.1         5m ema_spread_pct    0.05→2         —              25         14.5              44.0             52.7            0.089              None                 
+A/v90.1    5m upper_wick_fraction   max 0.4         —              16          9.2              56.2             51.0            0.944              None ⚠ BLOCKS WINNERS
+A/v90.1               5m notional min 5e+04         —               3          1.7              33.3             51.8           -0.273              None                 
+A/v90.1               1m min_bars    min 10         —               1          0.6               0.0             51.7           -0.940              None                 
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML threshold recommendation met the minimum trade count.
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                           gate    current   suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+               5m atr_pct [min]     0.3000      0.3613              77                53           14.29%             16.98% +2.70pp tighten minimum threshold (keeps 69% of current trades)
+5m distance_from_high_atr [max]     1.0310      0.3430             142                98           11.27%             13.27% +2.00pp tighten maximum threshold (keeps 69% of current trades)
+       1m room_to_hod_pct [min]     0.0000      0.2579             173               109            9.25%             11.01% +1.76pp tighten minimum threshold (keeps 63% of current trades)
+      5m net_progress_pct [min]     1.6200      1.8654             147               131           10.88%             12.21% +1.33pp tighten minimum threshold (keeps 89% of current trades)
+        5m ema_spread_pct [min]     0.0500      0.1294             148               131           10.14%             11.45% +1.32pp tighten minimum threshold (keeps 89% of current trades)
+                 5m price [max]   200.0000     44.4286             173               142            9.25%             10.56% +1.31pp tighten maximum threshold (keeps 82% of current trades)
+           1m notional_1m [min] 50000.0000 112565.3657             173               142            9.25%             10.56% +1.31pp tighten minimum threshold (keeps 82% of current trades)
+     5m vwap_distance_min [min]     0.1890      0.2385             108                98           12.04%             13.27% +1.23pp tighten minimum threshold (keeps 91% of current trades)
+  1m above_vwap_entry_pct [max]     5.0000      3.4865             173               153            9.25%             10.46% +1.21pp tighten maximum threshold (keeps 88% of current trades)
+          5m move_30m_pct [min]     1.0070      1.5099             126                87           12.70%             13.79% +1.09pp tighten minimum threshold (keeps 69% of current trades)
+              5m notional [min] 50000.0000 251783.5074             170               153            9.41%             10.46% +1.05pp tighten minimum threshold (keeps 90% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+               gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate                                                                           note
+5m rsi [max] LOOSEN 80.0000   89.7660             142               164           10.56%              9.76% LOOSEN maximum threshold to stop blocking winners (captures 95% of all alerts)
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m above_vwap (boolean gate has no safe tightening sweep)
+  - 5m bb_position (no matching column or meta field)
+  - 5m benchmark_below_vwap (disabled in config)
+  - 5m breakout_detected (boolean gate has no safe tightening sweep)
+  - 5m choppiness_directional_max (no matching column or meta field)
+  - 5m confirm_body_pct (no matching column or meta field)
+  - 5m confirm_close_position (no matching column or meta field)
+  - 5m confirm_volume_ratio (no matching column or meta field)
+  - 5m directional_changes_max (disabled in config)
+  - 5m distance_from_ema9_atr (disabled in config)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m ema9_above_ema21_1m (boolean gate has no safe tightening sweep)
+  - 5m ema9_above_ema21_5m (no matching column or meta field)
+  - 5m ema9_slope_positive (boolean gate has no safe tightening sweep)
+  - 5m green_close (boolean gate has no safe tightening sweep)
+  - 5m higher_low_count (disabled in config)
+  - 5m higher_low_pct_min (no matching column or meta field)
+  - 5m impulse_atr (no matching column or meta field)
+  - 5m impulse_green (no matching column or meta field)
+  - 5m impulse_move_pct (no matching column or meta field)
+  - 5m impulse_volume_ratio (no matching column or meta field)
+  - 5m market_weakness (disabled in config)
+  - 5m max_above_ema9_bps (no matching column or meta field)
+  - 5m max_entry_age_minutes (no matching column or meta field)
+  - 5m max_hour (no matching column or meta field)
+  - 5m move_from_open_pct (disabled in config)
+  - 5m opening_range_width_pct (disabled in config)
+  - 5m pullback_bear_body_atr_max (no matching column or meta field)
+  - 5m pullback_depth_impulse_pct (no matching column or meta field)
+  - 5m pullback_max_under_ema21_bps (no matching column or meta field)
+  - 5m pullback_volume_ratio_max (no matching column or meta field)
+  - 5m reject_inverted_v (disabled in config)
+  - 5m reward_risk_min (no matching column or meta field)
+  - 5m room_atr_mult (missing companion room thresholds)
+  - 5m rs_ratio (disabled in config)
+  - 5m stop_atr_mult (no matching column or meta field)
+  - 5m stop_buffer_bps (no matching column or meta field)
+  - 5m stop_pct (no matching column or meta field)
+  - 5m vwap_violation_count (disabled in config)
+  - 1m time_blocked (disabled in config)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — A/v90.1
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+                            gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate current_avg_pnl suggested_avg_pnl delta_total_pnl                 source                                                                               note
+     5m above_vwap_pct [new-min]    none   -0.0158             173               142            9.25%             10.56%          0.313%            0.463%        +11.550%      5m:above_vwap_pct adds profitable subset with 11.55 total pnl points and keeps 82% of current trades
+5m move_rvol_composite [new-min]    none    1.6743             173               120            9.25%             12.50%          0.313%            0.511%         +7.170% 5m:move_rvol_composite  adds profitable subset with 7.17 total pnl points and keeps 69% of current trades
+ 5m three_bar_gain_pct [new-min]    none    0.4267             173               131            9.25%             12.21%          0.313%            0.452%         +5.060%  5m:three_bar_gain_pct  adds profitable subset with 5.06 total pnl points and keeps 76% of current trades
+
+  These are SUGGESTIONS only — review them before applying.
+  New gates are only proposed when they improve total P&L on the
+  current analyzed sample and keep enough trades to matter.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+B / v120.0 (id=232) — v3 discovery
+======================================================================
+
+======================================================================
+Version: B/v120.0  (id=232)
+Signal type: ELITE_MOMENTUM_CONTINUATION
+Enabled: yes
+Scanner score formula: move30m*0.5+rvolRatio*0.3+greenDays*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  1.1000
+  override:  n/a
+  global:    n/a
+  effective: 1.1000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 69
+  win rate:      8.70%   (win = pnl >= 1.5%)
+  avg pnl:       0.328%
+  median pnl:     0.430%
+======================================================================
+BLOCKING GATES — B/v120.0 (total trades: 69)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+ version                   gate     current suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct          warning
+B/v120.0            5m rs_ratio 7.581→1e+07         —              14         20.3              57.1             63.6            0.314              None                 
+B/v120.0 5m move_rvol_composite 0.899→1e+07         —               8         11.6              62.5             62.3            0.392              None ⚠ BLOCKS WINNERS
+B/v120.0        5m move_30m_pct 0.425→1e+07         —               6          8.7              50.0             63.5            0.235              None                 
+B/v120.0             5m atr_pct 0.126→1e+07         —               5          7.2              60.0             62.5            0.526              None                 
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML-scored alerts in sample — skipping ML threshold tuning (gate tuning below still applies).
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                        gate      current   suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+5m move_rvol_composite [min]       0.8990      1.9974              61                39            9.84%             15.38% +5.55pp tighten minimum threshold (keeps 64% of current trades)
+           5m rs_ratio [max] 9999999.0000     17.8820              69                39            8.70%             10.26% +1.56pp tighten maximum threshold (keeps 57% of current trades)
+            5m atr_pct [min]       0.1260      0.1887              64                56            9.38%             10.71% +1.34pp tighten minimum threshold (keeps 88% of current trades)
+       5m move_30m_pct [min]       0.4250      0.6396              63                56            9.52%             10.71% +1.19pp tighten minimum threshold (keeps 89% of current trades)
+              5m price [max] 9999999.0000     70.5623              69                61            8.70%              9.84% +1.14pp tighten maximum threshold (keeps 88% of current trades)
+        1m notional_1m [min]  667070.0000 750653.3666              69                61            8.70%              9.84% +1.14pp tighten minimum threshold (keeps 88% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+  No safe loosening found for the flagged gates (loosening would tank quality).
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m above_vwap (disabled in config)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m entry_score_min (disabled in config)
+  - 5m require_vol_increase (disabled in config)
+  - 1m above_vwap_entry_pct (disabled in config)
+  - 1m body_pct (disabled in config)
+  - 1m ema9_above_ema21_1m (boolean gate has no safe tightening sweep)
+  - 1m ema9_above_ema21_5m (no matching column or meta field)
+  - 1m room_atr_mult (missing companion room thresholds)
+  - 1m room_to_hod_pct (disabled in config)
+  - 1m vol_ratio_1m (disabled in config)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — B/v120.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+                               gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate current_avg_pnl suggested_avg_pnl delta_total_pnl                    source                                                                              note
+        5m above_vwap_pct [new-min]    none   -0.2722              69                61            8.70%              9.84%          0.328%            0.498%         +7.720%         5m:above_vwap_pct adds profitable subset with 7.72 total pnl points and keeps 88% of current trades
+         5m green_bar_pct [new-min]    none   45.9429              69                52            8.70%             11.54%          0.328%            0.490%         +2.860%          5m:green_bar_pct adds profitable subset with 2.86 total pnl points and keeps 75% of current trades
+                   1m rsi [new-max]    none   85.2183              69                61            8.70%              9.84%          0.328%            0.413%         +2.590%                    1m:rsi adds profitable subset with 2.59 total pnl points and keeps 88% of current trades
+        1m close_position [new-max]    none    0.9898              69                61            8.70%              9.84%          0.328%            0.398%         +1.640%         1m:close_position adds profitable subset with 1.64 total pnl points and keeps 88% of current trades
+5m closes_near_high_count [new-min]    none    6.0000              69                59            8.70%             10.17%          0.328%            0.392%         +0.520% 5m:closes_near_high_count adds profitable subset with 0.52 total pnl points and keeps 86% of current trades
+   5m directional_changes [new-max]    none    8.0000              69                45            8.70%             11.11%          0.328%            0.509%         +0.270%    5m:directional_changes adds profitable subset with 0.27 total pnl points and keeps 65% of current trades
+
+  These are SUGGESTIONS only — review them before applying.
+  New gates are only proposed when they improve total P&L on the
+  current analyzed sample and keep enough trades to matter.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+C / v101.0 (id=233) — v3 discovery
+======================================================================
+
+======================================================================
+Version: C/v101.0  (id=233)
+Signal type: MOMENTUM_ACCELERATION_SURGE_5M_V101
+Enabled: yes
+Scanner score formula: move30m*0.5+rvolRatio*0.3+atrPct*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  1.1000
+  override:  n/a
+  global:    n/a
+  effective: 1.1000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 16
+  win rate:      31.25%   (win = pnl >= 1.5%)
+  avg pnl:       0.978%
+  median pnl:     0.685%
+======================================================================
+BLOCKING GATES — C/v101.0 (total trades: 16)
+Sample too small for outcome-based blocking, so 'market_reject%'
+shows how often each gate rejects a recent market-wide alert sample.
+High reject% = the gate is throttling alert volume.
+----------------------------------------------------------------------
+ version            gate   current  market_reject%  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate          warning
+C/v101.0   5m rvol_ratio min 5.669            95.2               7         43.8              85.7             66.7 ⚠ BLOCKS WINNERS
+C/v101.0 5m move_30m_pct min 0.902            92.0               4         25.0              75.0             75.0                 
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML-scored alerts in sample — skipping ML threshold tuning (gate tuning below still applies).
+----------------------------------------------------------------------
+Gate tuning suggestions:
+  No gate recommendation met the constraints (min-trades=20, min-retention=0.5, min-win-lift=1.0pp). This is intentional — it means no reasonable tightening was found.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+  No safe loosening found for the flagged gates (loosening would tank quality).
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m above_vwap (boolean gate has no safe tightening sweep)
+  - 5m atr_pct (disabled in config)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m notional (disabled in config)
+  - 1m room_atr_mult (no tighter multiplier met min trades)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — C/v101.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+D / v60.3 (id=234) — v3 discovery
+======================================================================
+
+======================================================================
+Version: D/v60.3  (id=234)
+Signal type: HYBRID_MOMO_ENTRY_SCORE
+Enabled: yes
+Scanner score formula: move30m*0.3+rvolRatio*0.5+atrPct*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  0.8000
+  override:  n/a
+  global:    n/a
+  effective: 0.8000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 113
+  win rate:      4.42%   (win = pnl >= 1.5%)
+  avg pnl:       0.021%
+  median pnl:     -0.130%
+======================================================================
+BLOCKING GATES — D/v60.3 (total trades: 113)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+version                   gate    current suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct warning
+D/v60.3          5m rvol_ratio 5.669→1000         —              63         55.8              30.2             54.0           -0.030              None        
+D/v60.3 5m move_rvol_composite  -0.22→100         —              30         26.5              20.0             48.2           -0.328              None        
+D/v60.3        5m move_30m_pct -0.246→100         —              26         23.0              19.2             47.1           -0.390              None        
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML-scored alerts in sample — skipping ML threshold tuning (gate tuning below still applies).
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                        gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+       1m vol_ratio_1m [min]  3.0430    4.8494             113                64            4.42%              6.25% +1.83pp tighten minimum threshold (keeps 57% of current trades)
+       5m move_30m_pct [min] -0.2460    0.1217              87                64            4.60%              6.25% +1.65pp tighten minimum threshold (keeps 74% of current trades)
+    5m entry_score_min [min]  1.5000    3.4466             113                85            4.42%              5.88% +1.46pp tighten minimum threshold (keeps 75% of current trades)
+    1m room_to_hod_pct [min]  1.5890    1.8857             113                85            4.42%              5.88% +1.46pp tighten minimum threshold (keeps 75% of current trades)
+5m move_rvol_composite [min] -0.2200    0.2539              83                64            4.82%              6.25% +1.43pp tighten minimum threshold (keeps 77% of current trades)
+         5m rvol_ratio [min]  5.6690    5.9404              50                42            6.00%              7.14% +1.14pp tighten minimum threshold (keeps 84% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m notional (disabled in config)
+  - 1m room_atr_mult (no tighter multiplier met min trades)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — D/v60.3
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+                               gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate current_avg_pnl suggested_avg_pnl delta_total_pnl                    source                                                                               note
+        5m above_vwap_pct [new-min]    none    0.0348             113                64            4.42%              7.81%          0.021%            0.259%        +14.230%         5m:above_vwap_pct adds profitable subset with 14.23 total pnl points and keeps 57% of current trades
+      5m net_progress_pct [new-min]    none   -0.2814             113                78            4.42%              6.41%          0.021%            0.175%        +11.320%       5m:net_progress_pct adds profitable subset with 11.32 total pnl points and keeps 69% of current trades
+    5m three_bar_gain_pct [new-min]    none   -0.2219             113                85            4.42%              5.88%          0.021%            0.154%        +10.750%     5m:three_bar_gain_pct adds profitable subset with 10.75 total pnl points and keeps 75% of current trades
+    5m move_from_open_pct [new-min]    none   -0.2902             113                78            4.42%              6.41%          0.021%            0.151%         +9.430%     5m:move_from_open_pct  adds profitable subset with 9.43 total pnl points and keeps 69% of current trades
+5m distance_from_high_atr [new-max]    none    3.4203             113                85            4.42%              5.88%          0.021%            0.139%         +9.430% 5m:distance_from_high_atr  adds profitable subset with 9.43 total pnl points and keeps 75% of current trades
+   1m upper_wick_fraction [new-min]    none    0.1818             113                57            4.42%              7.02%          0.021%            0.157%         +6.570%    1m:upper_wick_fraction  adds profitable subset with 6.57 total pnl points and keeps 50% of current trades
+                 5m price [new-min]    none   11.3420             113                85            4.42%              5.88%          0.021%            0.101%         +6.210%                  5m:price  adds profitable subset with 6.21 total pnl points and keeps 75% of current trades
+  5m vwap_violation_count [new-max]    none    8.0000             113                59            4.42%              6.78%          0.021%            0.116%         +4.460%   5m:vwap_violation_count  adds profitable subset with 4.46 total pnl points and keeps 52% of current trades
+              5m rs_ratio [new-min]    none    0.3540             113                71            4.42%              7.04%          0.021%            0.090%         +4.000%               5m:rs_ratio   adds profitable subset with 4.0 total pnl points and keeps 63% of current trades
+    5m yesterday_move_pct [new-min]    none   -0.6040             113                71            4.42%              7.04%          0.021%            0.089%         +3.930%     5m:yesterday_move_pct  adds profitable subset with 3.93 total pnl points and keeps 63% of current trades
+    5m yesterday_vol_mult [new-max]    none    1.1400             113                57            4.42%              8.77%          0.021%            0.107%         +3.760%     5m:yesterday_vol_mult  adds profitable subset with 3.76 total pnl points and keeps 50% of current trades
+                   5m atr [new-min]    none    0.0300             113                75            4.42%              6.67%          0.021%            0.076%         +3.320%                    5m:atr  adds profitable subset with 3.32 total pnl points and keeps 66% of current trades
+    5m benchmark_move_15m [new-min]    none    0.0145             113                64            4.42%              6.25%          0.021%            0.087%         +3.190%     5m:benchmark_move_15m  adds profitable subset with 3.19 total pnl points and keeps 57% of current trades
+        1m close_position [new-min]    none    0.1139             113                85            4.42%              5.88%          0.021%            0.057%         +2.510%         1m:close_position  adds profitable subset with 2.51 total pnl points and keeps 75% of current trades
+       1m entry_atr_score [new-min]    none    0.6618             113                57            4.42%              7.02%          0.021%            0.048%         +0.380%        1m:entry_atr_score  adds profitable subset with 0.38 total pnl points and keeps 50% of current trades
+
+  These are SUGGESTIONS only — review them before applying.
+  New gates are only proposed when they improve total P&L on the
+  current analyzed sample and keep enough trades to matter.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+E / v400.0 (id=235) — v3 discovery
+======================================================================
+
+Boost profile enabled for this pipeline: discovery is more permissive
+(lower min-win-lift, lower retention floor, and more candidate steps).
+Expanded field discovery is enabled for E/F only; other pipelines stay on the
+existing conservative gate list so their working boosts are preserved.
+
+======================================================================
+Version: E/v400.0  (id=235)
+Signal type: TREND_CONTINUATION
+Enabled: yes
+Scanner score formula: vwap*0.25+ema_trend*0.20+hh_hl*0.15+support*0.15+demand*0.10+vol*0.10
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  1.1000
+  override:  n/a
+  global:    n/a
+  effective: 1.1000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 617
+  win rate:      5.35%   (win = pnl >= 1.5%)
+  avg pnl:       0.155%
+  median pnl:     -0.130%
+======================================================================
+BLOCKING GATES — E/v400.0 (total trades: 617)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+ version                    gate   current suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct          warning
+E/v400.0 5m vwap_violation_count     max 5         —             299         48.5              39.5             41.5            0.159              None                 
+E/v400.0     5m higher_low_count     min 2     min→0             225         36.5              40.9             40.3            0.173              None ⚠ BLOCKS WINNERS
+E/v400.0                5m price    1→81.4         —             150         24.3              33.3             42.8            0.009              None                 
+E/v400.0      1m room_to_hod_pct min 1.824         —             150         24.3              40.7             40.5            0.029              None ⚠ BLOCKS WINNERS
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML-scored alerts in sample — skipping ML threshold tuning (gate tuning below still applies).
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                    gate    current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+          5m price [max]    81.3980   48.9420             467               348            6.64%              8.05% +1.41pp tighten maximum threshold (keeps 75% of current trades)
+1m room_to_hod_pct [min]     1.8240    2.1752             467               348            6.64%              8.05% +1.41pp tighten minimum threshold (keeps 75% of current trades)
+       5m rs_ratio [min] -5000.0000    0.9061             617               309            5.35%              6.47% +1.12pp tighten minimum threshold (keeps 50% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+                            gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate                                                                            note
+5m higher_low_count [min] LOOSEN  2.0000    0.0000             392               617            4.59%              5.35% LOOSEN minimum threshold to stop blocking winners (captures 100% of all alerts)
+ 1m room_to_hod_pct [min] LOOSEN  1.8240    1.6867             467               547            6.64%              5.85%  LOOSEN minimum threshold to stop blocking winners (captures 89% of all alerts)
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m atr_pct (disabled in config)
+  - 5m closes_near_high_count (disabled in config)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m ema9_slope_positive (disabled in config)
+  - 5m notional (disabled in config)
+  - 5m rvol_ratio (disabled in config)
+  - 1m ema9_above_ema21_1m (disabled in config)
+  - 1m room_atr_mult (no tighter multiplier met min trades)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — E/v400.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+                                gate current    suggested  current_trades  suggested_trades current_win_rate suggested_win_rate current_avg_pnl suggested_avg_pnl delta_total_pnl                     source                                                                               note
+  5m max_adverse_excursion [new-min]    none      -0.4796             617               470            5.35%              5.74%          0.155%            0.349%        +68.600%   5m:max_adverse_excursion  adds profitable subset with 68.6 total pnl points and keeps 76% of current trades
+      5m hold_time_minutes [new-min]    none      12.0000             617               360            5.35%              8.33%          0.155%            0.431%        +59.770%       5m:hold_time_minutes adds profitable subset with 59.77 total pnl points and keeps 58% of current trades
+         5m above_vwap_pct [new-min]    none      -0.0268             617               401            5.35%              6.98%          0.155%            0.338%        +40.130%          5m:above_vwap_pct adds profitable subset with 40.13 total pnl points and keeps 65% of current trades
+5m suggested_trailing_stop [new-max]    none       0.6223             617               493            5.35%              6.29%          0.155%            0.209%         +7.830% 5m:suggested_trailing_stop  adds profitable subset with 7.83 total pnl points and keeps 80% of current trades
+        1m room_to_hod_pct [new-min]    none       1.7352             617               516            5.35%              6.01%          0.155%            0.198%         +6.830%         1m:room_to_hod_pct  adds profitable subset with 6.83 total pnl points and keeps 84% of current trades
+        5m room_to_run_pct [new-min]    none       1.7355             617               516            5.35%              6.01%          0.155%            0.198%         +6.830%         5m:room_to_run_pct  adds profitable subset with 6.83 total pnl points and keeps 84% of current trades
+              5m stop_loss [new-max]    none     113.0400             617               540            5.35%              6.11%          0.155%            0.186%         +5.220%               5m:stop_loss  adds profitable subset with 5.22 total pnl points and keeps 88% of current trades
+                   5m vwap [new-max]    none     113.5400             617               540            5.35%              5.93%          0.155%            0.183%         +3.400%                    5m:vwap   adds profitable subset with 3.4 total pnl points and keeps 88% of current trades
+                    5m hod [new-max]    none     115.9500             617               540            5.35%              5.93%          0.155%            0.183%         +3.210%                     5m:hod  adds profitable subset with 3.21 total pnl points and keeps 88% of current trades
+                5m atr_pct [new-min]    none       0.0650             617               543            5.35%              6.08%          0.155%            0.177%         +0.810%                 5m:atr_pct  adds profitable subset with 0.81 total pnl points and keeps 88% of current trades
+        5m notional_last5m [new-max]    none 5664000.9270             617               563            5.35%              5.68%          0.155%            0.170%         +0.320%         5m:notional_last5m  adds profitable subset with 0.32 total pnl points and keeps 91% of current trades
+      1m entry_notional_1m [new-max]    none 2455529.4400             617               586            5.35%              5.63%          0.155%            0.163%         +0.150%       1m:entry_notional_1m  adds profitable subset with 0.15 total pnl points and keeps 95% of current trades
+
+  These are SUGGESTIONS only — review them before applying.
+  New gates are only proposed when they improve total P&L on the
+  current analyzed sample and keep enough trades to matter.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+F / v900.1 (id=236) — v3 discovery
+======================================================================
+
+Boost profile enabled for this pipeline: discovery is more permissive
+(lower min-win-lift, lower retention floor, and more candidate steps).
+Expanded field discovery is enabled for E/F only; other pipelines stay on the
+existing conservative gate list so their working boosts are preserved.
+
+======================================================================
+Version: F/v900.1  (id=236)
+Signal type: MOMENTUM_CONTINUATION_SETUP
+Enabled: yes
+Scanner score formula: move30m*0.3+rvolRatio*0.3+rsi*0.2+atrPct*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  1.1000
+  override:  n/a
+  global:    n/a
+  effective: 1.1000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 10297
+  win rate:      2.68%   (win = pnl >= 1.5%)
+  avg pnl:       0.101%
+  median pnl:     -0.130%
+======================================================================
+BLOCKING GATES — F/v900.1 (total trades: 10297)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+ version               gate     current suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct warning
+F/v900.1  5m above_vwap_pct   min -0.01         —            4455         43.3              16.9             44.3           -0.087              None        
+F/v900.1           5m price 17.04→53.56         —              56          0.5              30.4             32.5           -0.166              None        
+F/v900.1    1m vol_ratio_1m 0.607→2.572         —               4          0.0               0.0             32.5           -0.810              None        
+F/v900.1         5m atr_pct   max 1.413         —               2          0.0               0.0             32.5           -2.000              None        
+F/v900.1 1m room_to_hod_pct   max 1.989         —               2          0.0               0.0             32.5           -1.105              None        
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML-scored alerts in sample — skipping ML threshold tuning (gate tuning below still applies).
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                   gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+5m above_vwap_pct [min] -0.0100    0.0331            5842              3847            3.78%              5.07% +1.29pp tighten minimum threshold (keeps 66% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m entry_score_min (disabled in config)
+  - 1m above_vwap_entry_pct (disabled in config)
+  - 1m body_pct (disabled in config)
+  - 1m notional_1m (disabled in config)

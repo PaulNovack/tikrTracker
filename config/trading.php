@@ -145,6 +145,25 @@ return [
         'pipeline_biased1' => (int) env('PIPELINE_BIASED1_ADD_MOVERS', 0),
     ],
 
+    'pipeline_display_names' => [
+        'a' => 'Momentum Breakout',
+        'b' => 'Bull Flag Breakout',
+        'c' => 'VWAP Pullback & Hold',
+        'd' => 'VWAP Reclaim',
+        'e' => 'Opening Range Breakout (ORB)',
+        'f' => 'ORB Retest',
+        'g' => 'EMA9 Pullback',
+        'h' => 'High-of-Day Breakout',
+        'i' => 'Relative Strength Momentum',
+        'j' => 'Gap-and-Go',
+        'k' => 'Volume Surge Breakout',
+        'l' => 'VWAP Mean Reversion',
+        'm' => 'EMA9/EMA21 Trend Continuation',
+        'n' => 'Failed Breakdown Reversal',
+        'o' => 'Catalyst / News Momentum',
+        'p' => 'ML Ensemble / Meta Strategy',
+    ],
+
     // Global liquidity filter: minimum average dollar volume per minute
     // Set to 0 to disable. Can be lowered when using dynamic sizing (e.g., 5000)
     'min_dollar_volume_per_minute' => (int) env('AUTO_ALPACA_MIN_DOLLAR_VOLUME_PER_MIN', 0),

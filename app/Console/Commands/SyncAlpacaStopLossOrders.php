@@ -469,6 +469,72 @@ class SyncAlpacaStopLossOrders extends Command
 
             $this->warn("  Position mismatch for {$symbol}: DB says {$buyQty} shares, Alpaca says {$alpacaQty}, DB sells total {$dbSellQty} — {$remaining} shares orphaned");
 
+            // 2b. Targeted repair: check any non-filled sell rows already linked to
+            // this buy. These can be stops the app marked canceled while Alpaca
+            // actually filled them. Querying each row by its real Alpaca ID is
+            // far more reliable than scanning the recent closed-orders feed.
+            $staleSells = AlpacaOrder::query()
+                ->where('parent_alpaca_order_id', $buyOrder->alpaca_order_id)
+                ->where('side', 'sell')
+                ->where('status', '!=', 'filled')
+                ->whereNotNull('alpaca_order_id')
+                ->where('alpaca_order_id', 'not like', '%__buy_%')
+                ->get();
+
+            foreach ($staleSells as $staleSell) {
+                try {
+                    $check = $this->alpacaService->checkOrderStatus($staleSell->alpaca_order_id);
+                    if (! $check['success']) {
+                        continue;
+                    }
+
+                    $statusData = $this->parseStatusResponse($check['output']);
+                    $apiOrder = $statusData['order'] ?? null;
+                    if (! $apiOrder) {
+                        continue;
+                    }
+
+                    $apiStatus = strtolower((string) ($apiOrder['status'] ?? ''));
+                    if ($apiStatus !== 'filled') {
+                        continue;
+                    }
+
+                    $filledQty = (float) ($apiOrder['filled_qty'] ?? $staleSell->filled_qty ?? 0);
+                    $filledPrice = $apiOrder['filled_avg_price'] ?? $staleSell->filled_avg_price;
+                    $filledAt = $apiOrder['filled_at'] ?? now();
+
+                    if ($filledQty <= 0) {
+                        continue;
+                    }
+
+                    $staleSell->update([
+                        'status' => 'filled',
+                        'filled_qty' => $filledQty,
+                        'filled_avg_price' => $filledPrice,
+                        'filled_at' => now()->parse($filledAt),
+                        'parent_alpaca_order_id' => $buyOrder->alpaca_order_id,
+                        'notes' => 'Repaired: stop marked canceled locally but filled on Alpaca',
+                        'updated_at' => now(),
+                    ]);
+
+                    $this->info("  ✓ Repaired stale sell {$staleSell->alpaca_order_id} for {$symbol}: {$filledQty} shares @ \${$filledPrice}");
+                    $reconciled++;
+
+                    $dbSellQty += $filledQty;
+                    $remaining = $buyQty - $dbSellQty - $alpacaQty;
+
+                    if ($remaining <= 0.5) {
+                        break;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("Failed to repair stale sell {$staleSell->alpaca_order_id}: {$e->getMessage()}");
+                }
+            }
+
+            if ($remaining <= 0.5) {
+                continue; // Repaired fully via targeted sell check
+            }
+
             // 3. Query Alpaca closed orders to find the sell that actually happened
             $closedResult = $this->alpacaService->getOrders(
                 status: 'closed',
@@ -535,9 +601,33 @@ class SyncAlpacaStopLossOrders extends Command
                 $alpacaClientOrderId = $foundSell['client_order_id'] ?? null;
                 $matchedQty = min($sellQty, $buyQty);
 
-                // Use firstOrCreate to avoid duplicate entry errors on retries
+                // The real sell may already exist as a stale DB row (e.g. a stop
+                // that the app marked canceled but that actually filled on
+                // Alpaca). If Alpaca reports it filled but our row disagrees,
+                // repair the existing row instead of creating a duplicate.
                 $existingOrder = AlpacaOrder::where('alpaca_order_id', $alpacaSellOrderId)->first();
                 if ($existingOrder) {
+                    $isStale = $existingOrder->status !== 'filled'
+                        || (float) $existingOrder->filled_qty <= 0
+                        || $existingOrder->filled_avg_price === null;
+
+                    if ($isStale) {
+                        $existingOrder->update([
+                            'status' => 'filled',
+                            'filled_qty' => $matchedQty,
+                            'filled_avg_price' => $sellPrice,
+                            'filled_at' => $sellFilledAt,
+                            'parent_alpaca_order_id' => $buyOrder->alpaca_order_id,
+                            'notes' => 'Repaired: previously stale; sell filled on Alpaca',
+                            'updated_at' => now(),
+                        ]);
+
+                        $this->info("  ✓ Repaired stale sell {$alpacaSellOrderId} for {$symbol}: {$matchedQty} shares @ \${$sellPrice}");
+                        $reconciled++;
+
+                        continue;
+                    }
+
                     $this->warn("  ⚠ Sell order {$alpacaSellOrderId} already recorded — skipping");
 
                     continue;

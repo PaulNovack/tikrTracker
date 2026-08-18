@@ -1055,6 +1055,7 @@ def report_blocking_gates(
     """
     blocked_rows: list[dict[str, Any]] = []
     winner_blockers: list[GateRecord] = []
+    proxy_blockers: list[GateRecord] = []
 
     small_sample = total_trades < 50
 
@@ -1120,6 +1121,12 @@ def report_blocking_gates(
                     proxy_passed &= proxy_feature.isna() | (proxy_feature <= float(gate.threshold_max))
                 proxy_blocked_count = int((~proxy_passed).sum())
                 proxy_blocked_pct = round(proxy_blocked_count / max(1, len(market_proxy)) * 100, 1)
+
+                # When the pipeline has almost no trades, a gate that rejects most
+                # of the proxy sample is likely throttling volume even if we cannot
+                # judge it from the pipeline's own outcomes yet.
+                if proxy_blocked_pct is not None and proxy_blocked_pct >= 50.0:
+                    proxy_blockers.append(gate)
 
         # Compute a suggested value that stops blocking winners, when applicable.
         suggested = None
@@ -1205,6 +1212,14 @@ def report_blocking_gates(
             print("-" * 70)
             print(report.to_string(index=False))
         print()
+
+    if small_sample and proxy_blockers:
+        seen: set[tuple[str, str]] = {(gate.timeframe, gate.gate_name) for gate in winner_blockers}
+        for gate in proxy_blockers:
+            key = (gate.timeframe, gate.gate_name)
+            if key not in seen:
+                winner_blockers.append(gate)
+                seen.add(key)
 
     return winner_blockers
 

@@ -262,8 +262,10 @@ Route::middleware($middleware)->group(function () {
             // Best Gains 7 Days route - Top performers over the last 7 days using 5-minute data
             Route::get('best-gains-7d', [\App\Http\Controllers\Analysis\BestGains7DaysController::class, 'index'])->name('best-gains-7d.index');
             Route::get('pipeline-counts', [\App\Http\Controllers\Analysis\PipelineCountsController::class, 'index'])->name('pipeline-counts.index');
+            Route::get('ml-buckets', [\App\Http\Controllers\Analysis\MlBucketsController::class, 'index'])->name('ml-buckets.index');
             Route::get('rising-since-close', [\App\Http\Controllers\Analysis\RisingSinceCloseController::class, 'index'])->name('rising-since-close.index');
             Route::get('upward-pressure', [\App\Http\Controllers\Analysis\UpwardPressureController::class, 'index'])->name('upward-pressure.index');
+            Route::get('momentum-movers', [\App\Http\Controllers\Analysis\MomentumMoversController::class, 'index'])->name('momentum-movers.index');
             Route::get('good-long-buy', [\App\Http\Controllers\Analysis\GoodLongBuyController::class, 'index'])->name('good-long-buy.index');
             Route::get('ml-threshold-profit-loss', [\App\Http\Controllers\Analysis\MlThresholdProfitLossController::class, 'index'])->name('ml-threshold-profit-loss.index');
             Route::get('ml-calibration', [\App\Http\Controllers\Analysis\MlCalibrationController::class, 'index'])->name('ml-calibration.index');

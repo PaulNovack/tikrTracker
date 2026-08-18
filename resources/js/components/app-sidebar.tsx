@@ -382,9 +382,21 @@ export function AppSidebar() {
                     disabled: isGuest,
                 },
                 {
+                    title: 'ML Buckets',
+                    href: '/analysis/ml-buckets',
+                    icon: BarChart3,
+                    disabled: isGuest,
+                },
+                {
                     title: 'ML Calibration',
                     href: '/analysis/ml-calibration',
                     icon: BarChart3,
+                    disabled: isGuest,
+                },
+                {
+                    title: 'Momentum Movers',
+                    href: '/analysis/momentum-movers',
+                    icon: TrendingUp,
                     disabled: isGuest,
                 },
                 {

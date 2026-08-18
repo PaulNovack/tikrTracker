@@ -814,8 +814,15 @@ class TradingSettingService
     public static function getPipelineDisplayName(string $pipeline): string
     {
         $pipeline = strtolower($pipeline);
-        $cacheKey = "trading:pipeline_name:{$pipeline}";
         $upper = strtoupper($pipeline);
+        $version = (string) config("app.trade_alert_{$pipeline}_version", '');
+        $configuredName = config("trading.pipeline_display_names.{$pipeline}");
+
+        if (is_string($configuredName) && $configuredName !== '' && $version !== '') {
+            return "{$upper} — {$version} — {$configuredName}";
+        }
+
+        $cacheKey = "trading:pipeline_name:{$pipeline}";
 
         return (string) Cache::remember($cacheKey, 3600, function () use ($pipeline, $upper): string {
             $version = config("app.trade_alert_{$pipeline}_version");
@@ -835,9 +842,9 @@ class TradingSettingService
                 $defaults = $ref->getDefaultProperties();
                 $name = $defaults['name'] ?? null;
 
-                return $name ? "{$upper} — {$version} — {$name}" : $upper;
+                return $name ? "{$upper} — {$version} — {$name}" : ($version ? "{$upper} — {$version}" : $upper);
             } catch (\ReflectionException) {
-                return "Pipeline — {$upper}";
+                return $version ? "{$upper} — {$version}" : "Pipeline — {$upper}";
             }
         });
     }

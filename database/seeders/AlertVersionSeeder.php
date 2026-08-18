@@ -17,176 +17,152 @@ class AlertVersionSeeder extends Seeder
         DB::table('alert_version_gates')->delete();
         DB::table('alert_versions')->delete();
 
-        // A | v90.1 | MOMENTUM_BREAKOUT — entry score based → computed from gates
-        $this->seed('A', 'v90.1', 'MOMENTUM_BREAKOUT', 'move30m*0.4+rvolRatio*0.4+atrPct*0.2', [
-            ['entry_score_min', 93, 100],
-            ['yesterday_move_pct', 5.0, null],
-            ['yesterday_vol_mult', 1.5, null],
-        ], $this->g1());
-
-        // B | v120.0 | ELITE_MOMENTUM_CONTINUATION — multi-day momentum
-        $this->seed('B', 'v120.0', 'ELITE_MOMENTUM_CONTINUATION', 'move30m*0.5+rvolRatio*0.3+greenDays*0.2', [
-            ['entry_score_min', 70, 95],
-            ['multi_day_green_count', 2, null],
-            ['yesterday_move_pct', 2.0, null],
-            ['require_vol_increase', null, null],
-        ], $this->g1());
-
-        // C | v101.0 | MOMENTUM_ACCELERATION_SURGE_5M_V101
-        $this->seed('C', 'v101.0', 'MOMENTUM_ACCELERATION_SURGE_5M_V101', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', [
-            ['notional', 100000, null],
-            ['atr_pct', 0.45, null],
-            ['rvol_ratio', 1.50, null],
-            ['move_30m_pct', 0.35, null],
+        // A | v90.1 | Momentum Breakout
+        $this->seed('A', 'v90.1', 'MOMENTUM_BREAKOUT', 'move30m*0.4+rvolRatio*0.4+atrPct*0.2', array_merge($this->g5(0.30, 1.5, 2.0, 50000), [
             ['above_vwap', null, null],
             ['ema9_above_ema21', null, null],
-        ], $this->g1());
+            ['green_close', null, null],
+            ['green_bar_pct', 50, null],
+        ]), $this->g1(50000, 1.2, 0.10, 1.5, 0.75, 1.5));
 
-        // D | v60.3 | HYBRID_MOMO_ENTRY_SCORE
-        $this->seed('D', 'v60.3', 'HYBRID_MOMO_ENTRY_SCORE', 'move30m*0.3+rvolRatio*0.5+atrPct*0.2', [
-            ['entry_score_min', 80, 98],
-            ['notional', 30000, null],
-        ], $this->g1());
-
-        // E | v400.0 | TREND_CONTINUATION — multi-day pattern
-        $this->seed('E', 'v400.0', 'TREND_CONTINUATION', 'vwap*0.25+ema_trend*0.20+hh_hl*0.15+support*0.15+demand*0.10+vol*0.10', [
-            ['atr_pct', 2.0, null],
-            ['rvol_ratio', 2.5, null],
-            ['pullback_depth_pct', null, 60],
-            ['higher_low_count', 3, null],
+        // B | v120.0 | Bull Flag Breakout
+        $this->seed('B', 'v120.0', 'BULL_FLAG_BREAKOUT', 'move30m*0.5+rvolRatio*0.3+greenDays*0.2', array_merge($this->g5(0.25, 1.4, 1.5, 50000), [
+            ['higher_low_count', 2, null],
+            ['pullback_depth_pct', null, 45],
             ['above_vwap', null, null],
             ['ema9_above_ema21', null, null],
             ['ema9_slope_positive', null, null],
-            ['vwap_violation_count', null, 0],
-            ['closes_near_high_count', 5, null],
-        ], $this->g1());
+        ]), $this->g1(50000, 1.1, 0.08, 1.5, 0.7, 1.5));
 
-        // F | v900.1 | MOMENTUM_CONTINUATION_SETUP
-        $this->seed('F', 'v900.1', 'MOMENTUM_CONTINUATION_SETUP', 'move30m*0.3+rvolRatio*0.3+rsi*0.2+atrPct*0.2', [
-            ['price', 3.0, 500],
-            ['entry_score_min', 40, 100],
-            ['yesterday_move_pct', -5.0, null],
-            ['move_from_open_pct', 2.0, null],
-            ['rsi', 60, null],
-            ['rvol_ratio', 2.0, null],
-        ], $this->g1());
-
-        // G | v35.0 | MOMO_5M_V35 — same family as H, looser
-        $this->seed('G', 'v35.0', 'MOMO_5M_V35', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.35, null],
-            ['rvol_ratio', 2.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['rs_ratio', 1.20, null],
-            ['price', 2.0, null],
-        ], $this->g1(80000, 1.0, 0.05, 0.90, 0.6, 1.5));
-
-        // H | v25.2 | MOMO_5M_V25 — quality-first (tightest defaults)
-        $this->seed('H', 'v25.2', 'MOMO_5M_V25', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.35, null],
-            ['rvol_ratio', 2.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['rs_ratio', 1.20, null],
-            ['price', 2.0, null],
-        ], [
-            ['notional_1m', 100000, null],
-            ['vol_ratio_1m', 2.5, null],
-            ['body_pct', 0.40, null],
-            ['above_vwap_entry_pct', null, 0.60],
-            ['room_to_hod_pct', 0.8, null],
-            ['room_atr_mult', 2.5, null],
-            ['min_bars', 90, null],
-        ]);
-
-        // I | v17.0 | MOMO_5M — legacy adaptive volume
-        $this->seed('I', 'v17.0', 'MOMO_5M', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', [
-            ['notional', 20000, null],
-            ['atr_pct', 0.15, null],
-            ['rvol_ratio', 1.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['price', 1.0, null],
-            ['rs_ratio', 1.1, null],
-        ], $this->g1(35000, 1.0, 0.03, 3.0, 0.35, 1.0));
-
-        // J | v2000.0 | MOMO_5D_UNIVERSE — market movers with sensible gates
-        $this->seed('J', 'v2000.0', 'MOMO_5D_UNIVERSE', 'move30m*0.2+rvolRatio*0.2+atrPct*0.1+notional/100000*0.1', [
-            ['notional', 50000, null],
-            ['atr_pct', 0.30, null],
-            ['rvol_ratio', 1.5, null],
-            ['move_30m_pct', 0.4, null],
-            ['price', 3.0, null],
-        ], $this->g1(50000, 1.5, 0.03, 3.0, 0.5, 1.5));
-
-        // K | v1100.0 | SCARCITY_LEADER
-        $this->seed('K', 'v1100.0', 'SCARCITY_LEADER', 'move30m*0.4+rvolRatio*0.3+rs_ratio*0.2+atrPct*0.1', [
-            ['market_weakness', null, null],
-            ['benchmark_below_vwap', null, null],
-            ['price', 2.0, 80.0],
-            ['green_close', null, null],
+        // C | v101.0 | VWAP Pullback and Hold
+        $this->seed('C', 'v101.0', 'VWAP_PULLBACK_HOLD', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', array_merge($this->g5(0.20, 1.2, 0.8, 40000), [
             ['above_vwap', null, null],
             ['ema9_above_ema21', null, null],
-            ['ema_spread_pct', 0.08, null],
-            ['rs_ratio', 1.10, null],
-            ['notional', 2500, null],
-            ['distance_from_high_atr', null, 1.0],
+            ['vwap_distance_min', 0.05, null],
+            ['max_above_vwap_pct', null, 1.0],
+            ['pullback_depth_pct', null, 60],
+        ]), $this->g1(40000, 1.0, 0.08, 1.5, 0.6, 1.2));
+
+        // D | v60.3 | VWAP Reclaim
+        $this->seed('D', 'v60.3', 'VWAP_RECLAIM', 'move30m*0.3+rvolRatio*0.5+atrPct*0.2', array_merge($this->g5(0.20, 1.3, 1.0, 40000), [
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+            ['vwap_violation_count', null, 1],
+            ['vwap_reclaim_strength_pct', 0.5, null],
+            ['vwap_reclaim_wick_below_pct', 0.5, null],
+        ]), $this->g1(40000, 1.0, 0.08, 1.0, 0.6, 1.2));
+
+        // E | v400.0 | Opening Range Breakout
+        $this->seed('E', 'v400.0', 'ORB_BREAKOUT', 'vwap*0.25+ema_trend*0.20+hh_hl*0.15+support*0.15+demand*0.10+vol*0.10', array_merge($this->g5(0.30, 1.5, 1.5, 75000), [
+            ['opening_range_width_pct', 0.20, 3.0],
+            ['opening_range_bar_count', 1, 6],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+        ]), $this->g1(50000, 1.0, 0.08, 1.0, 0.7, 1.2));
+
+        // F | v900.1 | ORB Retest
+        $this->seed('F', 'v900.1', 'ORB_RETEST', 'move30m*0.3+rvolRatio*0.3+rsi*0.2+atrPct*0.2', array_merge($this->g5(0.25, 1.3, 1.0, 75000), [
+            ['opening_range_width_pct', 0.20, 3.5],
+            ['opening_range_bar_count', 1, 8],
+            ['or_retest_depth_pct', null, 2.0],
+            ['or_hold_close_pct', 0.5, null],
+            ['above_vwap', null, null],
+        ]), $this->g1(50000, 1.0, 0.08, 1.0, 0.7, 1.2));
+
+        // G | v35.0 | EMA9 Pullback
+        $this->seed('G', 'v35.0', 'EMA9_PULLBACK', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', array_merge($this->g5(0.20, 1.2, 1.0, 40000), [
+            ['ema9_above_ema21', null, null],
+            ['ema9_slope_positive', null, null],
+            ['ema_spread_pct', 0.05, null],
+            ['pullback_depth_pct', null, 40],
+        ]), array_merge($this->g1(40000, 1.0, 0.08, 1.0, 0.6, 1.2), [
+            ['ema9_pullback_depth_pct', null, 20],
+            ['ema9_reclaim_pct', 0.5, null],
+        ]));
+
+        // H | v25.2 | High of Day Breakout
+        $this->seed('H', 'v25.2', 'HOD_BREAKOUT', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', array_merge($this->g5(0.20, 1.3, 1.2, 40000), [
+            ['dist_to_hod_pct', null, 1.0],
             ['range_contraction', null, null],
-            ['move_30m_pct', 2.5, null],
-            ['vwap_distance_min', 0.15, null],
-            ['max_above_vwap_pct', null, 3.0],
-        ], $this->g1(50000, 1.8, 0.05, 3.0, 0.5, 1.5));
+            ['closes_near_high_count', 2, null],
+            ['green_bar_pct', 40, null],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+        ]), $this->g1(35000, 1.0, 0.06, 1.5, 0.75, 1.0));
 
-        // L | v1600.0 | MOMO_5M_V1600 — quality-first extended
-        $this->seed('L', 'v1600.0', 'MOMO_5M_V1600', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 150000, null],
-            ['atr_pct', 0.55, null],
-            ['rvol_ratio', 1.25, null],
-            ['move_30m_pct', 0.45, null],
-            ['price', 2.0, null],
-        ], $this->g1(80000, 1.0, 0.05, 0.90, 0.6, 1.5));
+        // I | v17.0 | Relative Strength Momentum
+        $this->seed('I', 'v17.0', 'RELATIVE_STRENGTH_MOMENTUM', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', array_merge($this->g5(0.15, 0.75, 0.2, 18000), [
+            ['rs_ratio', 1.05, null],
+            ['benchmark_below_vwap', null, null],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+        ]), $this->g1(25000, 0.9, 0.04, 2.0, 0.75, 0.9));
 
-        // M | v103.0 | ORB_RETEST_SETUP_5M_V103_0
-        $this->seed('M', 'v103.0', 'ORB_RETEST_SETUP_5M_V103_0', 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.25, 4.50],
-            ['rvol_ratio', 1.15, null],
-            ['move_30m_pct', 0.35, null],
-            ['above_vwap_pct', null, 2.10],
-            ['ema_spread_pct', 0.00, null],
-            ['opening_range_width_pct', 0.20, 4.50],
-            ['opening_range_bar_count', 3, null],
-        ], $this->g1(50000, 1.15, 0.03, 2.10, 0.5, 1.5));
+        // J | v2000.0 | Gap and Go
+        $this->seed('J', 'v2000.0', 'GAP_AND_GO', 'move30m*0.2+rvolRatio*0.2+atrPct*0.1+notional/100000*0.1', array_merge($this->g5(0.25, 1.3, 1.2, 40000), [
+            ['yesterday_move_pct', 2.0, null],
+            ['move_from_open_pct', 1.5, null],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+        ]), $this->g1(35000, 1.0, 0.06, 1.5, 0.6, 1.0));
 
-        // N | v1200.0 | TWO_BAR_MOMENTUM — 3-bar gain ≥ 4%, 2 consecutive rising bars
-        $this->seed('N', 'v1200.0', 'TWO_BAR_MOMENTUM', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', [
-            ['price', 5.0, 100],
-            ['rvol_ratio', 1.2, null],
-            ['three_bar_gain_pct', 4.0, null],  // (close[0]-open[2])/open[2] — the actual gate
-        ], $this->g1());
+        // K | v1100.0 | Volume Surge Breakout
+        $this->seed('K', 'v1100.0', 'VOLUME_SURGE_BREAKOUT', 'move30m*0.4+rvolRatio*0.3+rs_ratio*0.2+atrPct*0.1', array_merge($this->g5(0.25, 1.5, 1.2, 50000), [
+            ['breakout_volume_ratio', 1.5, null],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+            ['green_close', null, null],
+        ]), $this->g1(50000, 1.2, 0.10, 1.0, 0.7, 1.2));
 
-        // O | v1500.0 | ORB_BREAKOUT
-        $this->seed('O', 'v1500.0', 'ORB_BREAKOUT', 'move30m*0.4+rvolRatio*0.3+atrPct*0.3', [
-            ['price', 5.0, 100],
-            ['rvol_ratio', 1.5, null],
-            ['atr_pct', 1.0, 4.0],
-            ['move_30m_pct', 2.0, null],
-        ], $this->g1());
+        // L | v1600.0 | VWAP Mean Reversion
+        $this->seed('L', 'v1600.0', 'VWAP_MEAN_REVERSION', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', array_merge($this->g5(0.12, 0.85, 0.4, 15000), [
+            ['max_above_vwap_pct', null, 0.75],
+            ['vwap_distance_min', null, 0.3],
+            ['distance_from_high_atr', null, 1.2],
+        ]), $this->g1(18000, 0.8, 0.06, 1.0, 1.0, 1.0));
 
-        // P | v140.0 | INSTITUTIONAL_V140
-        $this->seed('P', 'v140.0', 'INSTITUTIONAL_V140', 'move30m*1.5+min(4,rvolRatio)*0.6+atrPct*1.0+greenDays*2.0', [
-            ['notional', 100000, null],
-            ['atr_pct', 0.40, null],
-            ['rvol_ratio', 1.5, null],
-            ['move_30m_pct', 1.5, null],
-            ['multi_day_green_count', 3, null],
-            ['price', 5.0, null],
+        // M | v103.0 | EMA9 / EMA21 Trend Continuation
+        $this->seed('M', 'v103.0', 'EMA9_EMA21_TREND_CONTINUATION', 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', array_merge($this->g5(0.20, 1.2, 1.0, 50000), [
+            ['ema9_above_ema21', null, null],
+            ['ema9_slope_positive', null, null],
+            ['ema_spread_pct', 0.05, null],
+            ['pullback_depth_pct', null, 30],
+            ['above_vwap', null, null],
+        ]), array_merge($this->g1(50000, 1.0, 0.08, 1.0, 0.7, 1.2), [
+            ['ema9_pullback_depth_pct', null, 20],
+            ['ema9_reclaim_pct', 0.5, null],
+        ]));
+
+        // N | v1200.0 | Failed Breakdown Reversal
+        $this->seed('N', 'v1200.0', 'FAILED_BREAKDOWN_REVERSAL', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', array_merge($this->g5(0.18, 1.2, 0.8, 30000), [
+            ['vwap_reclaim_strength_pct', 0.35, null],
+            ['vwap_reclaim_wick_below_pct', 0.35, null],
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+        ]), $this->g1(25000, 0.9, 0.06, 1.2, 0.5, 1.0));
+
+        // O | v1500.0 | Catalyst / News Momentum
+        $this->seed('O', 'v1500.0', 'CATALYST_NEWS_MOMENTUM', 'move30m*0.4+rvolRatio*0.3+atrPct*0.3', array_merge($this->g5(0.25, 1.6, 1.2, 40000), [
+            ['above_vwap', null, null],
+            ['ema9_above_ema21', null, null],
+            ['green_close', null, null],
+        ]), $this->g1(35000, 1.1, 0.10, 1.25, 0.7, 1.0));
+
+        // P | v140.0 | ML Ensemble / Meta Strategy
+        $this->seed('P', 'v140.0', 'ML_ENSEMBLE_META', 'move30m*1.5+min(4,rvolRatio)*0.6+atrPct*1.0+greenDays*2.0', [
+            ['notional', 80000, null],
+            ['atr_pct', 0.35, null],
+            ['rvol_ratio', 1.3, null],
+            ['move_30m_pct', 1.2, null],
+            ['multi_day_green_count', 2, null],
+            ['price', 4.0, null],
         ], [
-            ['notional_1m', 90000, null],
-            ['vol_ratio_1m', 1.3, null],
-            ['body_pct', 0.08, null],
-            ['above_vwap_entry_pct', null, 1.0],
-            ['room_to_hod_pct', 0.8, null],
-            ['min_bars', 20, null],
+            ['notional_1m', 70000, null],
+            ['vol_ratio_1m', 1.1, null],
+            ['body_pct', 0.07, null],
+            ['above_vwap_entry_pct', null, 1.2],
+            ['room_to_hod_pct', 1.0, null],
+            ['min_bars', 15, null],
         ]);
 
         // Q | v27.0 | VOLUME_FIRST_V27
