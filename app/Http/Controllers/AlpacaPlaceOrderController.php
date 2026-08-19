@@ -347,12 +347,19 @@ class AlpacaPlaceOrderController extends Controller
                 ], 409);
             }
 
-            // Enforce ML threshold — block if ML scoring failed or hasn't completed yet.
-            // passed_ml is set to 0 when the ML job runs and the score is below threshold.
-            // ml_win_prob is null when ML scoring hasn't completed yet — block to prevent
-            // orders from slipping through before scoring finishes.
+            // Manual place orders are allowed to bypass the ML threshold.
+            // Automated ML-driven buys are enforced in the alert listener.
             $mlThreshold = TradingSettingService::getPipelineMlThreshold('MANUAL');
             $alertRecord = TradeAlert::find($alertId);
+
+            Log::info('[AlpacaPlaceOrder] Manual order ML threshold bypass enabled', [
+                'symbol' => $symbol,
+                'alert_id' => $alertId,
+                'pipeline_run' => $pipelineRun,
+                'threshold' => $mlThreshold,
+                'alert_ml_win_prob' => $alertRecord?->ml_win_prob !== null ? (float) $alertRecord->ml_win_prob : null,
+                'passed_ml' => $alertRecord?->passed_ml,
+            ]);
 
             // 2. Check bid-ask spread before placing the order
             $quote = DB::connection('mysql')

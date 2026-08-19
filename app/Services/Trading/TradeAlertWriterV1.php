@@ -743,7 +743,7 @@ class TradeAlertWriterV1
                 if ($isRealtime) {
                     $existingAlert = DB::table($tableName)
                         ->where('dedupe_key', $dedupeKey)
-                        ->first(['id', 'signal_ts_est', 'entry_ts_est', 'as_of_ts_est', 'is_realtime', 'ml_scored_at']);
+                        ->first(['id', 'signal_ts_est', 'entry_ts_est', 'as_of_ts_est', 'is_realtime', 'ml_scored_at', 'ml_win_prob']);
 
                     $existingId = $existingAlert?->id;
                     $incomingSignalTs = (string) $signal['signal_ts_est'];
@@ -761,6 +761,24 @@ class TradeAlertWriterV1
                     $shouldRefreshExisting = (bool) $existingAlert && ($isNewerSignal || $isNewerEntry || $isNewerAsOf || $upgradingFromBacktest);
 
                     if ($shouldRefreshExisting) {
+                        $refreshReason = $upgradingFromBacktest
+                            ? 'upgrading_from_backtest'
+                            : ($isNewerSignal ? 'newer_signal' : ($isNewerEntry ? 'newer_entry' : 'newer_as_of'));
+
+                        \Log::info("[TradeAlertWriter] Refreshing existing alert {$existingId} ({$signal['symbol']}) pipeline={$pipelineRun}", [
+                            'dedupe_key' => $dedupeKey,
+                            'refresh_reason' => $refreshReason,
+                            'existing_is_realtime' => (bool) $existingAlert->is_realtime,
+                            'previous_ml_win_prob' => $existingAlert->ml_win_prob !== null ? (float) $existingAlert->ml_win_prob : null,
+                            'previous_ml_scored_at' => $existingAlert->ml_scored_at,
+                            'incoming_signal_ts_est' => $incomingSignalTs,
+                            'incoming_entry_ts_est' => $incomingEntryTs,
+                            'incoming_as_of_ts_est' => $incomingAsOfTs,
+                            'existing_signal_ts_est' => $existingSignalTs,
+                            'existing_entry_ts_est' => $existingEntryTs,
+                            'existing_as_of_ts_est' => $existingAsOfTs,
+                        ]);
+
                         $refreshData = $alertData;
                         $refreshData['is_realtime'] = true;
                         $refreshData['ml_win_prob'] = null;
@@ -791,7 +809,14 @@ class TradeAlertWriterV1
 
                     if ($existingId && $needsMlDispatch && config('trading.ml_scoring.enabled', true) && ! $this->backtestMode) {
                         try {
-                            \Log::info("[TradeAlertWriter] Dispatching ML job (backtest-race) for existing alert {$existingId} ({$signal['symbol']}) pipeline={$pipelineRun}");
+                            \Log::info("[TradeAlertWriter] Dispatching ML job (backtest-race) for existing alert {$existingId} ({$signal['symbol']}) pipeline={$pipelineRun}", [
+                                'dedupe_key' => $dedupeKey,
+                                'existing_id' => $existingId,
+                                'needs_ml_dispatch' => $needsMlDispatch,
+                                'pipeline_run' => $pipelineRun,
+                                'backtest_mode' => $this->backtestMode,
+                                'existing_ml_win_prob' => $existingAlert?->ml_win_prob !== null ? (float) $existingAlert->ml_win_prob : null,
+                            ]);
                             if ($this->shouldRunMlScoringSync($isRealtime, (string) $pipelineRun)) {
                                 ScoreTradeAlertWithMl::dispatchSync($existingId, $tableName, $pipelineRun);
                             } else {

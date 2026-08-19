@@ -156,6 +156,14 @@ class AlpacaOrderController extends Controller
             ->values();
         $orders->setCollection($deduped);
 
+        $orders->setCollection(
+            $orders->getCollection()->map(function ($order) {
+                $order->decision_ml_snapshot = $this->extractDecisionMlSnapshot($order->notes ?? null);
+
+                return $order;
+            })
+        );
+
         // Get unique symbols from current page
         $symbols = $orders->pluck('symbol')->unique()->values()->toArray();
 
@@ -548,5 +556,43 @@ class AlpacaOrderController extends Controller
 
             return redirect()->back()->with('error', "Failed to place sell order: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * Parse the placement-time ML snapshot we store in Alpaca order notes.
+     *
+     * @return array{decision_ml_win_prob: float|null, decision_ml_threshold: float|null, decision_effective_score: float|null, stale_rescore: bool|null}|null
+     */
+    private function extractDecisionMlSnapshot(?string $notes): ?array
+    {
+        if (! is_string($notes) || $notes === '') {
+            return null;
+        }
+
+        if (! preg_match('/ML:([\d.]+)/', $notes, $mlMatch)) {
+            return null;
+        }
+
+        $threshold = null;
+        if (preg_match('/threshold:([\d.]+)/', $notes, $thresholdMatch)) {
+            $threshold = (float) $thresholdMatch[1];
+        }
+
+        $effectiveScore = null;
+        if (preg_match('/effective:([\d.]+)/', $notes, $effectiveMatch)) {
+            $effectiveScore = (float) $effectiveMatch[1];
+        }
+
+        $staleRescore = null;
+        if (preg_match('/stale_rescore:([01])/', $notes, $staleMatch)) {
+            $staleRescore = $staleMatch[1] === '1';
+        }
+
+        return [
+            'decision_ml_win_prob' => (float) $mlMatch[1],
+            'decision_ml_threshold' => $threshold,
+            'decision_effective_score' => $effectiveScore,
+            'stale_rescore' => $staleRescore,
+        ];
     }
 }

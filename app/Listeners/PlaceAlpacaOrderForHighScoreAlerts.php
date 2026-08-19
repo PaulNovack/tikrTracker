@@ -76,18 +76,55 @@ class PlaceAlpacaOrderForHighScoreAlerts
         $pipelineRun = $alert->pipeline_run ?? '';
         $mlThreshold = TradingSettingService::getPipelineMlThreshold((string) $pipelineRun);
 
-        // In paper trading mode, optionally bypass ML threshold to collect outcome data across all pipelines.
-        // DB setting 'trading.paper_bypass_ml_threshold' takes precedence; falls back to .env AUTO_ALPACA_PAPER_BYPASS_ML_THRESHOLD.
-        $isPaperBypass = (bool) TradingSettingService::get(
-            'trading.paper_bypass_ml_threshold',
-            config('trading.auto_alpaca_orders.paper_bypass_ml_threshold', false)
-        ) && TradingSettingService::isPaperTrading();
+        // ML threshold is always enforced. We keep the flag for logging only so the
+        // operator can see whether paper-trading bypass would have been active.
+        $isPaperBypass = false;
 
-        if (! $isPaperBypass && $effectiveScore < $mlThreshold) {
-            Log::info("Alert {$event->alertId} ({$pipelineRun}) effective score {$effectiveScore} (ml={$event->mlWinProb}, boost={$sentimentBoost}) below pipeline threshold {$mlThreshold}, skipping order");
+        Log::info("ML threshold evaluation for alert {$event->alertId} ({$alert->symbol})", [
+            'alert_id' => $event->alertId,
+            'symbol' => $alert->symbol,
+            'pipeline' => $pipelineRun,
+            'alert_ml_win_prob' => isset($alert->ml_win_prob) ? (float) $alert->ml_win_prob : null,
+            'event_ml_win_prob' => $event->mlWinProb,
+            'sentiment_boost' => $sentimentBoost,
+            'effective_score' => $effectiveScore,
+            'minimum_threshold' => $minimumThreshold,
+            'pipeline_threshold' => $mlThreshold,
+            'paper_bypass' => $isPaperBypass,
+            'decision' => $effectiveScore < $mlThreshold ? 'skip_order' : 'pass_threshold',
+        ]);
+
+        if ($effectiveScore < $mlThreshold) {
+            Log::info("ML threshold blocked alert {$event->alertId} ({$alert->symbol})", [
+                'alert_id' => $event->alertId,
+                'symbol' => $alert->symbol,
+                'pipeline' => $pipelineRun,
+                'event_ml_win_prob' => $event->mlWinProb,
+                'alert_ml_win_prob' => isset($alert->ml_win_prob) ? (float) $alert->ml_win_prob : null,
+                'sentiment_boost' => $sentimentBoost,
+                'effective_score' => $effectiveScore,
+                'minimum_threshold' => $minimumThreshold,
+                'pipeline_threshold' => $mlThreshold,
+                'paper_bypass' => $isPaperBypass,
+                'decision' => 'skip_order',
+            ]);
 
             return;
         }
+
+        Log::info("ML threshold passed for alert {$event->alertId} ({$alert->symbol}); proceeding with order checks", [
+            'alert_id' => $event->alertId,
+            'symbol' => $alert->symbol,
+            'pipeline' => $pipelineRun,
+            'event_ml_win_prob' => $event->mlWinProb,
+            'alert_ml_win_prob' => isset($alert->ml_win_prob) ? (float) $alert->ml_win_prob : null,
+            'sentiment_boost' => $sentimentBoost,
+            'effective_score' => $effectiveScore,
+            'minimum_threshold' => $minimumThreshold,
+            'pipeline_threshold' => $mlThreshold,
+            'paper_bypass' => $isPaperBypass,
+            'decision' => 'pass_threshold',
+        ]);
 
         // Pipeline K risk filter: risk_pct >= 2.0% is blocked at TWO stages:
         //   1. ScoreTradeAlertWithMl job — scoring is skipped entirely, ml_win_prob stays null,
@@ -967,6 +1004,43 @@ class PlaceAlpacaOrderForHighScoreAlerts
                 }
                 // === END PRE-PLACEMENT BUYING POWER RE-CHECK ===
 
+                // === FINAL ML SCORE RECHECK: close the race between scoring and placement ===
+                // If the row was refreshed or rescored after the listener started,
+                // do not place the order unless the freshest linked alert still passes.
+                $freshAlert = DB::connection('mysql')->table($event->tableName)
+                    ->where('id', $event->alertId)
+                    ->first(['ml_win_prob', 'sentiment_boost']);
+
+                $freshMlWinProb = $freshAlert?->ml_win_prob !== null ? (float) $freshAlert->ml_win_prob : null;
+                $freshSentimentBoost = isset($freshAlert?->sentiment_boost) ? (float) $freshAlert->sentiment_boost : 0.0;
+                $freshEffectiveScore = $freshMlWinProb !== null ? $freshMlWinProb + $freshSentimentBoost : null;
+
+                Log::info("Final ML recheck before order placement for alert {$event->alertId} ({$alert->symbol})", [
+                    'alert_id' => $event->alertId,
+                    'symbol' => $alert->symbol,
+                    'pipeline' => $pipelineRun2,
+                    'fresh_ml_win_prob' => $freshMlWinProb,
+                    'fresh_sentiment_boost' => $freshSentimentBoost,
+                    'fresh_effective_score' => $freshEffectiveScore,
+                    'pipeline_threshold' => $mlThreshold,
+                ]);
+
+                if ($freshEffectiveScore === null || $freshEffectiveScore < $mlThreshold) {
+                    Log::warning("Alert {$event->alertId} ({$alert->symbol}): final ML recheck failed, skipping order placement", [
+                        'alert_id' => $event->alertId,
+                        'symbol' => $alert->symbol,
+                        'pipeline' => $pipelineRun2,
+                        'fresh_ml_win_prob' => $freshMlWinProb,
+                        'fresh_sentiment_boost' => $freshSentimentBoost,
+                        'fresh_effective_score' => $freshEffectiveScore,
+                        'pipeline_threshold' => $mlThreshold,
+                    ]);
+                    $this->recordSkip($event->alertId, $event->tableName, 'final_ml_recheck_failed', $entry);
+
+                    return;
+                }
+                // === END FINAL ML SCORE RECHECK ===
+
                 // Step 1: Place the entry order (market or limit buy)
                 $entryResult = $this->alpacaService->placeOrder(
                     symbol: $alert->symbol,
@@ -1009,7 +1083,7 @@ class PlaceAlpacaOrderForHighScoreAlerts
                     'time_in_force' => $entryOrder['time_in_force'] ?? 'day',
                     'submitted_at' => isset($entryOrder['submitted_at']) ? now()->parse($entryOrder['submitted_at']) : null,
                     'raw_json' => $entryOrderData,
-                    'notes' => "Entry order for alert_id:{$event->alertId}, ML:{$event->mlWinProb}, stale_rescore:".($staleRescoreRequired ? '1' : '0').', stale_age_min:'.($staleRescoreAgeMinutes !== null ? round($staleRescoreAgeMinutes, 2) : '0').', quote_ask:'.($askPrice ?? '0').', quote_age_sec:'.($latestQuote->quote_age_seconds ?? 'null').', marketable_limit_multiplier:'.($marketableLimitMultiplier ?? 'null'),
+                    'notes' => "Entry order for alert_id:{$event->alertId}, ML:{$event->mlWinProb}, threshold:{$mlThreshold}, effective:".round($effectiveScore, 6).', stale_rescore:'.($staleRescoreRequired ? '1' : '0').', stale_age_min:'.($staleRescoreAgeMinutes !== null ? round($staleRescoreAgeMinutes, 2) : '0').', quote_ask:'.($askPrice ?? '0').', quote_age_sec:'.($latestQuote->quote_age_seconds ?? 'null').', marketable_limit_multiplier:'.($marketableLimitMultiplier ?? 'null'),
                     'atr' => $alert->atr ?? null,
                     'atr_pct' => $alert->atr_pct ?? null,
                     'stop_price' => $stopPrice, // Store initial stop for trailing stop logic

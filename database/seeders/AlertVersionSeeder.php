@@ -91,9 +91,8 @@ class AlertVersionSeeder extends Seeder
         ]), $this->g1(35000, 1.0, 0.06, 1.5, 0.75, 1.0));
 
         // I | v17.0 | Relative Strength Momentum
-        $this->seed('I', 'v17.0', 'RELATIVE_STRENGTH_MOMENTUM', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', array_merge($this->g5(0.15, 0.75, 0.2, 18000), [
-            ['rs_ratio', 1.05, null],
-            ['benchmark_below_vwap', null, null],
+        $this->seed('I', 'v17.0', 'RELATIVE_STRENGTH_MOMENTUM', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', array_merge($this->g5(0.15, 0.60, -0.25, 12000), [
+            ['rs_ratio', 1.00, null],
             ['above_vwap', null, null],
             ['ema9_above_ema21', null, null],
         ]), $this->g1(25000, 0.9, 0.04, 2.0, 0.75, 0.9));
