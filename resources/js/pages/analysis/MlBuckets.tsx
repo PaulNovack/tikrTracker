@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart3, Calendar, Filter, Layers3, TrendingDown, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 interface BucketRow {
     bucket_start: number;
@@ -16,8 +16,19 @@ interface BucketRow {
     winning_trades: number;
     losing_trades: number;
     win_rate: number;
-    total_pnl: number;
-    avg_pnl: number;
+    total_profit_10k: number;
+    avg_profit_10k: number;
+    trades: TradeRow[];
+}
+
+interface TradeRow {
+    id: number;
+    symbol: string;
+    trading_date_est: string | null;
+    entry_ts_est: string | null;
+    ml_win_prob: number;
+    pnl_percent: number;
+    profit_10k: number;
 }
 
 interface PipelineBreakdown {
@@ -25,8 +36,8 @@ interface PipelineBreakdown {
     trade_count: number;
     winning_trades: number;
     win_rate: number;
-    net_pnl: number;
-    avg_pnl: number;
+    net_profit_10k: number;
+    avg_profit_10k: number;
     buckets: BucketRow[];
 }
 
@@ -38,8 +49,8 @@ interface Summary {
     total_pipelines: number;
     winning_trades: number;
     win_rate: number;
-    net_pnl: number;
-    avg_pnl: number;
+    net_profit_10k: number;
+    avg_profit_10k: number;
 }
 
 interface Filters {
@@ -52,38 +63,57 @@ interface MlBucketsProps {
     filters: Filters;
 }
 
-function formatPercent(value: number): string {
-    const prefix = value >= 0 ? '+' : '';
+function formatCurrency(value: number): string {
+    const prefix = value >= 0 ? '+' : '-';
+    const amount = Math.abs(value).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
 
-    return `${prefix}${value.toFixed(1)}%`;
+    return `${prefix}${amount}`;
 }
 
-function getPercentColorClass(value: number): string {
-    if (value < 0.5) {
+function getProfitColorClass(value: number): string {
+    if (value < 0) {
         return 'text-red-600';
     }
 
-    if (value > 1.5) {
+    if (value > 0) {
         return 'text-green-600';
     }
 
-    if (value > 1) {
-        return 'text-green-400';
+    return 'text-orange-500';
+}
+
+function getPercentColorClass(value: number): string {
+    if (value < 0) {
+        return 'text-red-600';
+    }
+
+    if (value > 0) {
+        return 'text-green-600';
+    }
+
+    if (value === 0) {
+        return 'text-orange-500';
     }
 
     return 'text-orange-500';
 }
 
 function PercentValue({ value }: { value: number }) {
-    return <span className={`${getPercentColorClass(value)} font-mono`}>{formatPercent(value)}</span>;
+    return <span className={`${getProfitColorClass(value)} font-mono`}>{formatCurrency(value)}</span>;
 }
 
 function shouldHighlightRow(bucket: BucketRow): boolean {
-    return bucket.win_rate > 65 && bucket.avg_pnl > 1;
+    return bucket.win_rate > 65 && bucket.avg_profit_10k > 100;
 }
 
 export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBucketsProps) {
     const [startDate, setStartDate] = useState(filters.start_date || '');
+    const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
 
     const applyFilter = () => {
         router.get('/analysis/ml-buckets', { start_date: startDate || undefined }, {
@@ -100,6 +130,11 @@ export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBu
             preserveState: true,
             replace: true,
         });
+    };
+
+    const toggleBucket = (pipelineRun: string, bucketStart: number) => {
+        const key = `${pipelineRun}-${bucketStart}`;
+        setExpandedBucket((current) => (current === key ? null : key));
     };
 
     return (
@@ -148,12 +183,12 @@ export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBu
 
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Avg P&amp;L</CardTitle>
+                                <CardTitle className="text-sm font-medium">Profit at $10K</CardTitle>
                                 <TrendingDown className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold"><PercentValue value={summary.avg_pnl} /></div>
-                                <p className="text-xs text-muted-foreground">Average P/L per alert</p>
+                                <div className="text-2xl font-bold"><PercentValue value={summary.avg_profit_10k} /></div>
+                                <p className="text-xs text-muted-foreground">Average profit or loss per trade if $10,000 was purchased</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -230,12 +265,12 @@ export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBu
                                                 <div className={`font-medium ${getPercentColorClass(pipeline.win_rate)}`}>{pipeline.win_rate.toFixed(1)}%</div>
                                             </div>
                                             <div>
-                                                <div className="text-xs text-muted-foreground">Avg P&amp;L</div>
-                                                <div className="font-medium"><PercentValue value={pipeline.avg_pnl} /></div>
+                                                <div className="text-xs text-muted-foreground">Profit at $10K</div>
+                                                <div className="font-medium"><PercentValue value={pipeline.avg_profit_10k} /></div>
                                             </div>
                                             <div>
-                                                <div className="text-xs text-muted-foreground">Net P&amp;L</div>
-                                                <div className="font-medium"><PercentValue value={pipeline.net_pnl} /></div>
+                                                <div className="text-xs text-muted-foreground">Net Profit at $10K</div>
+                                                <div className="font-medium"><PercentValue value={pipeline.net_profit_10k} /></div>
                                             </div>
                                         </div>
                                     </div>
@@ -250,28 +285,84 @@ export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBu
                                                     <TableHead className="text-right">Wins</TableHead>
                                                     <TableHead className="text-right">Losses</TableHead>
                                                     <TableHead className="text-right">Win Rate</TableHead>
-                                                    <TableHead className="text-right">Avg P&amp;L</TableHead>
-                                                    <TableHead className="text-right">Total P&amp;L</TableHead>
+                                                    <TableHead className="text-right">Profit at $10K</TableHead>
+                                                    <TableHead className="text-right">Net Profit at $10K</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {pipeline.buckets.map((bucket) => (
-                                                    <TableRow
-                                                        key={`${pipeline.pipeline_run}-${bucket.bucket_start}`}
-                                                        className={shouldHighlightRow(bucket) ? 'bg-green-50/80 dark:bg-green-950/20' : undefined}
-                                                    >
-                                                        <TableCell className="font-mono font-medium">{bucket.bucket_label}</TableCell>
-                                                        <TableCell className="text-right font-mono">{bucket.trade_count.toLocaleString()}</TableCell>
-                                                        <TableCell className="text-right font-mono text-green-600">{bucket.winning_trades.toLocaleString()}</TableCell>
-                                                        <TableCell className="text-right font-mono text-red-600">{bucket.losing_trades.toLocaleString()}</TableCell>
-                                                        <TableCell className={`text-right font-mono ${getPercentColorClass(bucket.win_rate)}`}>{bucket.trade_count > 0 ? `${bucket.win_rate.toFixed(1)}%` : '—'}</TableCell>
-                                                        <TableCell className="text-right font-mono">
-                                                            {bucket.trade_count > 0 ? <PercentValue value={bucket.avg_pnl} /> : '—'}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-mono">
-                                                            {bucket.trade_count > 0 ? <PercentValue value={bucket.total_pnl} /> : '—'}
-                                                        </TableCell>
-                                                    </TableRow>
+                                                    <Fragment key={`${pipeline.pipeline_run}-${bucket.bucket_start}`}>
+                                                        <TableRow
+                                                            className={`cursor-pointer ${shouldHighlightRow(bucket) ? 'bg-green-50/80 dark:bg-green-950/20' : ''}`}
+                                                            onClick={() => toggleBucket(pipeline.pipeline_run, bucket.bucket_start)}
+                                                            tabIndex={0}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault();
+                                                                    toggleBucket(pipeline.pipeline_run, bucket.bucket_start);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <TableCell className="font-mono font-medium">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span>{bucket.bucket_label}</span>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {expandedBucket === `${pipeline.pipeline_run}-${bucket.bucket_start}` ? 'Hide trades' : 'Show trades'}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-mono">{bucket.trade_count.toLocaleString()}</TableCell>
+                                                            <TableCell className="text-right font-mono text-green-600">{bucket.winning_trades.toLocaleString()}</TableCell>
+                                                            <TableCell className="text-right font-mono text-red-600">{bucket.losing_trades.toLocaleString()}</TableCell>
+                                                            <TableCell className={`text-right font-mono ${getPercentColorClass(bucket.win_rate)}`}>{bucket.trade_count > 0 ? `${bucket.win_rate.toFixed(1)}%` : '—'}</TableCell>
+                                                            <TableCell className="text-right font-mono">
+                                                                {bucket.trade_count > 0 ? <PercentValue value={bucket.avg_profit_10k} /> : '—'}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-mono">
+                                                                {bucket.trade_count > 0 ? <PercentValue value={bucket.total_profit_10k} /> : '—'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {expandedBucket === `${pipeline.pipeline_run}-${bucket.bucket_start}` && (
+                                                            <TableRow>
+                                                                <TableCell colSpan={7} className="bg-muted/30 p-0">
+                                                                    <div className="border-t px-4 py-3">
+                                                                        {bucket.trades.length === 0 ? (
+                                                                            <div className="text-sm text-muted-foreground">No trades in this bucket.</div>
+                                                                        ) : (
+                                                                            <div className="overflow-x-auto">
+                                                                                <Table>
+                                                                                    <TableHeader>
+                                                                                        <TableRow>
+                                                                                            <TableHead>Symbol</TableHead>
+                                                                                            <TableHead>Trade Date</TableHead>
+                                                                                            <TableHead className="text-right">ML %</TableHead>
+                                                                                            <TableHead className="text-right">P/L %</TableHead>
+                                                                                            <TableHead className="text-right">Profit at $10K</TableHead>
+                                                                                        </TableRow>
+                                                                                    </TableHeader>
+                                                                                    <TableBody>
+                                                                                        {bucket.trades.map((trade) => (
+                                                                                            <TableRow key={trade.id} className="bg-background/80">
+                                                                                                <TableCell className="font-mono font-medium">{trade.symbol}</TableCell>
+                                                                                                <TableCell className="text-sm text-muted-foreground">
+                                                                                                    {trade.trading_date_est || trade.entry_ts_est || '—'}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right font-mono">{(trade.ml_win_prob * 100).toFixed(1)}%</TableCell>
+                                                                                                <TableCell className={`text-right font-mono ${getPercentColorClass(trade.pnl_percent)}`}>{trade.pnl_percent.toFixed(2)}%</TableCell>
+                                                                                                <TableCell className="text-right font-mono">
+                                                                                                    <PercentValue value={trade.profit_10k} />
+                                                                                                </TableCell>
+                                                                                            </TableRow>
+                                                                                        ))}
+                                                                                    </TableBody>
+                                                                                </Table>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </Fragment>
                                                 ))}
                                             </TableBody>
                                         </Table>
