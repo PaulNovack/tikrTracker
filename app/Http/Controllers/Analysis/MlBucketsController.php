@@ -23,6 +23,7 @@ class MlBucketsController extends Controller
 
         $bucketRows = DB::table('trade_alerts')
             ->selectRaw("COALESCE(pipeline_run, 'Unknown') as pipeline_run")
+            ->selectRaw("GROUP_CONCAT(DISTINCT version ORDER BY version SEPARATOR ', ') as version")
             ->selectRaw('LEAST(95, FLOOR((ml_win_prob * 100) / 5) * 5) as bucket_start')
             ->selectRaw('COUNT(*) as trade_count')
             ->selectRaw('SUM(CASE WHEN pnl_percent > 0 THEN 1 ELSE 0 END) as winning_trades')
@@ -135,6 +136,7 @@ class MlBucketsController extends Controller
 
                 return [
                     'pipeline_run' => $pipelineRun,
+                    'version' => (string) ($pipelineRows->first()->version ?? ''),
                     'trade_count' => $tradeCount,
                     'winning_trades' => $winningTrades,
                     'win_rate' => $tradeCount > 0 ? round(($winningTrades / $tradeCount) * 100, 1) : 0.0,

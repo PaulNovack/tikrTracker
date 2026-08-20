@@ -862,7 +862,7 @@ Schedule::command('market:warm-page-caches')
 // Market hours: 13:30-20:00 UTC (9:30 AM - 4:00 PM EDT during DST)
 //              14:30-21:00 UTC (9:30 AM - 4:00 PM EST during standard time)
 // Using America/New_York timezone to auto-handle DST transitions
-Schedule::command('alpaca:sync-5m --hours=1 --chunk=200 --feed=iex')
+Schedule::command('alpaca:sync-5m --hours=1 --chunk=200')
     ->cron('1-56/5 9-16 * * 1-5')
     ->timezone('America/New_York')
     ->name('alpaca-5min-sync')
@@ -921,7 +921,7 @@ Schedule::command('alpaca:sync-5m --hours=1 --chunk=200 --feed=iex')
 
 // Alpaca 5-minute sync catch-up - runs 2 minutes after each bar closes (1 min after primary)
 // Safety net in case the first run didn't fetch all symbols due to chunking/rate limits
-Schedule::command('alpaca:sync-5m --hours=1 --chunk=200 --feed=iex')
+Schedule::command('alpaca:sync-5m --hours=1 --chunk=200')
     ->cron('2-57/5 9-16 * * 1-5')
     ->timezone('America/New_York')
     ->name('alpaca-5min-sync-catchup')

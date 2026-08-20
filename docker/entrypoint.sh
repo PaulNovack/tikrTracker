@@ -244,14 +244,14 @@ else
 
     echo "  ── 1-minute bars ──"
     START_1M=$(date +%s)
-    php -d output_buffering=off artisan alpaca:backfill-range "$FROM_DATE" "$TO_DATE" 1m --feed=iex
+    php -d output_buffering=off artisan alpaca:backfill-range "$FROM_DATE" "$TO_DATE" 1m
     END_1M=$(date +%s)
     echo "  ✓ 1m backfill done in $(( (END_1M - START_1M) / 60 ))m $(( (END_1M - START_1M) % 60 ))s"
     echo ""
 
     echo "  ── 5-minute bars ──"
     START_5M=$(date +%s)
-    php -d output_buffering=off artisan alpaca:backfill-range "$FROM_DATE" "$TO_DATE" 5m --feed=iex
+    php -d output_buffering=off artisan alpaca:backfill-range "$FROM_DATE" "$TO_DATE" 5m
     END_5M=$(date +%s)
     echo "  ✓ 5m backfill done in $(( (END_5M - START_5M) / 60 ))m $(( (END_5M - START_5M) % 60 ))s"
 

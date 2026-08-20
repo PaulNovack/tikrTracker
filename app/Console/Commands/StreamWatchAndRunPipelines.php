@@ -121,7 +121,7 @@ class StreamWatchAndRunPipelines extends Command
                 $this->info('5m boundary bar — syncing five_minute_prices synchronously…');
                 Log::info('[StreamWatcher] 5m boundary: starting alpaca:sync-5m', ['bar_ts' => $currentTs]);
                 $syncStart = microtime(true);
-                $this->call('alpaca:sync-5m', ['--hours' => 1, '--chunk' => 200, '--feed' => 'iex', '--no-interaction' => true]);
+                $this->call('alpaca:sync-5m', ['--hours' => 1, '--chunk' => 200, '--no-interaction' => true]);
                 $syncMs = round((microtime(true) - $syncStart) * 1000);
                 $this->info("5m sync complete in {$syncMs}ms — firing 5m pipelines…");
                 Log::info('[StreamWatcher] 5m sync complete, firing 5m pipelines', ['duration_ms' => $syncMs]);

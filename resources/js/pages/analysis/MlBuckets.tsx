@@ -33,6 +33,7 @@ interface TradeRow {
 
 interface PipelineBreakdown {
     pipeline_run: string;
+    version: string;
     trade_count: number;
     winning_trades: number;
     win_rate: number;
@@ -249,7 +250,7 @@ export default function MlBuckets({ summary, pipelineBreakdowns, filters }: MlBu
                                         <div>
                                             <CardTitle className="flex items-center gap-2">
                                                 <Calendar className="h-4 w-4" />
-                                                Pipeline {pipeline.pipeline_run}
+                                                Pipeline {pipeline.pipeline_run} {pipeline.version ? `(${pipeline.version})` : ''}
                                             </CardTitle>
                                             <CardDescription>
                                                 {pipeline.trade_count.toLocaleString()} alerts across all 5% ML buckets.
