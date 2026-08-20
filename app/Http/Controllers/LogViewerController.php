@@ -684,6 +684,11 @@ class LogViewerController extends Controller
                 'prefix' => 'realtime',
                 'label' => 'Realtime Log',
             ],
+            'redis-errors' => [
+                'key' => 'redis-errors',
+                'prefix' => 'redis-errors',
+                'label' => 'Redis Errors',
+            ],
             'redis-scan' => [
                 'key' => 'redis-scan',
                 'prefix' => 'redis-scan',

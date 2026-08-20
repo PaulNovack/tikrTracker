@@ -23,7 +23,23 @@ interface SearchResult {
     filename: string;
 }
 
-type LogType = 'app' | 'testing' | 'realtime' | 'redis-scan';
+type LogType = 'app' | 'testing' | 'realtime' | 'redis-errors' | 'redis-scan';
+
+const logLabels: Record<LogType, string> = {
+    app: 'Laravel Log',
+    testing: 'Laravel Testing Log',
+    realtime: 'Realtime Log',
+    'redis-errors': 'Redis Errors',
+    'redis-scan': 'Redis Scan Log',
+};
+
+const downloadNames: Record<LogType, string> = {
+    app: 'laravel.log',
+    testing: 'laravel-testing.log',
+    realtime: 'realtime.log',
+    'redis-errors': 'redis-errors.log',
+    'redis-scan': 'redis-scan.log',
+};
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Logs', href: '/logs/laravel' },
@@ -133,7 +149,7 @@ export default function LaravelLog() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename || (activeTab === 'app' ? 'laravel.log' : 'laravel-testing.log');
+        a.download = filename || downloadNames[activeTab];
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -172,6 +188,14 @@ export default function LaravelLog() {
                         </Button>
                         <Button
                             type="button"
+                            variant={activeTab === 'redis-errors' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => switchTab('redis-errors')}
+                        >
+                            Redis Errors
+                        </Button>
+                        <Button
+                            type="button"
                             variant={activeTab === 'redis-scan' ? 'default' : 'outline'}
                             size="sm"
                             onClick={() => switchTab('redis-scan')}
@@ -181,7 +205,7 @@ export default function LaravelLog() {
                     </div>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle>{activeTab === 'app' ? 'Laravel Log' : activeTab === 'testing' ? 'Laravel Testing Log' : activeTab === 'realtime' ? 'Realtime Log' : 'Redis Scan Log'}</CardTitle>
+                            <CardTitle>{logLabels[activeTab]}</CardTitle>
                             <CardDescription>
                                 {filename || 'Loading...'} — {autoRefresh && 'Auto-refreshing every 5s'}
                                 {searchResult && (
