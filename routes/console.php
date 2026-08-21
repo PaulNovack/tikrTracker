@@ -35,6 +35,22 @@ Schedule::command('cpu:record-temperature')
     ->withoutOverlapping(5)
     ->runInBackground();
 
+Schedule::command('monitor:worker-heartbeat')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->name('worker-heartbeat-watchdog')
+    ->description('Capture supervisor and queue heartbeat snapshots for worker monitoring')
+    ->before(function () {
+        Log::channel('scheduled')->info('[Scheduler] Starting monitor:worker-heartbeat');
+    })
+    ->after(function () {
+        Log::channel('scheduled')->info('[Scheduler] Completed monitor:worker-heartbeat');
+    })
+    ->onFailure(function () {
+        Log::channel('scheduled')->error('[Scheduler] FAILED monitor:worker-heartbeat');
+    });
+
 // ML scoring catch-up: scores any today alerts the concurrent backtests inserted before the live pipeline ran
 Schedule::command('trade:dispatch-ml-scoring --age=10 --limit=50 --no-interaction')
     ->everyThirtySeconds()

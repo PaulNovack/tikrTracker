@@ -578,6 +578,11 @@ export function AppSidebar() {
                               icon: Activity,
                           },
                           {
+                              title: 'Worker Heartbeat',
+                              href: '/worker-heartbeat',
+                              icon: Activity,
+                          },
+                          {
                               title: 'Processes Running',
                               href: '/processes-running',
                               icon: Activity,

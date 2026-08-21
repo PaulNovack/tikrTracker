@@ -46,6 +46,7 @@ Route::get('/guest-login', \App\Http\Controllers\Auth\GuestLoginController::clas
 // Process Monitor routes - accessible to guests with disclaimer
 Route::middleware(['disclaimer'])->group(function () {
     Route::get('processes-running', [\App\Http\Controllers\ProcessMonitorController::class, 'index'])->name('processes-running.index');
+    Route::get('worker-heartbeat', [\App\Http\Controllers\WorkerHeartbeatController::class, 'index'])->name('worker-heartbeat.index');
     // Note: Kill process functionality still requires full auth
 });
 
