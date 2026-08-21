@@ -4,11 +4,30 @@ use App\Services\TradingSettingService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('analyze:all-picks', function () {
+    $scriptPath = base_path('python_ml/v2/scripts/analyze_all_picks.sh');
+
+    $this->info("Running analyze_all_picks.sh from {$scriptPath}");
+
+    $result = Process::forever()->run('bash '.escapeshellarg($scriptPath));
+
+    $this->line($result->output());
+
+    if ($result->failed()) {
+        $this->error($result->errorOutput());
+
+        return self::FAILURE;
+    }
+
+    return self::SUCCESS;
+})->purpose('Run the daily all-picks analysis pipeline script');
 
 // Record CPU temperature every minute for the temp-chart page
 Schedule::command('cpu:record-temperature')
@@ -91,7 +110,7 @@ Schedule::command('market-movers:populate --days=1 --no-interaction')
     });
 
 // Generate quality trading universe daily at 4:15 PM EST (after market close, before indicator calc)
-Schedule::command('universe:generate-quality --limit=750 --no-interaction')
+Schedule::command('universe:generate-quality --limit=1000 --no-interaction')
     ->dailyAt('16:15')
     ->timezone('America/New_York')
     ->weekdays()
@@ -1030,6 +1049,24 @@ Schedule::command('eligible:generate')
         Log::channel('scheduled')->error('[Scheduler] Failed eligible:generate command', [
             'failed_at' => now()->toISOString(),
         ]);
+    });
+
+// Run all-picks analysis daily at 1:00 AM EST using the existing wrapper script.
+Schedule::command('analyze:all-picks')
+    ->dailyAt('01:00')
+    ->timezone('America/New_York')
+    ->name('analyze-all-picks-overnight')
+    ->withoutOverlapping(180)
+    ->runInBackground()
+    ->description('Run python_ml/v2/scripts/analyze_all_picks.sh daily at 1:00 AM EST')
+    ->before(function () {
+        Log::channel('scheduled')->info('[Scheduler] Starting analyze:all-picks command');
+    })
+    ->after(function () {
+        Log::channel('scheduled')->info('[Scheduler] Completed analyze:all-picks command');
+    })
+    ->onFailure(function () {
+        Log::channel('scheduled')->error('[Scheduler] FAILED analyze:all-picks command');
     });
 
 // Prune dated log files older than 10 days (bar-stream, pipeline-watcher, scheduled, etc.)
