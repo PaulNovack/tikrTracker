@@ -114,31 +114,77 @@ class AlertVersionSeeder extends Seeder
         ]), $this->g1(50000, 1.2, 0.10, 1.0, 0.7, 1.2));
 
         // L | v1600.0 | VWAP Mean Reversion
-        $this->seed('L', 'v1600.0', 'VWAP_MEAN_REVERSION', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', array_merge($this->g5(0.12, 0.85, 0.4, 15000), [
+        $this->seed('L', 'v1600.0', 'VWAP_MEAN_REVERSION', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
+            ['notional', 15000, null],
+            ['atr_pct', 0.174, null],
+            ['rvol_ratio', 0.85, null],
+            ['move_30m_pct', 0.6, null],
+            ['price', 2.0, null],
+            ['above_vwap', -0.466, 0.911],
             ['max_above_vwap_pct', null, 0.75],
             ['vwap_distance_min', null, 0.3],
             ['distance_from_high_atr', null, 1.2],
-        ]), $this->g1(18000, 0.8, 0.06, 1.0, 1.0, 1.0));
+            ['yesterday_vol_mult', 0.52, null],
+        ], [
+            ['notional_1m', 18000, null],
+            ['vol_ratio_1m', 0.8, null],
+            ['body_pct', 0.06, null],
+            ['above_vwap_entry_pct', null, 1.0],
+            ['room_to_hod_pct', 1.0, null],
+            ['room_atr_mult', 1.0, null],
+            ['min_bars', 15, null],
+            ['time_blocked', null, 0],
+            ['extreme_drop', null, 0],
+        ]);
 
         // M | v103.0 | EMA9 / EMA21 Trend Continuation
-        $this->seed('M', 'v103.0', 'EMA9_EMA21_TREND_CONTINUATION', 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', array_merge($this->g5(0.20, 1.2, 1.0, 50000), [
+        $this->seed('M', 'v103.0', 'EMA9_EMA21_TREND_CONTINUATION', 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', [
+            ['notional', 50000, null],
+            ['atr_pct', 0.2, null],
+            ['rvol_ratio', 1.2, null],
+            ['move_30m_pct', 1.0, null],
+            ['price', 2.0, null],
             ['ema9_above_ema21', null, null],
             ['ema9_slope_positive', null, null],
             ['ema_spread_pct', 0.05, null],
             ['pullback_depth_pct', null, 30],
             ['above_vwap', null, null],
-        ]), array_merge($this->g1(50000, 1.0, 0.08, 1.0, 0.7, 1.2), [
+        ], [
+            ['notional_1m', 50000, null],
+            ['vol_ratio_1m', 1.0, null],
+            ['body_pct', 0.08, null],
+            ['above_vwap_entry_pct', null, 1.0],
+            ['room_to_hod_pct', 0.7, null],
+            ['room_atr_mult', 1.2, null],
+            ['min_bars', 15, null],
+            ['time_blocked', null, 0],
+            ['extreme_drop', null, 0],
             ['ema9_pullback_depth_pct', null, 20],
             ['ema9_reclaim_pct', 0.5, null],
-        ]));
+        ]);
 
         // N | v1200.0 | Failed Breakdown Reversal
-        $this->seed('N', 'v1200.0', 'FAILED_BREAKDOWN_REVERSAL', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', array_merge($this->g5(0.18, 1.2, 0.8, 30000), [
+        $this->seed('N', 'v1200.0', 'FAILED_BREAKDOWN_REVERSAL', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', [
+            ['notional', 30000, null],
+            ['atr_pct', 0.18, null],
+            ['rvol_ratio', 1.2, null],
+            ['move_30m_pct', 0.8, null],
+            ['price', 2.0, null],
             ['vwap_reclaim_strength_pct', 0.35, null],
             ['vwap_reclaim_wick_below_pct', 0.35, null],
             ['above_vwap', null, null],
             ['ema9_above_ema21', null, null],
-        ]), $this->g1(25000, 0.9, 0.06, 1.2, 0.5, 1.0));
+        ], [
+            ['notional_1m', 25000, null],
+            ['vol_ratio_1m', 0.9, null],
+            ['body_pct', 0.06, null],
+            ['above_vwap_entry_pct', null, 1.2],
+            ['room_to_hod_pct', 0.5, null],
+            ['room_atr_mult', 1.0, null],
+            ['min_bars', 15, null],
+            ['time_blocked', null, 0],
+            ['extreme_drop', null, 0],
+        ]);
 
         // O | v1500.0 | Catalyst / News Momentum
         $this->seed('O', 'v1500.0', 'CATALYST_NEWS_MOMENTUM', 'move30m*0.4+rvolRatio*0.3+atrPct*0.3', array_merge($this->g5(0.25, 1.6, 1.2, 40000), [
