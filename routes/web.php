@@ -265,6 +265,7 @@ Route::middleware($middleware)->group(function () {
             Route::get('pipeline-counts', [\App\Http\Controllers\Analysis\PipelineCountsController::class, 'index'])->name('pipeline-counts.index');
             Route::get('ml-buckets', [\App\Http\Controllers\Analysis\MlBucketsController::class, 'index'])->name('ml-buckets.index');
             Route::get('trades-per-day', [\App\Http\Controllers\Analysis\TradesPerDayController::class, 'index'])->name('trades-per-day.index');
+            Route::get('sql-query', [\App\Http\Controllers\Analysis\SqlQueryController::class, 'index'])->name('sql-query.index');
             Route::get('rising-since-close', [\App\Http\Controllers\Analysis\RisingSinceCloseController::class, 'index'])->name('rising-since-close.index');
             Route::get('upward-pressure', [\App\Http\Controllers\Analysis\UpwardPressureController::class, 'index'])->name('upward-pressure.index');
             Route::get('momentum-movers', [\App\Http\Controllers\Analysis\MomentumMoversController::class, 'index'])->name('momentum-movers.index');

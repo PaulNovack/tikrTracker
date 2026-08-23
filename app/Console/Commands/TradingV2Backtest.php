@@ -18,8 +18,13 @@ class TradingV2Backtest extends Command
      */
     private const MAX_REJECTION_LOGS_PER_PIPELINE = 15000;
 
+    private const BACKTEST_CANDIDATE_INSERT_BATCH_SIZE = 50;
+
     /** @var array<string, int> pipeline_letter => rejection count for this run */
     private array $rejectionCounts = [];
+
+    /** @var array<int, array<string, mixed>> */
+    private array $pendingBacktestCandidateInserts = [];
 
     protected $signature = 'trading:v2-backtest
         {--symbol= : Single symbol (omit for intraday_universe)}
@@ -29,6 +34,7 @@ class TradingV2Backtest extends Command
         {--pipeline= : Filter to one pipeline letter (e.g. H)}
         {--fulltable : Use five_minute_prices_full / one_minute_prices_full}
         {--no-log-rejections : Skip clearing+writing the gate-rejections log for this run}
+        {--write-candidates : Write all analyzed backtest candidates to trade_alerts_backtest_candidates}
         {--write : Write alerts to trade_alerts table (is_realtime=0)}
         {--use-entry-finder : Use legacy OneMinuteEntryFinder for entry classification instead of EntryTypeClassifier}';
 
@@ -52,6 +58,7 @@ class TradingV2Backtest extends Command
         $evaluator = new GateEvaluator($mysqlSource);
         $classifier = new EntryTypeClassifier;
         $write = (bool) $this->option('write');
+        $writeCandidates = (bool) $this->option('write-candidates');
         $useEntryFinder = (bool) $this->option('use-entry-finder');
 
         $today = date('Y-m-d');
@@ -160,6 +167,26 @@ class TradingV2Backtest extends Command
                         'max' => null,
                     ], $g5m->toArray());
 
+                    if ($writeCandidates) {
+                        $this->persistFailedCandidateWithEntryData(
+                            version: $v,
+                            symbol: $s,
+                            tsEst: $tsEst,
+                            g5mVals: [],
+                            failure: [
+                                'timeframe' => '5m',
+                                'gate' => 'min_bars',
+                                'reason' => 'insufficient_5m_data',
+                                'value' => 0,
+                                'min' => 8,
+                                'max' => null,
+                            ],
+                            useEntryFinder: $useEntryFinder,
+                            classifier: $classifier,
+                            evaluator: $evaluator,
+                        );
+                    }
+
                     continue;
                 }
 
@@ -194,6 +221,19 @@ class TradingV2Backtest extends Command
                     if ($firstFailure !== null) {
                         $this->logGateRejection($v, '5m', $s, $tsEst, $firstFailure, $g5mVals);
 
+                        if ($writeCandidates) {
+                            $this->persistFailedCandidateWithEntryData(
+                                version: $v,
+                                symbol: $s,
+                                tsEst: $tsEst,
+                                g5mVals: $g5mVals,
+                                failure: array_merge(['timeframe' => '5m'], $firstFailure),
+                                useEntryFinder: $useEntryFinder,
+                                classifier: $classifier,
+                                evaluator: $evaluator,
+                            );
+                        }
+
                         continue;
                     }
                     $score = $this->score($g5mVals, $v['scanner_score_formula']);
@@ -210,6 +250,27 @@ class TradingV2Backtest extends Command
                             'max' => $scoreMax,
                         ], $g5mVals);
 
+                        if ($writeCandidates) {
+                            $this->persistFailedCandidateWithEntryData(
+                                version: $v,
+                                symbol: $s,
+                                tsEst: $tsEst,
+                                g5mVals: $g5mVals,
+                                failure: [
+                                    'timeframe' => '5m',
+                                    'gate' => 'entry_score_min',
+                                    'reason' => 'gate_below_min',
+                                    'value' => $score,
+                                    'min' => $scoreMin,
+                                    'max' => $scoreMax,
+                                ],
+                                useEntryFinder: $useEntryFinder,
+                                classifier: $classifier,
+                                evaluator: $evaluator,
+                                score: $score,
+                            );
+                        }
+
                         continue;
                     }
                     if ($scoreMax !== null && $score > (float) $scoreMax) {
@@ -220,6 +281,27 @@ class TradingV2Backtest extends Command
                             'min' => $scoreMin,
                             'max' => $scoreMax,
                         ], $g5mVals);
+
+                        if ($writeCandidates) {
+                            $this->persistFailedCandidateWithEntryData(
+                                version: $v,
+                                symbol: $s,
+                                tsEst: $tsEst,
+                                g5mVals: $g5mVals,
+                                failure: [
+                                    'timeframe' => '5m',
+                                    'gate' => 'entry_score_min',
+                                    'reason' => 'gate_above_max',
+                                    'value' => $score,
+                                    'min' => $scoreMin,
+                                    'max' => $scoreMax,
+                                ],
+                                useEntryFinder: $useEntryFinder,
+                                classifier: $classifier,
+                                evaluator: $evaluator,
+                                score: $score,
+                            );
+                        }
 
                         continue;
                     }
@@ -278,9 +360,25 @@ class TradingV2Backtest extends Command
                     }
 
                     $g1mVals = $g1m->toArray();
+                    $candidatePayload = $this->buildCandidatePayload($s, $tsEst, $v, $g5mVals, $g1m, $g1mVals, $score, $useEntryFinder, $classifier);
+
                     $firstFailure = $this->firstGateFailure($g1mVals, $v['gates_1m'] ?? []);
                     if ($firstFailure !== null) {
                         $this->logGateRejection($v, '1m', $s, $tsEst, $firstFailure, $g1mVals);
+
+                        if ($writeCandidates && $candidatePayload !== null) {
+                            $this->persistBacktestCandidate(
+                                version: $v,
+                                symbol: $s,
+                                tsEst: $tsEst,
+                                g5mVals: $g5mVals,
+                                g1mVals: $g1mVals,
+                                entryType: $candidatePayload['entryType'],
+                                entryData: $candidatePayload['entryData'],
+                                passedGates: false,
+                                failure: $firstFailure,
+                            );
+                        }
 
                         continue;
                     }
@@ -291,92 +389,20 @@ class TradingV2Backtest extends Command
                     }
                     $candidates[$s][$v['id']]['_last_entry_ts'] = $c['signal_ts_est'];
 
-                    $entryType = 'UNCLASSIFIED';
-                    $entryData = [
-                        'entry_price' => $g1m->get('price') ?? 0,
-                        'entry_type' => $entryType,
-                        'entry_ts_est' => $tsEst,
-                    ];
+                    $entryType = $candidatePayload['entryType'];
+                    $entryData = $candidatePayload['entryData'];
 
-                    // Optionally use the real entry finder for accurate classification
-                    if ($useEntryFinder) {
-                        $finderClass = 'OneMinuteEntryFinder'.$v['version_string'];
-                        $finderClass = str_replace('.', '_', 'V'.str_replace('v', '', $v['version_string']));
-                        $fqcn = "App\\Services\\Trading\\OneMinuteEntryFinder{$finderClass}";
-                        if (class_exists($fqcn)) {
-                            try {
-                                $finder = app($fqcn);
-                                if (method_exists($finder, 'setFullTable')) {
-                                    $finder->setFullTable((bool) $this->option('fulltable'));
-                                }
-                                $result = $finder->findBestLong($s, $c['signal_ts_est'], $tsEst);
-                                if (! empty($result['best_entry'])) {
-                                    $entryData = $result['best_entry'];
-                                }
-                            } catch (\Throwable) {
-                            }
-                        }
-                    } else {
-                        // Build entry data matching V1 doFindBestLong return shape
-                        $price = $g1m->get('price') ?? 0;
-                        $atr = $g1m->get('atr_1m') ?? $g1m->get('atr') ?? 0;
-                        $atrMultiplier = \App\Services\TradingSettingService::getStopLossAtrMultiplier();
-                        $stopPrice = round($price - ($atr * $atrMultiplier), 2);
-                        $stopPrice = max($stopPrice, $price * 0.98);
-                        $risk = $price - $stopPrice;
-                        $riskPct = $price > 0 ? ($risk / $price) * 100 : 0;
-                        $trailPct = max(0.7, min(1.0, ($price > 0 ? ($atr * $atrMultiplier / $price) * 100 : 0)));
-                        $volRatio = $g1m->get('vol_ratio_1m') ?? $g1m->get('rvol_ratio') ?? 0;
-                        $bodyPct = $g1m->get('body_pct') ?? 0;
-                        $aboveVwapPct = $g1m->get('above_vwap_entry_pct') ?? $g1m->get('above_vwap_pct') ?? 0;
-                        $roomToHodPct = $g1m->get('room_to_hod_pct') ?? 0;
-
-                        $entryType = $classifier->classify($g1m->toArray());
-
-                        // Grab ALL 1m gate values to populate ML feature columns
-                        // that TradeAlertWriterV1 maps from $entry into trade_alerts
-                        $g1mVals = $g1m->toArray();
-
-                        $entryData = [
-                            'entry_price' => round($price, 2),
-                            'stop_loss' => round($stopPrice, 2),
-                            'entry_type' => $entryType,
-                            'entry_ts_est' => $tsEst,
-                            'score' => round($c['score'] ?? 0, 3),
-                            'risk_pct' => round($riskPct, 3),
-                            'risk_per_share' => round($risk, 6),
-                            'atr_pct' => $price > 0 ? round(($atr / $price) * 100, 3) : 0,
-                            'atr' => round($atr, 2),
-                            'suggested_trailing_stop' => round($price * ($trailPct / 100), 6),
-                            'suggested_trailing_stop_pct' => round($trailPct, 3),
-                            'targets' => [
-                                '1R' => round($price + 1.0 * $risk, 6),
-                                '2R' => round($price + 2.0 * $risk, 6),
-                                '3R' => round($price + 3.0 * $risk, 6),
-                            ],
-                            'vwap' => round($g1m->get('price') ?? $price, 2),
-                            'hod' => round($g1m->get('hod') ?? $price, 2),
-                            'body_pct' => round($bodyPct, 4),
-                            'vol_ratio' => round($volRatio, 2),
-                            'above_vwap_pct' => round($aboveVwapPct, 3),
-                            'room_to_run_pct' => round($roomToHodPct, 3),
-                            // --- ML feature fields (map GateEvaluator names to entry field names) ---
-                            'room_to_hod_pct' => $g1mVals['room_to_hod_pct'] ?? null,
-                            'above_vwap_entry_pct' => $g1mVals['above_vwap_entry_pct'] ?? null,
-                            'entry_body_pct' => $g1mVals['body_pct'] ?? null,
-                            'entry_close_position' => $g1mVals['close_position'] ?? null,
-                            'entry_volume_ratio' => $g1mVals['vol_ratio_1m'] ?? null,
-                            'entry_notional_1m' => $g1mVals['notional_1m'] ?? null,
-                            'rsi' => $g1mVals['rsi'] ?? null,
-                            // 5m choppiness fields (from the 5m gates)
-                            'five_min_directional_changes' => $g5m->get('directional_changes'),
-                            'five_min_green_bar_pct' => $g5m->get('green_bar_pct'),
-                            'five_min_net_progress' => $g5m->get('net_progress_pct'),
-                            'consolidation_bars' => $g5m->get('consolidation_bars'),
-                            'breakout_volume_ratio' => $g5m->get('breakout_volume_ratio'),
-                            // Entry score sub-components (matches V1 computeEntryScoreComponents)
-                            ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g1mVals, ['ts_est' => $tsEst])),
-                        ];
+                    if ($writeCandidates) {
+                        $this->persistBacktestCandidate(
+                            version: $v,
+                            symbol: $s,
+                            tsEst: $tsEst,
+                            g5mVals: $g5mVals,
+                            g1mVals: $g1mVals,
+                            entryType: $entryType,
+                            entryData: $entryData,
+                            passedGates: true,
+                        );
                     }
 
                     $stats[$v['pipeline_letter']]['entries']++;
@@ -385,6 +411,9 @@ class TradingV2Backtest extends Command
 
                     if ($write) {
                         $writer = app(\App\Services\Trading\TradeAlertWriterV1::class);
+                        if (method_exists($writer, 'setFullTable')) {
+                            $writer->setFullTable((bool) $this->option('fulltable'));
+                        }
                         $writer->setBacktestMode(true);
                         $result = $writer->upsertAlert(
                             signal: [
@@ -428,6 +457,7 @@ class TradingV2Backtest extends Command
         }
 
         $bar->finish();
+        $this->flushBacktestCandidateInserts();
         $this->line('');
         $this->line('');
         $this->info(str_repeat('═', 60));
@@ -479,6 +509,30 @@ class TradingV2Backtest extends Command
         }
     }
 
+    private function flushBacktestCandidateInserts(): void
+    {
+        if ($this->pendingBacktestCandidateInserts === []) {
+            return;
+        }
+
+        $rows = $this->pendingBacktestCandidateInserts;
+        $this->pendingBacktestCandidateInserts = [];
+
+        $uniqueRows = [];
+        foreach ($rows as $row) {
+            $dedupeKey = $row['dedupe_key'] ?? null;
+            if ($dedupeKey !== null) {
+                $uniqueRows[$dedupeKey] = $row;
+
+                continue;
+            }
+
+            $uniqueRows[] = $row;
+        }
+
+        DB::table('trade_alerts_backtest_candidates')->insert(array_values($uniqueRows));
+    }
+
     private function logGateRejection(array $version, string $timeframe, string $symbol, string $tsEst, array $failure, ?array $gateValues = null): void
     {
         if ((bool) $this->option('no-log-rejections')) {
@@ -507,6 +561,217 @@ class TradingV2Backtest extends Command
             // candidates can be analyzed later without re-querying bar data.
             'gate_values' => $gateValues ?? null,
         ]);
+    }
+
+    /**
+     * Build the would-have-been entry payload for a backtest candidate.
+     *
+     * @return array{entryType: string, entryData: array<string, mixed>}
+     */
+    private function buildCandidatePayload(string $symbol, string $tsEst, array $version, array $g5mVals, \App\Services\TradingV2\DTOs\BarGates $g1m, array $g1mVals, float $score, bool $useEntryFinder, EntryTypeClassifier $classifier): array
+    {
+        $entryType = 'UNCLASSIFIED';
+        $entryData = [
+            'entry_price' => $g1m->get('price') ?? 0,
+            'entry_type' => $entryType,
+            'entry_ts_est' => $tsEst,
+        ];
+
+        if ($useEntryFinder) {
+            $finderClass = 'OneMinuteEntryFinder'.$version['version_string'];
+            $finderClass = str_replace('.', '_', 'V'.str_replace('v', '', $version['version_string']));
+            $fqcn = "App\\Services\\Trading\\OneMinuteEntryFinder{$finderClass}";
+            if (class_exists($fqcn)) {
+                try {
+                    $finder = app($fqcn);
+                    if (method_exists($finder, 'setFullTable')) {
+                        $finder->setFullTable((bool) $this->option('fulltable'));
+                    }
+                    $result = $finder->findBestLong($symbol, $g1mVals['signal_ts_est'] ?? $tsEst, $tsEst);
+                    if (! empty($result['best_entry'])) {
+                        $entryData = $result['best_entry'];
+                    }
+                } catch (\Throwable) {
+                }
+            }
+        } else {
+            $price = $g1m->get('price') ?? 0;
+            $atr = $g1m->get('atr_1m') ?? $g1m->get('atr') ?? 0;
+            $atrMultiplier = \App\Services\TradingSettingService::getStopLossAtrMultiplier();
+            $stopPrice = round($price - ($atr * $atrMultiplier), 2);
+            $stopPrice = max($stopPrice, $price * 0.98);
+            $risk = $price - $stopPrice;
+            $riskPct = $price > 0 ? ($risk / $price) * 100 : 0;
+            $trailPct = max(0.7, min(1.0, ($price > 0 ? ($atr * $atrMultiplier / $price) * 100 : 0)));
+            $volRatio = $g1m->get('vol_ratio_1m') ?? $g1m->get('rvol_ratio') ?? 0;
+            $bodyPct = $g1m->get('body_pct') ?? 0;
+            $aboveVwapPct = $g1m->get('above_vwap_entry_pct') ?? $g1m->get('above_vwap_pct') ?? 0;
+            $roomToHodPct = $g1m->get('room_to_hod_pct') ?? 0;
+
+            $entryType = $classifier->classify($g1mVals);
+
+            $entryData = [
+                'entry_price' => round($price, 2),
+                'stop_loss' => round($stopPrice, 2),
+                'entry_type' => $entryType,
+                'entry_ts_est' => $tsEst,
+                'score' => round($score, 3),
+                'risk_pct' => round($riskPct, 3),
+                'risk_per_share' => round($risk, 6),
+                'atr_pct' => $price > 0 ? round(($atr / $price) * 100, 3) : 0,
+                'atr' => round($atr, 2),
+                'suggested_trailing_stop' => round($price * ($trailPct / 100), 6),
+                'suggested_trailing_stop_pct' => round($trailPct, 3),
+                'targets' => [
+                    '1R' => round($price + 1.0 * $risk, 6),
+                    '2R' => round($price + 2.0 * $risk, 6),
+                    '3R' => round($price + 3.0 * $risk, 6),
+                ],
+                'vwap' => round($g1m->get('price') ?? $price, 2),
+                'hod' => round($g1m->get('hod') ?? $price, 2),
+                'body_pct' => round($bodyPct, 4),
+                'vol_ratio' => round($volRatio, 2),
+                'above_vwap_pct' => round($aboveVwapPct, 3),
+                'room_to_run_pct' => round($roomToHodPct, 3),
+                'room_to_hod_pct' => $g1mVals['room_to_hod_pct'] ?? null,
+                'above_vwap_entry_pct' => $g1mVals['above_vwap_entry_pct'] ?? null,
+                'entry_body_pct' => $g1mVals['body_pct'] ?? null,
+                'entry_close_position' => $g1mVals['close_position'] ?? null,
+                'entry_volume_ratio' => $g1mVals['vol_ratio_1m'] ?? null,
+                'entry_notional_1m' => $g1mVals['notional_1m'] ?? null,
+                'rsi' => $g1mVals['rsi'] ?? null,
+                'five_min_directional_changes' => $g5mVals['directional_changes'] ?? null,
+                'five_min_green_bar_pct' => $g5mVals['green_bar_pct'] ?? null,
+                'five_min_net_progress' => $g5mVals['net_progress_pct'] ?? null,
+                'consolidation_bars' => $g5mVals['consolidation_bars'] ?? null,
+                'breakout_volume_ratio' => $g5mVals['breakout_volume_ratio'] ?? null,
+                ...\App\Services\TradingV2\EntryTypeClassifier::computeScoreComponents(array_merge($g1mVals, ['ts_est' => $tsEst])),
+            ];
+        }
+
+        $entryType = (string) ($entryData['entry_type'] ?? $entryType);
+
+        return compact('entryType', 'entryData');
+    }
+
+    private function persistBacktestCandidate(array $version, string $symbol, string $tsEst, array $g5mVals, array $g1mVals, string $entryType, array $entryData, bool $passedGates, ?array $failure = null): void
+    {
+        $this->pendingBacktestCandidateInserts[] = [
+            'symbol' => $symbol,
+            'asset_type' => 'stock',
+            'trading_date_est' => substr($tsEst, 0, 10),
+            'as_of_ts_est' => $tsEst,
+            'signal_type' => $version['signal_type'],
+            'signal_ts_est' => $tsEst,
+            'time_of_day' => substr($tsEst, 11, 5),
+            'entry_type' => $entryType,
+            'entry_ts_est' => $entryData['entry_ts_est'] ?? $tsEst,
+            'entry' => $entryData['entry_price'] ?? null,
+            'stop' => $entryData['stop_loss'] ?? null,
+            'risk_pct' => $entryData['risk_pct'] ?? null,
+            'risk_per_share' => $entryData['risk_per_share'] ?? null,
+            'score' => $entryData['score'] ?? null,
+            'vol_ratio' => $entryData['vol_ratio'] ?? null,
+            'avg_dollar_volume_per_minute' => null,
+            'calculated_position_size' => null,
+            'five_min_directional_changes' => $g5mVals['directional_changes'] ?? null,
+            'five_min_green_bar_pct' => $g5mVals['green_bar_pct'] ?? null,
+            'five_min_net_progress' => $g5mVals['net_progress_pct'] ?? null,
+            'consolidation_bars' => $g5mVals['consolidation_bars'] ?? null,
+            'breakout_volume_ratio' => $g5mVals['breakout_volume_ratio'] ?? null,
+            'atr' => $entryData['atr'] ?? null,
+            'atr_pct' => $entryData['atr_pct'] ?? null,
+            'daily_trend_5d_pct' => null,
+            'range_position_60m' => null,
+            'rsi_14_1m' => $entryData['rsi'] ?? null,
+            'suggested_trailing_stop' => $entryData['suggested_trailing_stop'] ?? null,
+            'suggested_trailing_stop_pct' => $entryData['suggested_trailing_stop_pct'] ?? null,
+            'targets' => isset($entryData['targets']) ? json_encode($entryData['targets']) : null,
+            'exit_price' => null,
+            'exit_ts_est' => null,
+            'exit_reason' => null,
+            'pnl_percent' => null,
+            'pnl_dollar' => null,
+            'max_adverse_excursion' => null,
+            'hold_time_minutes' => null,
+            'r_multiple' => null,
+            'target_hit' => null,
+            'analyzed' => false,
+            'analyzed_at' => null,
+            'passed_gates' => $passedGates,
+            'failed_timeframe' => $failure === null ? null : ($failure['timeframe'] ?? '1m'),
+            'failed_gate' => $failure['gate'] ?? null,
+            'failure_reason' => $failure['reason'] ?? null,
+            'failure_value' => $failure['value'] ?? null,
+            'failure_min' => $failure['min'] ?? null,
+            'failure_max' => $failure['max'] ?? null,
+            'gate_values' => json_encode([
+                '5m' => $g5mVals,
+                '1m' => $g1mVals,
+            ]),
+            'meta' => json_encode([
+                'passed_gates' => $passedGates,
+                'failure' => $failure,
+            ]),
+            'dedupe_key' => implode('|', [
+                $version['pipeline_letter'],
+                $symbol,
+                $tsEst,
+            ]),
+            'version' => $version['version_string'],
+            'pipeline_run' => $version['pipeline_letter'],
+            'created_at' => now(),
+            'updated_at' => now(),
+
+        ];
+
+        if (count($this->pendingBacktestCandidateInserts) >= self::BACKTEST_CANDIDATE_INSERT_BATCH_SIZE) {
+            $this->flushBacktestCandidateInserts();
+        }
+    }
+
+    private function persistFailedCandidateWithEntryData(
+        array $version,
+        string $symbol,
+        string $tsEst,
+        array $g5mVals,
+        array $failure,
+        bool $useEntryFinder,
+        EntryTypeClassifier $classifier,
+        GateEvaluator $evaluator,
+        ?float $score = null,
+    ): void {
+        $g1m = $evaluator->evaluate1m($symbol, $tsEst);
+        if ($g1m->isEmpty()) {
+            return;
+        }
+
+        $g1mVals = $g1m->toArray();
+        $score ??= $this->score($g5mVals, $version['scanner_score_formula'] ?? null);
+
+        $candidatePayload = $this->buildCandidatePayload(
+            $symbol,
+            $tsEst,
+            $version,
+            $g5mVals,
+            $g1m,
+            $g1mVals,
+            $score,
+            $useEntryFinder,
+            $classifier,
+        );
+
+        $this->persistBacktestCandidate(
+            version: $version,
+            symbol: $symbol,
+            tsEst: $tsEst,
+            g5mVals: $g5mVals,
+            g1mVals: $g1mVals,
+            entryType: $candidatePayload['entryType'],
+            entryData: $candidatePayload['entryData'],
+            passedGates: false,
+            failure: $failure,
+        );
     }
 
     private function firstGateFailure(array $gates, array $thresholds): ?array

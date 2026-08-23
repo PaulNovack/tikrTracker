@@ -71,6 +71,8 @@ class TradesPerDayController extends Controller
                 return [
                     'date' => $date,
                     'trade_count' => $trades->count(),
+                    'winning_trades' => $trades->filter(fn (array $trade): bool => ($trade['pnl_percent'] ?? null) !== null && (float) $trade['pnl_percent'] >= 0)->count(),
+                    'losing_trades' => $trades->filter(fn (array $trade): bool => ($trade['pnl_percent'] ?? null) !== null && (float) $trade['pnl_percent'] < 0)->count(),
                     'invested_10k' => round($trades->count() * self::NOTIONAL_PER_TRADE, 2),
                     'total_profit_10k' => round($trades->sum(fn (array $trade): float => (float) ($trade['profit_10k'] ?? 0)), 2),
                     'pnl_percent' => $trades->count() > 0 ? round(($trades->sum(fn (array $trade): float => (float) ($trade['profit_10k'] ?? 0)) / ($trades->count() * self::NOTIONAL_PER_TRADE)) * 100, 2) : 0.0,
@@ -89,6 +91,8 @@ class TradesPerDayController extends Controller
         $totalTrades = $filteredAlerts->count();
         $activeDays = count($dailyBreakdowns);
         $peakDay = collect($dailyBreakdowns)->sortByDesc('trade_count')->first();
+        $totalWins = collect($dailyBreakdowns)->sum('winning_trades');
+        $totalLosses = collect($dailyBreakdowns)->sum('losing_trades');
         $totalInvested10k = round($totalTrades * self::NOTIONAL_PER_TRADE, 2);
         $totalProfit10k = round(collect($dailyBreakdowns)->sum('total_profit_10k'), 2);
 
@@ -99,6 +103,9 @@ class TradesPerDayController extends Controller
                 'total_trades' => $totalTrades,
                 'total_invested_10k' => $totalInvested10k,
                 'total_profit_10k' => $totalProfit10k,
+                'total_wins' => $totalWins,
+                'total_losses' => $totalLosses,
+                'win_rate' => ($totalWins + $totalLosses) > 0 ? round(($totalWins / ($totalWins + $totalLosses)) * 100, 2) : 0.0,
                 'active_days' => $activeDays,
                 'avg_trades_per_day' => $activeDays > 0 ? round($totalTrades / $activeDays, 2) : 0.0,
                 'peak_day' => $peakDay['date'] ?? null,

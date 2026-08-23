@@ -23,6 +23,12 @@ class GateEvaluator
 {
     private const BENCHMARK_SYMBOL = 'QQQM';
 
+    /** @var array<string, array<string, array<string, float|int>>> */
+    private array $dailyDataCache = [];
+
+    /** @var array<string, float> */
+    private array $benchmarkMoveCache = [];
+
     public function __construct(
         private readonly BarSourceInterface $bars,
     ) {}
@@ -664,10 +670,16 @@ class GateEvaluator
         $tradeDate = substr($asOfTsEst, 0, 10);
         $redisKey = "rt:daily:gates:{$tradeDate}";
 
+        if (isset($this->dailyDataCache[$tradeDate][$symbol])) {
+            return $this->dailyDataCache[$tradeDate][$symbol];
+        }
+
         // Try Redis hash read first
         try {
             $cached = Cache::store('redis')->get($redisKey);
             if (is_array($cached) && isset($cached[$symbol])) {
+                $this->dailyDataCache[$tradeDate] = $cached;
+
                 return $cached[$symbol];
             }
         } catch (\Throwable) {
@@ -677,6 +689,8 @@ class GateEvaluator
         // Bulk preload ALL symbols' daily data into Redis
         try {
             $allData = $this->bulkLoadDailyData($tradeDate);
+            $this->dailyDataCache[$tradeDate] = $allData;
+
             try {
                 Cache::store('redis')->put($redisKey, $allData, 3600);
             } catch (\Throwable) {
@@ -818,14 +832,18 @@ class GateEvaluator
      */
     private function getBenchmarkMove15m(string $asOfTsEst): float
     {
+        if (isset($this->benchmarkMoveCache[$asOfTsEst])) {
+            return $this->benchmarkMoveCache[$asOfTsEst];
+        }
+
         $bars = $this->bars->getBars('5m', self::BENCHMARK_SYMBOL, $asOfTsEst, 60, 20);
 
         if (count($bars) < 4) {
-            return 0.0;
+            return $this->benchmarkMoveCache[$asOfTsEst] = 0.0;
         }
 
         $normalized = array_map(fn ($b) => ['close' => $b->close], $bars);
 
-        return $this->computeMove($normalized, 3); // 3 × 5m = 15m
+        return $this->benchmarkMoveCache[$asOfTsEst] = $this->computeMove($normalized, 3); // 3 × 5m = 15m
     }
 }

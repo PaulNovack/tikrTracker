@@ -15,6 +15,8 @@ interface DailyCount {
 }
 
 interface DailyBreakdown extends DailyCount {
+    winning_trades: number;
+    losing_trades: number;
     invested_10k: number;
     total_profit_10k: number;
     pnl_percent: number;
@@ -39,6 +41,9 @@ interface Summary {
     total_trades: number;
     total_invested_10k: number;
     total_profit_10k: number;
+    total_wins: number;
+    total_losses: number;
+    win_rate: number;
     active_days: number;
     avg_trades_per_day: number;
     peak_day: string | null;
@@ -177,6 +182,19 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
 
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{summary.win_rate.toFixed(1)}%</div>
+                                <p className="text-xs text-muted-foreground">
+                                    {summary.total_wins.toLocaleString()} wins / {summary.total_losses.toLocaleString()} losses
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Average / Active Day</CardTitle>
                                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
@@ -271,6 +289,9 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                             <TableRow>
                                                 <TableHead>Date</TableHead>
                                                 <TableHead className="text-right">Trades</TableHead>
+                                                <TableHead className="text-right">Wins</TableHead>
+                                                <TableHead className="text-right">Losses</TableHead>
+                                                <TableHead className="text-right">Win %</TableHead>
                                                 <TableHead className="text-right">Invested</TableHead>
                                                 <TableHead className="text-right">P/L at $10K</TableHead>
                                                 <TableHead className="text-right">P/L %</TableHead>
@@ -300,6 +321,13 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="text-right font-mono">{row.trade_count.toLocaleString()}</TableCell>
+                                                            <TableCell className="text-right font-mono text-green-600">{row.winning_trades.toLocaleString()}</TableCell>
+                                                            <TableCell className="text-right font-mono text-red-600">{row.losing_trades.toLocaleString()}</TableCell>
+                                                            <TableCell className="text-right font-mono">
+                                                                {row.winning_trades + row.losing_trades > 0
+                                                                    ? `${((row.winning_trades / (row.winning_trades + row.losing_trades)) * 100).toFixed(1)}%`
+                                                                    : '0.0%'}
+                                                            </TableCell>
                                                             <TableCell className="text-right font-mono">{formatCurrency(row.invested_10k)}</TableCell>
                                                             <TableCell className={`text-right font-mono ${normalizeNumber(row.total_profit_10k) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 {formatCurrency(normalizeNumber(row.total_profit_10k))}
@@ -310,7 +338,7 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                                         </TableRow>
                                                         {isExpanded && (
                                                             <TableRow>
-                                                                <TableCell colSpan={5} className="bg-muted/30 p-0">
+                                                                <TableCell colSpan={8} className="bg-muted/30 p-0">
                                                                     <div className="border-t px-4 py-3">
                                                                         <div className="mb-3 text-sm font-medium">Trades for {row.date}</div>
                                                                         <div className="overflow-x-auto">

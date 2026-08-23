@@ -11,6 +11,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     protected $signature = 'analyze:trade-alerts-atr-immediate
         {--algo-version=v12.4 : Algorithm version to analyze}
         {--pipeline= : Pipeline run to filter (A or B)}
+        {--table=trade_alerts : Source table to analyze}
+        {--failed-only : Only analyze rejected backtest candidates}
         {--atr-multiplier= : ATR multiplier for stop distance (uses config default 4.0x if not specified)}
         {--fixed-stop-pct= : Use fixed percentage stop instead of ATR (e.g., 1.0 for 1%)}
         {--show-details : Show detailed trade-by-trade results}
@@ -44,6 +46,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
 
         $algoVersion = $this->option('algo-version');
         $pipeline = $this->option('pipeline');
+        $tableName = (string) $this->option('table');
+        $failedOnly = (bool) $this->option('failed-only');
         // Read from DB-backed settings if not specified (falls back to config defaults)
         $atrMultiplier = $this->option('atr-multiplier')
             ? (float) $this->option('atr-multiplier')
@@ -59,12 +63,22 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         $oneMinuteTable = $useFullTables ? 'one_minute_prices_full' : 'one_minute_prices';
 
         // Determine which table to query based on pipeline config
-        $tableName = 'trade_alerts';
         if ($pipeline) {
             $pipelineLower = strtolower($pipeline);
             $noFilterConfig = config("trading.alert_{$pipelineLower}_no_filter_finder", false);
-            $tableName = $noFilterConfig ? 'trade_alerts_unfiltered' : 'trade_alerts';
+            $defaultTable = $noFilterConfig ? 'trade_alerts_unfiltered' : 'trade_alerts';
+
+            if ($tableName === 'trade_alerts') {
+                $tableName = $defaultTable;
+            }
+
             $this->line("📊 Using table: {$tableName} (NO_FILTER_FINDER=".($noFilterConfig ? 'true' : 'false').')');
+        }
+
+        if ($failedOnly && $tableName !== 'trade_alerts_backtest_candidates') {
+            $this->error('--failed-only is only supported when using --table=trade_alerts_backtest_candidates');
+
+            return 1;
         }
 
         $this->info('📊 Analyzing Trade Alerts with IMMEDIATE ATR-Based Stops');
@@ -72,6 +86,7 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         if ($pipeline) {
             $this->info("🔀 Pipeline: {$pipeline}");
         }
+        $this->line("📚 Source Table: {$tableName}");
         $this->line("📈 Price Table: {$oneMinuteTable}");
 
         if ($fixedStopPct) {
