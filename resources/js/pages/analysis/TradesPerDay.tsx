@@ -29,6 +29,7 @@ interface TradeDetail {
     entry_type: string;
     signal_type: string;
     entry_ts_est: string | null;
+    exit_ts_est: string | null;
     ml_win_prob: number;
     ml_threshold: number;
     pnl_percent: number | null;
@@ -41,6 +42,7 @@ interface Summary {
     total_trades: number;
     total_invested_10k: number;
     total_profit_10k: number;
+    avg_profit_percent: number;
     total_wins: number;
     total_losses: number;
     win_rate: number;
@@ -74,6 +76,7 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
 
     const totalInvested10k = normalizeNumber(summary.total_invested_10k);
     const totalProfit10k = normalizeNumber(summary.total_profit_10k);
+    const avgProfitPercent = normalizeNumber(summary.avg_profit_percent);
 
     const applyFilter = () => {
         router.get('/analysis/trades-per-day', {
@@ -98,12 +101,14 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
 
     const thresholdEntries = Object.entries(pipelineThresholds).sort(([left], [right]) => left.localeCompare(right));
 
-    const formatDateTime = (value: string | null) => {
+    const formatTimeOnly = (value: string | null) => {
         if (!value) {
             return '—';
         }
 
-        return value;
+        const timePart = value.includes(' ') ? value.split(' ')[1] : value;
+
+        return timePart?.slice(0, 8) ?? value;
     };
 
     const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
@@ -177,6 +182,19 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                     {formatCurrency(totalProfit10k)}
                                 </div>
                                 <p className="text-xs text-muted-foreground">Net across all qualifying trades</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Avg P/L per Trade</CardTitle>
+                                <Layers3 className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className={`text-2xl font-bold ${avgProfitPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatSignedPercent(avgProfitPercent)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">Average percent P/L across all deduped trades</p>
                             </CardContent>
                         </Card>
 
@@ -353,6 +371,7 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                                                                         <TableHead className="text-right">P/L at $10K</TableHead>
                                                                                         <TableHead className="text-right">Threshold</TableHead>
                                                                                         <TableHead>Entry Time</TableHead>
+                                                                                        <TableHead>Exit Time</TableHead>
                                                                                     </TableRow>
                                                                                 </TableHeader>
                                                                                 <TableBody>
@@ -369,7 +388,8 @@ export default function TradesPerDay({ summary, dailyBreakdowns, pipelineThresho
                                                                                                 {trade.profit_10k === null ? '—' : formatCurrency(trade.profit_10k)}
                                                                                             </TableCell>
                                                                                             <TableCell className="text-right font-mono text-muted-foreground">{formatPercent(trade.ml_threshold)}</TableCell>
-                                                                                            <TableCell className="font-mono text-sm text-muted-foreground">{formatDateTime(trade.entry_ts_est)}</TableCell>
+                                                                                            <TableCell className="font-mono text-sm text-muted-foreground">{formatTimeOnly(trade.entry_ts_est)}</TableCell>
+                                                                                            <TableCell className="font-mono text-sm text-muted-foreground">{formatTimeOnly(trade.exit_ts_est)}</TableCell>
                                                                                         </TableRow>
                                                                                     ))}
                                                                                 </TableBody>

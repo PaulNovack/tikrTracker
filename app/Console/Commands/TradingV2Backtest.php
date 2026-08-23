@@ -20,6 +20,8 @@ class TradingV2Backtest extends Command
 
     private const BACKTEST_CANDIDATE_INSERT_BATCH_SIZE = 50;
 
+    private bool $persistBacktestCandidates = false;
+
     /** @var array<string, int> pipeline_letter => rejection count for this run */
     private array $rejectionCounts = [];
 
@@ -58,7 +60,7 @@ class TradingV2Backtest extends Command
         $evaluator = new GateEvaluator($mysqlSource);
         $classifier = new EntryTypeClassifier;
         $write = (bool) $this->option('write');
-        $writeCandidates = (bool) $this->option('write-candidates');
+        $writeCandidates = (bool) $this->option('write-candidates') && $this->persistBacktestCandidates;
         $useEntryFinder = (bool) $this->option('use-entry-finder');
 
         $today = date('Y-m-d');
@@ -511,6 +513,12 @@ class TradingV2Backtest extends Command
 
     private function flushBacktestCandidateInserts(): void
     {
+        if (! $this->persistBacktestCandidates) {
+            $this->pendingBacktestCandidateInserts = [];
+
+            return;
+        }
+
         if ($this->pendingBacktestCandidateInserts === []) {
             return;
         }
@@ -656,6 +664,10 @@ class TradingV2Backtest extends Command
 
     private function persistBacktestCandidate(array $version, string $symbol, string $tsEst, array $g5mVals, array $g1mVals, string $entryType, array $entryData, bool $passedGates, ?array $failure = null): void
     {
+        if (! $this->persistBacktestCandidates) {
+            return;
+        }
+
         $this->pendingBacktestCandidateInserts[] = [
             'symbol' => $symbol,
             'asset_type' => 'stock',

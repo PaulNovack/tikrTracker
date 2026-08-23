@@ -136,13 +136,13 @@ export default function SqlQuery({ query, results }: SqlQueryProps) {
                         {results.rows.length > 0 && results.columns.length > 0 ? (
                             <div className="overflow-hidden rounded-lg border">
                                 <div className="max-h-[60vh] overflow-auto">
-                                    <table className="w-max min-w-full table-auto border-separate border-spacing-0 text-xs">
+                                    <table className="w-max min-w-full table-auto border-separate border-spacing-0 text-sm font-sans">
                                         <thead className="sticky top-0 z-10 bg-background">
                                             <tr>
                                                 {results.columns.map((column) => (
                                                     <th
                                                         key={column}
-                                                        className="max-w-44 border-b px-2 py-2 text-left align-middle font-mono text-[10px] uppercase tracking-wide text-muted-foreground"
+                                                        className="max-w-44 border-b px-2 py-2 text-left align-middle font-sans text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
                                                         title={column}
                                                     >
                                                         <div className="max-w-44 truncate">{column}</div>
@@ -159,7 +159,7 @@ export default function SqlQuery({ query, results }: SqlQueryProps) {
                                                         return (
                                                             <td
                                                                 key={`${results.page}-${rowIndex}-${column}`}
-                                                                className="max-w-44 border-b px-2 py-1 align-top font-mono text-[11px] leading-4"
+                                                                className="max-w-44 border-b px-2 py-1.5 align-top font-sans text-[12px] leading-5"
                                                                 title={value}
                                                             >
                                                                 <div className="max-w-44 truncate whitespace-nowrap">{value}</div>

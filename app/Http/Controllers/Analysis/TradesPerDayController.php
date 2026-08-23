@@ -31,7 +31,7 @@ class TradesPerDayController extends Controller
         $globalThreshold = TradingSettingService::getGlobalMlThreshold();
 
         $alerts = TradeAlert::query()
-            ->select(['symbol', 'trading_date_est', 'pipeline_run', 'ml_win_prob', 'pnl_percent', 'signal_type', 'entry_type', 'entry_ts_est'])
+            ->select(['symbol', 'trading_date_est', 'pipeline_run', 'ml_win_prob', 'pnl_percent', 'signal_type', 'entry_type', 'entry_ts_est', 'exit_ts_est'])
             ->whereNotNull('trading_date_est')
             ->whereNotNull('ml_win_prob')
             ->whereBetween('trading_date_est', [$startDate, $endDate])
@@ -47,7 +47,18 @@ class TradesPerDayController extends Controller
             return (float) $alert->ml_win_prob >= $threshold;
         });
 
-        $dailyBreakdowns = $filteredAlerts
+        $dedupedAlerts = $filteredAlerts
+            ->groupBy(fn (TradeAlert $alert) => $alert->trading_date_est?->toDateString() ?? '')
+            ->filter(fn (Collection $group, string $date) => $date !== '')
+            ->flatMap(function (Collection $group): Collection {
+                return $group
+                    ->sortBy(fn (TradeAlert $alert): string => $alert->entry_ts_est?->format('Y-m-d H:i:s') ?? '')
+                    ->unique(fn (TradeAlert $alert): string => (string) $alert->symbol)
+                    ->values();
+            })
+            ->values();
+
+        $dailyBreakdowns = $dedupedAlerts
             ->groupBy(fn (TradeAlert $alert) => $alert->trading_date_est?->toDateString() ?? '')
             ->filter(fn (Collection $group, string $date) => $date !== '')
             ->map(function (Collection $group, string $date) use ($pipelineThresholds, $globalThreshold): array {
@@ -61,6 +72,7 @@ class TradesPerDayController extends Controller
                         'entry_type' => $alert->entry_type,
                         'signal_type' => $alert->signal_type,
                         'entry_ts_est' => $alert->entry_ts_est?->format('Y-m-d H:i:s'),
+                        'exit_ts_est' => $alert->exit_ts_est?->format('Y-m-d H:i:s'),
                         'ml_win_prob' => round((float) $alert->ml_win_prob, 4),
                         'pnl_percent' => $alert->pnl_percent !== null ? round((float) $alert->pnl_percent, 2) : null,
                         'profit_10k' => $alert->pnl_percent !== null ? round(((float) $alert->pnl_percent) * 100.0, 2) : null,
@@ -88,13 +100,19 @@ class TradesPerDayController extends Controller
             'trade_count' => $day['trade_count'],
         ], $dailyBreakdowns);
 
-        $totalTrades = $filteredAlerts->count();
+        $totalTrades = $dedupedAlerts->count();
         $activeDays = count($dailyBreakdowns);
         $peakDay = collect($dailyBreakdowns)->sortByDesc('trade_count')->first();
         $totalWins = collect($dailyBreakdowns)->sum('winning_trades');
         $totalLosses = collect($dailyBreakdowns)->sum('losing_trades');
         $totalInvested10k = round($totalTrades * self::NOTIONAL_PER_TRADE, 2);
         $totalProfit10k = round(collect($dailyBreakdowns)->sum('total_profit_10k'), 2);
+        $avgProfitPercent = $dedupedAlerts->count() > 0
+            ? round(
+                $dedupedAlerts->sum(fn (TradeAlert $alert): float => $alert->pnl_percent !== null ? (float) $alert->pnl_percent : 0.0) / $dedupedAlerts->count(),
+                2,
+            )
+            : 0.0;
 
         return Inertia::render('analysis/TradesPerDay', [
             'summary' => [
@@ -103,6 +121,7 @@ class TradesPerDayController extends Controller
                 'total_trades' => $totalTrades,
                 'total_invested_10k' => $totalInvested10k,
                 'total_profit_10k' => $totalProfit10k,
+                'avg_profit_percent' => $avgProfitPercent,
                 'total_wins' => $totalWins,
                 'total_losses' => $totalLosses,
                 'win_rate' => ($totalWins + $totalLosses) > 0 ? round(($totalWins / ($totalWins + $totalLosses)) * 100, 2) : 0.0,
