@@ -79,7 +79,7 @@ if [[ -n "$ATR_SETTINGS_RAW" ]]; then
 fi
 
 # All pipelines that have a TRADE_ALERT_*_VERSION in .env
-PIPELINES=(A B C D E F G H I J K L M N P Q R EXTERNAL)
+PIPELINES=(A B C D E F G H I J K L M N O P Q R EXTERNAL)
 
 FAILED_PIPES=()
 
