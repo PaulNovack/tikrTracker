@@ -11,6 +11,56 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+REQUESTED_FROM=""
+REQUESTED_TO=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--from)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --from requires a YYYY-MM-DD date"
+        exit 1
+      fi
+      REQUESTED_FROM="$2"
+      shift 2
+      ;;
+    --from=*)
+      REQUESTED_FROM="${1#*=}"
+      shift
+      ;;
+    -t|--to)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --to requires a YYYY-MM-DD date"
+        exit 1
+      fi
+      REQUESTED_TO="$2"
+      shift 2
+      ;;
+    --to=*)
+      REQUESTED_TO="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: bash python_ml/v2/scripts/analyze_all_backtest_failures.sh [--from YYYY-MM-DD] [--to YYYY-MM-DD]"
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -n "$REQUESTED_FROM" && -z "$REQUESTED_TO" ]]; then
+  echo "ERROR: --from requires --to"
+  exit 1
+fi
+
+if [[ -n "$REQUESTED_TO" && -z "$REQUESTED_FROM" ]]; then
+  echo "ERROR: --to requires --from"
+  exit 1
+fi
+
 # .env is three directories above this script (python_ml/v2/scripts/ → repo root)
 ENV_FILE="$SCRIPT_DIR/../../../.env"
 
@@ -43,6 +93,8 @@ for PIPE in "${PIPELINES[@]}"; do
   if php artisan analyze:trade-alerts-atr-immediate \
     --table=trade_alerts_backtest_candidates \
     --algo-version="$ALGO_VERSION" \
+    ${REQUESTED_FROM:+--from="$REQUESTED_FROM"} \
+    ${REQUESTED_TO:+--to="$REQUESTED_TO"} \
     --failed-only \
     --show-details \
     --use-full-tables; then

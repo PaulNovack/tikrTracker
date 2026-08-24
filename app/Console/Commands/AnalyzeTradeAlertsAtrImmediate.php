@@ -11,6 +11,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     protected $signature = 'analyze:trade-alerts-atr-immediate
         {--algo-version=v12.4 : Algorithm version to analyze}
         {--pipeline= : Pipeline run to filter (A or B)}
+        {--from= : Start date (YYYY-MM-DD, EST) for entry_ts_est}
+        {--to= : End date (YYYY-MM-DD, EST) for entry_ts_est}
         {--table=trade_alerts : Source table to analyze}
         {--failed-only : Only analyze rejected backtest candidates}
         {--atr-multiplier= : ATR multiplier for stop distance (uses config default 4.0x if not specified)}
@@ -46,6 +48,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
 
         $algoVersion = $this->option('algo-version');
         $pipeline = $this->option('pipeline');
+        $fromDate = $this->option('from');
+        $toDate = $this->option('to');
         $tableName = (string) $this->option('table');
         $failedOnly = (bool) $this->option('failed-only');
         // Read from DB-backed settings if not specified (falls back to config defaults)
@@ -85,6 +89,9 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         $this->info("🔢 Version: {$algoVersion}");
         if ($pipeline) {
             $this->info("🔀 Pipeline: {$pipeline}");
+        }
+        if ($fromDate || $toDate) {
+            $this->info('📅 Date Range: '.($fromDate ?: 'start').' -> '.($toDate ?: 'end'));
         }
         $this->line("📚 Source Table: {$tableName}");
         $this->line("📈 Price Table: {$oneMinuteTable}");
@@ -134,6 +141,16 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         if ($pipeline) {
             $query .= ' AND pipeline_run = ?';
             $params[] = $pipeline;
+        }
+
+        if ($fromDate) {
+            $query .= ' AND entry_ts_est >= ?';
+            $params[] = $fromDate.' 00:00:00';
+        }
+
+        if ($toDate) {
+            $query .= ' AND entry_ts_est <= ?';
+            $params[] = $toDate.' 23:59:59';
         }
 
         if ($minAtrPct !== null) {
