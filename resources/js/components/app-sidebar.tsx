@@ -13,7 +13,7 @@ import { dashboard } from '@/routes';
 import { edit as editTradingSettings } from '@/actions/App/Http/Controllers/TradingSettingsController';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, Bell, BarChart, BarChart3, Building, Camera, Clock, Database, DollarSign, Eye, FileText, GitBranch, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
+import { Activity, Bell, BarChart, BarChart3, Building, CalendarDays, Camera, Clock, Database, DollarSign, Eye, FileText, GraduationCap, History, Key, LayoutGrid, List, MessageSquare, Settings, Shield, ShoppingCart, StopCircle, Target, Thermometer, TrendingDown, TrendingUp, Upload, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -382,9 +382,33 @@ export function AppSidebar() {
                     disabled: isGuest,
                 },
                 {
+                    title: 'ML Buckets',
+                    href: '/analysis/ml-buckets',
+                    icon: BarChart3,
+                    disabled: isGuest,
+                },
+                {
+                    title: 'Trades Per Day',
+                    href: '/analysis/trades-per-day',
+                    icon: CalendarDays,
+                    disabled: isGuest,
+                },
+                {
+                    title: 'SQL Query',
+                    href: '/analysis/sql-query',
+                    icon: Database,
+                    disabled: isGuest,
+                },
+                {
                     title: 'ML Calibration',
                     href: '/analysis/ml-calibration',
                     icon: BarChart3,
+                    disabled: isGuest,
+                },
+                {
+                    title: 'Momentum Movers',
+                    href: '/analysis/momentum-movers',
+                    icon: TrendingUp,
                     disabled: isGuest,
                 },
                 {
@@ -560,6 +584,11 @@ export function AppSidebar() {
                               icon: Activity,
                           },
                           {
+                              title: 'Worker Heartbeat',
+                              href: '/worker-heartbeat',
+                              icon: Activity,
+                          },
+                          {
                               title: 'Processes Running',
                               href: '/processes-running',
                               icon: Activity,
@@ -588,6 +617,11 @@ export function AppSidebar() {
                               title: 'TA Gate Versions',
                               href: '/generic-ta-gate-versions',
                               icon: Database,
+                          },
+                          {
+                              title: 'Gate Snapshots',
+                              href: '/generic-ta-gate-versions/snapshots',
+                              icon: History,
                           },
                       ],
                   },

@@ -47,8 +47,8 @@ train_one() {
 
     $TRAINER \
         --pipeline "$PIPELINE" \
-          --win-threshold 2.0 \
-          --actual-fill-weight 20.0 \
+          --win-threshold 1.5 \
+          --actual-fill-weight 1.0 \
         --start "$START" \
         --end "$TODAY" \
         --test-size 0.2 \

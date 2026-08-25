@@ -33,8 +33,8 @@ echo ""
 
     $TRAINER \
         --pipeline H,I,D \
-        --win-threshold 2.0 \
-        --actual-fill-weight 20.0 \
+        --win-threshold 1.5 \
+        --actual-fill-weight 1.0 \
         --eval-on-actual-only \
         --start "$START_DATE" \
         --end "$END_DATE" \

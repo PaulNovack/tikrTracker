@@ -21,6 +21,12 @@ class EvaluateBarJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
+    public int $tries = 3;
+
+    public int $backoff = 5;
+
+    public int $timeout = 30;
+
     public function __construct(
         public string $symbol,
         public string $tsEst,
@@ -162,38 +168,90 @@ class EvaluateBarJob implements ShouldQueue
             // Write alert via TradeAlertWriterV1 (existing, well-tested code)
             $writer = app(\App\Services\Trading\TradeAlertWriterV1::class);
             $candidateGates = $candidate['gates'] ?? [];
-            $alertId = $writer->upsertAlert(
-                signal: [
-                    'symbol' => $this->symbol,
-                    'asset_type' => 'stock',
-                    'signal_type' => $candidate['signal_type'],
-                    'signal_ts_est' => $candidate['signal_ts_est'],
-                    'score' => $candidate['score'],
-                    'atr' => $candidate['atr'],
-                    'atr_pct' => $candidate['atr_pct'],
-                    // Map GateEvaluator 5m gate names to the field names that
-                    // TradeAlertWriterV1::upsertAlert() reads from signal meta
-                    // for the ML feature columns.
-                    'meta' => array_merge(
-                        [
-                            'move_30m_pct' => $candidateGates['move_30m_pct'] ?? null,
-                            'rvol_5m' => $candidateGates['rvol_ratio'] ?? null,
-                            'atr_pct_5m' => $candidateGates['atr_pct'] ?? null,
-                            'notional_last5m' => $candidateGates['notional'] ?? null,
-                            'pct_nd' => $candidateGates['pct_nd'] ?? null,
-                            'spy_move_30m_pct' => $candidateGates['benchmark_move_15m'] ?? null,
-                            'universe_size' => $candidateGates['universe_size'] ?? null,
-                        ],
-                        $candidateGates,
-                    ),
-                ],
-                entry: $entry,
-                asOfTsEst: $this->tsEst,
-                algorithmVersion: $candidate['version_string'],
-                pipelineRun: $candidate['pipeline_letter'],
-                isRealtime: true,
-            );
+            $alertId = $this->writeAlertWithRetry($writer, $candidate, $candidateGates, $entry);
         }
+    }
+
+    private function writeAlertWithRetry(object $writer, array $candidate, array $candidateGates, array $entry): int|false
+    {
+        $attempt = 0;
+        $maxAttempts = 3;
+
+        while (true) {
+            try {
+                return $writer->upsertAlert(
+                    signal: [
+                        'symbol' => $this->symbol,
+                        'asset_type' => 'stock',
+                        'signal_type' => $candidate['signal_type'],
+                        'signal_ts_est' => $candidate['signal_ts_est'],
+                        'score' => $candidate['score'],
+                        'atr' => $candidate['atr'],
+                        'atr_pct' => $candidate['atr_pct'],
+                        'meta' => array_merge(
+                            [
+                                'move_30m_pct' => $candidateGates['move_30m_pct'] ?? null,
+                                'rvol_5m' => $candidateGates['rvol_ratio'] ?? null,
+                                'atr_pct_5m' => $candidateGates['atr_pct'] ?? null,
+                                'notional_last5m' => $candidateGates['notional'] ?? null,
+                                'pct_nd' => $candidateGates['pct_nd'] ?? null,
+                                'spy_move_30m_pct' => $candidateGates['benchmark_move_15m'] ?? null,
+                                'universe_size' => $candidateGates['universe_size'] ?? null,
+                            ],
+                            $candidateGates,
+                        ),
+                    ],
+                    entry: $entry,
+                    asOfTsEst: $this->tsEst,
+                    algorithmVersion: $candidate['version_string'],
+                    pipelineRun: $candidate['pipeline_letter'],
+                    isRealtime: true,
+                );
+            } catch (\Throwable $e) {
+                $attempt++;
+
+                if ($attempt < $maxAttempts && $this->isTransientDatabaseFailure($e)) {
+                    $waitMs = $attempt * 100;
+
+                    \Log::channel('bar-events')->warning('[EvaluateBarJob] transient alert write failure, retrying', [
+                        'symbol' => $this->symbol,
+                        'timeframe' => $this->timeframe,
+                        'pipeline' => $candidate['pipeline_letter'] ?? null,
+                        'version' => $candidate['version_string'] ?? null,
+                        'attempt' => $attempt,
+                        'wait_ms' => $waitMs,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    usleep($waitMs * 1000);
+
+                    continue;
+                }
+
+                \Log::channel('bar-events')->warning('[EvaluateBarJob] alert write failed; job will retry', [
+                    'symbol' => $this->symbol,
+                    'timeframe' => $this->timeframe,
+                    'pipeline' => $candidate['pipeline_letter'] ?? null,
+                    'version' => $candidate['version_string'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+
+                throw $e;
+            }
+        }
+    }
+
+    private function isTransientDatabaseFailure(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        $code = (string) $e->getCode();
+
+        return str_contains($message, 'deadlock')
+            || str_contains($message, 'connection refused')
+            || str_contains($message, 'server has gone away')
+            || str_contains($message, 'lost connection')
+            || str_contains($message, 'too many connections')
+            || in_array($code, ['1205', '1213', '40001', '2002', '2006', '2013'], true);
     }
 
     /**

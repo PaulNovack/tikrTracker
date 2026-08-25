@@ -5,270 +5,373 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Seeds all 20 active alert versions with their complete gate configurations
- * extracted directly from each FiveMinuteSignalScanner class properties.
- */
 class AlertVersionSeeder extends Seeder
 {
     public function run(): void
     {
-        // Truncate existing data for clean re-seed
         DB::table('alert_version_gates')->delete();
         DB::table('alert_versions')->delete();
 
-        // A | v90.1 | MOMENTUM_BREAKOUT — entry score based → computed from gates
-        $this->seed('A', 'v90.1', 'MOMENTUM_BREAKOUT', 'move30m*0.4+rvolRatio*0.4+atrPct*0.2', [
-            ['entry_score_min', 93, 100],
-            ['yesterday_move_pct', 5.0, null],
-            ['yesterday_vol_mult', 1.5, null],
-        ], $this->g1());
-
-        // B | v120.0 | ELITE_MOMENTUM_CONTINUATION — multi-day momentum
-        $this->seed('B', 'v120.0', 'ELITE_MOMENTUM_CONTINUATION', 'move30m*0.5+rvolRatio*0.3+greenDays*0.2', [
-            ['entry_score_min', 70, 95],
-            ['multi_day_green_count', 2, null],
-            ['yesterday_move_pct', 2.0, null],
-            ['require_vol_increase', null, null],
-        ], $this->g1());
-
-        // C | v101.0 | MOMENTUM_ACCELERATION_SURGE_5M_V101
-        $this->seed('C', 'v101.0', 'MOMENTUM_ACCELERATION_SURGE_5M_V101', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', [
-            ['notional', 100000, null],
-            ['atr_pct', 0.45, null],
-            ['rvol_ratio', 1.50, null],
-            ['move_30m_pct', 0.35, null],
-            ['above_vwap', null, null],
-            ['ema9_above_ema21', null, null],
-        ], $this->g1());
-
-        // D | v60.3 | HYBRID_MOMO_ENTRY_SCORE
-        $this->seed('D', 'v60.3', 'HYBRID_MOMO_ENTRY_SCORE', 'move30m*0.3+rvolRatio*0.5+atrPct*0.2', [
-            ['entry_score_min', 80, 98],
-            ['notional', 30000, null],
-        ], $this->g1());
-
-        // E | v400.0 | TREND_CONTINUATION — multi-day pattern
-        $this->seed('E', 'v400.0', 'TREND_CONTINUATION', 'vwap*0.25+ema_trend*0.20+hh_hl*0.15+support*0.15+demand*0.10+vol*0.10', [
-            ['atr_pct', 2.0, null],
-            ['rvol_ratio', 2.5, null],
-            ['pullback_depth_pct', null, 60],
-            ['higher_low_count', 3, null],
-            ['above_vwap', null, null],
-            ['ema9_above_ema21', null, null],
-            ['ema9_slope_positive', null, null],
-            ['vwap_violation_count', null, 0],
-            ['closes_near_high_count', 5, null],
-        ], $this->g1());
-
-        // F | v900.1 | MOMENTUM_CONTINUATION_SETUP
-        $this->seed('F', 'v900.1', 'MOMENTUM_CONTINUATION_SETUP', 'move30m*0.3+rvolRatio*0.3+rsi*0.2+atrPct*0.2', [
-            ['price', 3.0, 500],
-            ['entry_score_min', 40, 100],
-            ['yesterday_move_pct', -5.0, null],
-            ['move_from_open_pct', 2.0, null],
-            ['rsi', 60, null],
-            ['rvol_ratio', 2.0, null],
-        ], $this->g1());
-
-        // G | v35.0 | MOMO_5M_V35 — same family as H, looser
-        $this->seed('G', 'v35.0', 'MOMO_5M_V35', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.35, null],
-            ['rvol_ratio', 2.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['rs_ratio', 1.20, null],
-            ['price', 2.0, null],
-        ], $this->g1(80000, 1.0, 0.05, 0.90, 0.6, 1.5));
-
-        // H | v25.2 | MOMO_5M_V25 — quality-first (tightest defaults)
-        $this->seed('H', 'v25.2', 'MOMO_5M_V25', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.35, null],
-            ['rvol_ratio', 2.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['rs_ratio', 1.20, null],
-            ['price', 2.0, null],
-        ], [
-            ['notional_1m', 100000, null],
-            ['vol_ratio_1m', 2.5, null],
-            ['body_pct', 0.40, null],
-            ['above_vwap_entry_pct', null, 0.60],
-            ['room_to_hod_pct', 0.8, null],
-            ['room_atr_mult', 2.5, null],
-            ['min_bars', 90, null],
-        ]);
-
-        // I | v17.0 | MOMO_5M — legacy adaptive volume
-        $this->seed('I', 'v17.0', 'MOMO_5M', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', [
-            ['notional', 20000, null],
-            ['atr_pct', 0.15, null],
-            ['rvol_ratio', 1.0, null],
-            ['move_30m_pct', 1.2, null],
-            ['price', 1.0, null],
-            ['rs_ratio', 1.1, null],
-        ], $this->g1(35000, 1.0, 0.03, 3.0, 0.35, 1.0));
-
-        // J | v2000.0 | MOMO_5D_UNIVERSE — market movers with sensible gates
-        $this->seed('J', 'v2000.0', 'MOMO_5D_UNIVERSE', 'move30m*0.2+rvolRatio*0.2+atrPct*0.1+notional/100000*0.1', [
-            ['notional', 50000, null],
-            ['atr_pct', 0.30, null],
-            ['rvol_ratio', 1.5, null],
-            ['move_30m_pct', 0.4, null],
-            ['price', 3.0, null],
-        ], $this->g1(50000, 1.5, 0.03, 3.0, 0.5, 1.5));
-
-        // K | v1100.0 | SCARCITY_LEADER
-        $this->seed('K', 'v1100.0', 'SCARCITY_LEADER', 'move30m*0.4+rvolRatio*0.3+rs_ratio*0.2+atrPct*0.1', [
-            ['market_weakness', null, null],
-            ['benchmark_below_vwap', null, null],
-            ['price', 2.0, 80.0],
-            ['green_close', null, null],
-            ['above_vwap', null, null],
-            ['ema9_above_ema21', null, null],
-            ['ema_spread_pct', 0.08, null],
-            ['rs_ratio', 1.10, null],
-            ['notional', 2500, null],
-            ['distance_from_high_atr', null, 1.0],
-            ['range_contraction', null, null],
-            ['move_30m_pct', 2.5, null],
-            ['vwap_distance_min', 0.15, null],
-            ['max_above_vwap_pct', null, 3.0],
-        ], $this->g1(50000, 1.8, 0.05, 3.0, 0.5, 1.5));
-
-        // L | v1600.0 | MOMO_5M_V1600 — quality-first extended
-        $this->seed('L', 'v1600.0', 'MOMO_5M_V1600', 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', [
-            ['notional', 150000, null],
-            ['atr_pct', 0.55, null],
-            ['rvol_ratio', 1.25, null],
-            ['move_30m_pct', 0.45, null],
-            ['price', 2.0, null],
-        ], $this->g1(80000, 1.0, 0.05, 0.90, 0.6, 1.5));
-
-        // M | v103.0 | ORB_RETEST_SETUP_5M_V103_0
-        $this->seed('M', 'v103.0', 'ORB_RETEST_SETUP_5M_V103_0', 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', [
-            ['notional', 75000, null],
-            ['atr_pct', 0.25, 4.50],
-            ['rvol_ratio', 1.15, null],
-            ['move_30m_pct', 0.35, null],
-            ['above_vwap_pct', null, 2.10],
-            ['ema_spread_pct', 0.00, null],
-            ['opening_range_width_pct', 0.20, 4.50],
-            ['opening_range_bar_count', 3, null],
-        ], $this->g1(50000, 1.15, 0.03, 2.10, 0.5, 1.5));
-
-        // N | v1200.0 | TWO_BAR_MOMENTUM — 3-bar gain ≥ 4%, 2 consecutive rising bars
-        $this->seed('N', 'v1200.0', 'TWO_BAR_MOMENTUM', 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', [
-            ['price', 5.0, 100],
-            ['rvol_ratio', 1.2, null],
-            ['three_bar_gain_pct', 4.0, null],  // (close[0]-open[2])/open[2] — the actual gate
-        ], $this->g1());
-
-        // O | v1500.0 | ORB_BREAKOUT
-        $this->seed('O', 'v1500.0', 'ORB_BREAKOUT', 'move30m*0.4+rvolRatio*0.3+atrPct*0.3', [
-            ['price', 5.0, 100],
-            ['rvol_ratio', 1.5, null],
-            ['atr_pct', 1.0, 4.0],
-            ['move_30m_pct', 2.0, null],
-        ], $this->g1());
-
-        // P | v140.0 | INSTITUTIONAL_V140
-        $this->seed('P', 'v140.0', 'INSTITUTIONAL_V140', 'move30m*1.5+min(4,rvolRatio)*0.6+atrPct*1.0+greenDays*2.0', [
-            ['notional', 100000, null],
-            ['atr_pct', 0.40, null],
-            ['rvol_ratio', 1.5, null],
-            ['move_30m_pct', 1.5, null],
-            ['multi_day_green_count', 3, null],
-            ['price', 5.0, null],
-        ], [
-            ['notional_1m', 90000, null],
-            ['vol_ratio_1m', 1.3, null],
-            ['body_pct', 0.08, null],
-            ['above_vwap_entry_pct', null, 1.0],
-            ['room_to_hod_pct', 0.8, null],
-            ['min_bars', 20, null],
-        ]);
-
-        // Q | v27.0 | VOLUME_FIRST_V27
-        $this->seed('Q', 'v27.0', 'VOLUME_FIRST_V27', 'move30m*2.0+rvolRatio*1.0+atrPct*1.0+greenDays*2.0', [
-            ['price', 2.0, null],
-            ['notional', 30000, null],
-            ['atr_pct', 0.15, null],
-            ['rvol_ratio', 1.2, 10.0],
-            ['move_30m_pct', 0.4, null],
-            ['multi_day_green_count', 1, null],
-            ['rs_ratio', 1.02, null],
-        ], [
-            ['notional_1m', 100000, null],
-            ['vol_ratio_1m', 1.5, null],
-            ['body_pct', 0.10, null],
-            ['above_vwap_entry_pct', null, 0.75],
-            ['room_to_hod_pct', 0.6, null],
-            ['min_bars', 15, null],
-        ]);
-
-        // R | rt-v2.0 | REALTIME_V2
-        $this->seed('R', 'rt-v2.0', 'REALTIME_V2', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', $this->g5(), $this->g1());
-
-        // S | rt-v1.0 | REALTIME_V1
-        $this->seed('S', 'rt-v1.0', 'REALTIME_V1', 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', $this->g5(), $this->g1());
-    }
-
-    // ── Generic 5m gates ──
-    private function g5(float $atr = 0.20, float $rvol = 1.2, float $move = 0.3, float $notional = 30000): array
-    {
-        return [
-            ['notional', $notional, null],
-            ['atr_pct', $atr, null],
-            ['rvol_ratio', $rvol, null],
-            ['move_30m_pct', $move, null],
-            ['price', 2.0, null],
-        ];
-    }
-
-    // ── Generic 1m gates ──
-    private function g1(float $notional = 50000, float $vol = 1.0, float $body = 0.05, float $vwapMax = 3.0, float $room = 0.5, float $roomAtr = 1.5, int $minBars = 15): array
-    {
-        return [
-            ['notional_1m', $notional, null],
-            ['vol_ratio_1m', $vol, null],
-            ['body_pct', $body, null],
-            ['above_vwap_entry_pct', null, $vwapMax],
-            ['room_to_hod_pct', $room, null],
-            ['room_atr_mult', $roomAtr, null],
-            ['min_bars', $minBars, null],
-            ['time_blocked', null, 0],
-            ['extreme_drop', null, 0],
-        ];
-    }
-
-    // ── Insert ──
-    private function seed(string $letter, string $version, string $signalType, ?string $formula, array $gates5m, array $gates1m): void
-    {
-        $vid = DB::table('alert_versions')->insertGetId([
-            'pipeline_letter' => $letter,
-            'version_string' => $version,
-            'signal_type' => $signalType,
-            'scanner_score_formula' => $formula,
-            'enabled' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $now = now();
-        foreach ($gates5m as [$name, $min, $max]) {
-            DB::table('alert_version_gates')->insert([
-                'alert_version_id' => $vid, 'timeframe' => '5m', 'gate_name' => $name,
-                'threshold_min' => $min, 'threshold_max' => $max, 'enabled' => true,
-                'created_at' => $now, 'updated_at' => $now,
-            ]);
+        foreach ([
+            ['id' => 374, 'pipeline_letter' => 'A', 'version_string' => 'v90.1', 'signal_type' => 'MOMENTUM_BREAKOUT', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.4+rvolRatio*0.4+atrPct*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 375, 'pipeline_letter' => 'B', 'version_string' => 'v120.0', 'signal_type' => 'BULL_FLAG_BREAKOUT', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.5+rvolRatio*0.3+greenDays*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 376, 'pipeline_letter' => 'C', 'version_string' => 'v101.0', 'signal_type' => 'VWAP_PULLBACK_HOLD', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 377, 'pipeline_letter' => 'D', 'version_string' => 'v60.3', 'signal_type' => 'VWAP_RECLAIM', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.5+atrPct*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 378, 'pipeline_letter' => 'E', 'version_string' => 'v400.0', 'signal_type' => 'ORB_BREAKOUT', 'entry_finder_class' => null, 'scanner_score_formula' => 'vwap*0.25+ema_trend*0.20+hh_hl*0.15+support*0.15+demand*0.10+vol*0.10', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 379, 'pipeline_letter' => 'F', 'version_string' => 'v900.1', 'signal_type' => 'ORB_RETEST', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.3+rsi*0.2+atrPct*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 380, 'pipeline_letter' => 'G', 'version_string' => 'v35.0', 'signal_type' => 'EMA9_PULLBACK', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 381, 'pipeline_letter' => 'H', 'version_string' => 'v25.2', 'signal_type' => 'HOD_BREAKOUT', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:42:13'],
+            ['id' => 382, 'pipeline_letter' => 'I', 'version_string' => 'v17.0', 'signal_type' => 'RELATIVE_STRENGTH_MOMENTUM', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 383, 'pipeline_letter' => 'J', 'version_string' => 'v2000.0', 'signal_type' => 'GAP_AND_GO', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.2+rvolRatio*0.2+atrPct*0.1+notional/100000*0.1', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 384, 'pipeline_letter' => 'K', 'version_string' => 'v1100.0', 'signal_type' => 'VOLUME_SURGE_BREAKOUT', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.4+rvolRatio*0.3+rs_ratio*0.2+atrPct*0.1', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 385, 'pipeline_letter' => 'L', 'version_string' => 'v1600.0', 'signal_type' => 'VWAP_MEAN_REVERSION', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 386, 'pipeline_letter' => 'M', 'version_string' => 'v103.0', 'signal_type' => 'EMA9_EMA21_TREND_CONTINUATION', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.4+atrPct*0.3', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 387, 'pipeline_letter' => 'N', 'version_string' => 'v1200.0', 'signal_type' => 'FAILED_BREAKDOWN_REVERSAL', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.5+rvolRatio*0.3+atrPct*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 388, 'pipeline_letter' => 'O', 'version_string' => 'v1500.0', 'signal_type' => 'CATALYST_NEWS_MOMENTUM', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.4+rvolRatio*0.3+atrPct*0.3', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 389, 'pipeline_letter' => 'P', 'version_string' => 'v140.0', 'signal_type' => 'ML_ENSEMBLE_META', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*1.5+min(4,rvolRatio)*0.6+atrPct*1.0+greenDays*2.0', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 390, 'pipeline_letter' => 'Q', 'version_string' => 'v27.0', 'signal_type' => 'VOLUME_FIRST_V27', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*2.0+rvolRatio*1.0+atrPct*1.0+greenDays*2.0', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 391, 'pipeline_letter' => 'R', 'version_string' => 'rt-v2.0', 'signal_type' => 'REALTIME_V2', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 392, 'pipeline_letter' => 'S', 'version_string' => 'rt-v1.0', 'signal_type' => 'REALTIME_V1', 'entry_finder_class' => null, 'scanner_score_formula' => 'move30m*0.3+rvolRatio*0.3+atrPct*0.2+vol_ratio_1m*0.2', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+        ] as $row) {
+            DB::table('alert_versions')->insert($row);
         }
-        foreach ($gates1m as [$name, $min, $max]) {
-            DB::table('alert_version_gates')->insert([
-                'alert_version_id' => $vid, 'timeframe' => '1m', 'gate_name' => $name,
-                'threshold_min' => $min, 'threshold_max' => $max, 'enabled' => true,
-                'created_at' => $now, 'updated_at' => $now,
-            ]);
+
+        foreach ([
+            ['id' => 6171, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6167, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6172, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6174, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'green_bar_pct', 'threshold_min' => '50.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6173, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'green_close', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6169, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6166, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6170, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6168, 'alert_version_id' => 374, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6178, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6177, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6183, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6181, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6175, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6180, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6179, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.750', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6182, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6176, 'alert_version_id' => 374, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6191, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6185, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.250', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6192, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6193, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'ema9_slope_positive', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6189, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'higher_low_count', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6187, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6184, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6188, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6190, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '45.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6186, 'alert_version_id' => 375, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.400', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6197, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6196, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6202, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6200, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6194, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6199, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6198, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.700', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6201, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6195, 'alert_version_id' => 375, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6208, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6204, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6209, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6211, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'max_above_vwap_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 0, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-21 20:38:15'],
+            ['id' => 6206, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.800', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6203, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6207, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6212, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '60.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6205, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6210, 'alert_version_id' => 376, 'timeframe' => '5m', 'gate_name' => 'vwap_distance_min', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6216, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6215, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6221, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6219, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6213, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6218, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6217, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6220, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6214, 'alert_version_id' => 376, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6227, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6223, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6228, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6225, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-21 20:38:51'],
+            ['id' => 6222, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6226, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6224, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6230, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'vwap_reclaim_strength_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6231, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'vwap_reclaim_wick_below_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6229, 'alert_version_id' => 377, 'timeframe' => '5m', 'gate_name' => 'vwap_violation_count', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6235, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6234, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6240, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6238, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6232, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6237, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6236, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6239, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6233, 'alert_version_id' => 377, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6248, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6242, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6249, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6244, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-21 20:39:32'],
+            ['id' => 6241, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '75000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6247, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'opening_range_bar_count', 'threshold_min' => '1.000', 'threshold_max' => '6.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6246, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'opening_range_width_pct', 'threshold_min' => '0.200', 'threshold_max' => '3.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6245, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6243, 'alert_version_id' => 378, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6253, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6252, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6258, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6256, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6250, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6255, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6254, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.700', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6257, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6251, 'alert_version_id' => 378, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6268, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6260, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.250', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-21 20:40:09'],
+            ['id' => 6262, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6259, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '75000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6265, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'opening_range_bar_count', 'threshold_min' => '1.000', 'threshold_max' => '8.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6264, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'opening_range_width_pct', 'threshold_min' => '0.200', 'threshold_max' => '3.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6267, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'or_hold_close_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6266, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'or_retest_depth_pct', 'threshold_min' => null, 'threshold_max' => '2.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6263, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6261, 'alert_version_id' => 379, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6272, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6271, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6277, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6275, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6269, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6274, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6273, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.700', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6276, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6270, 'alert_version_id' => 379, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6279, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6285, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'ema_spread_pct', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6283, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6284, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'ema9_slope_positive', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6281, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6278, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6282, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6286, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '40.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6280, 'alert_version_id' => 380, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6290, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6289, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.080', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6296, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'ema9_pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '20.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6297, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'ema9_reclaim_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6295, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6293, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6287, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6292, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6291, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6294, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6288, 'alert_version_id' => 380, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:19', 'updated_at' => '2026-08-18 23:54:19'],
+            ['id' => 6307, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6299, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.278', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:42:05'],
+            ['id' => 6305, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'closes_near_high_count', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6303, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'dist_to_hod_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6308, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6306, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'green_bar_pct', 'threshold_min' => '40.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6301, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6298, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6302, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6304, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'range_contraction', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6300, 'alert_version_id' => 381, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6312, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6311, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.060', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6317, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6315, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6309, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '35000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6314, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6313, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.750', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6316, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6310, 'alert_version_id' => 381, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6324, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => '0.034', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:42:18'],
+            ['id' => 6319, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.150', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6325, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6321, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '-0.250', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6318, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '12000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6322, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6323, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'rs_ratio', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6320, 'alert_version_id' => 382, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6329, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '2.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6328, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.040', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6334, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6332, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6326, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '25000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6331, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '0.900', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6330, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.750', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6333, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6327, 'alert_version_id' => 382, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '0.900', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6342, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6336, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.318', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:43:02'],
+            ['id' => 6343, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6338, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6341, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'move_from_open_pct', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6335, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6339, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6337, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.656', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:43:03'],
+            ['id' => 6340, 'alert_version_id' => 383, 'timeframe' => '5m', 'gate_name' => 'yesterday_move_pct', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6347, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.500', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6346, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.060', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6352, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6350, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6344, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '35000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6349, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6348, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6351, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6345, 'alert_version_id' => 383, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6359, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6354, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.250', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6358, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'breakout_volume_ratio', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6360, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6361, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'green_close', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6356, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6353, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6357, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6355, 'alert_version_id' => 384, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6365, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6364, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6370, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6368, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6362, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6367, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6366, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.700', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6369, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6363, 'alert_version_id' => 384, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6497, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => '-0.466', 'threshold_max' => '0.911', 'enabled' => 1, 'created_at' => null, 'updated_at' => '2026-08-21 20:29:55'],
+            ['id' => 6372, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.174', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:22:03'],
+            ['id' => 6378, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'distance_from_high_atr', 'threshold_min' => null, 'threshold_max' => '1.200', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6376, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'max_above_vwap_pct', 'threshold_min' => null, 'threshold_max' => '0.750', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6374, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-21 20:20:38'],
+            ['id' => 6371, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '15000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6375, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6373, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '0.850', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6377, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'vwap_distance_min', 'threshold_min' => null, 'threshold_max' => '0.300', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6498, 'alert_version_id' => 385, 'timeframe' => '5m', 'gate_name' => 'yesterday_vol_mult', 'threshold_min' => '0.520', 'threshold_max' => null, 'enabled' => 1, 'created_at' => null, 'updated_at' => '2026-08-21 20:22:09'],
+            ['id' => 6382, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '5.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6381, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6387, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6385, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '250.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6379, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '1472865.750', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6384, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6383, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6386, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6380, 'alert_version_id' => 385, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => '2000.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6397, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6389, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6395, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'ema_spread_pct', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6393, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6394, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'ema9_slope_positive', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6391, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6388, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6392, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6396, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '30.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6390, 'alert_version_id' => 386, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6401, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '-1.773', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6400, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.264', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6407, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'ema9_pullback_depth_pct', 'threshold_min' => null, 'threshold_max' => '20.000', 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6408, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'ema9_reclaim_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6406, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6404, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6398, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '384526.075', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6403, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6402, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '7.170', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6405, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6399, 'alert_version_id' => 386, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '2.184', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6416, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6410, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.180', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6417, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6412, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.800', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6409, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '30000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6413, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6411, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6414, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'vwap_reclaim_strength_pct', 'threshold_min' => '0.350', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6415, 'alert_version_id' => 387, 'timeframe' => '5m', 'gate_name' => 'vwap_reclaim_wick_below_pct', 'threshold_min' => '0.350', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-18 23:54:20'],
+            ['id' => 6421, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.200', 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6420, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.430', 'threshold_max' => '0.648', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6426, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6424, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6418, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '25000.000', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6423, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 0, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6422, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '5.034', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6425, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6419, 'alert_version_id' => 387, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.864', 'threshold_max' => '10000.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:20', 'updated_at' => '2026-08-22 16:47:34'],
+            ['id' => 6432, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'above_vwap', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6428, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.250', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6433, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'ema9_above_ema21', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6434, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'green_close', 'threshold_min' => null, 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6430, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6427, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '40000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6431, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6429, 'alert_version_id' => 388, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6438, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.250', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6437, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6443, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6441, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6435, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '35000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6440, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6439, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.700', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6442, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6436, 'alert_version_id' => 388, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6445, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.350', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6447, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6448, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'multi_day_green_count', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6444, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '80000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6449, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '4.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6446, 'alert_version_id' => 389, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6453, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '1.200', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6452, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.070', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6455, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6450, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '70000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6454, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6451, 'alert_version_id' => 389, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6458, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.150', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6460, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.400', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6461, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'multi_day_green_count', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6457, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '30000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6456, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6462, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'rs_ratio', 'threshold_min' => '1.020', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6459, 'alert_version_id' => 390, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => '10.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6466, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '0.750', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6465, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.100', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6468, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6463, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '100000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6467, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.600', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6464, 'alert_version_id' => 390, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6470, 'alert_version_id' => 391, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6472, 'alert_version_id' => 391, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6469, 'alert_version_id' => 391, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '30000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6473, 'alert_version_id' => 391, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6471, 'alert_version_id' => 391, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6477, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '3.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6476, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6482, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6480, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6474, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6479, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6478, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6481, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6475, 'alert_version_id' => 391, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6484, 'alert_version_id' => 392, 'timeframe' => '5m', 'gate_name' => 'atr_pct', 'threshold_min' => '0.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6486, 'alert_version_id' => 392, 'timeframe' => '5m', 'gate_name' => 'move_30m_pct', 'threshold_min' => '0.300', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6483, 'alert_version_id' => 392, 'timeframe' => '5m', 'gate_name' => 'notional', 'threshold_min' => '30000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6487, 'alert_version_id' => 392, 'timeframe' => '5m', 'gate_name' => 'price', 'threshold_min' => '2.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6485, 'alert_version_id' => 392, 'timeframe' => '5m', 'gate_name' => 'rvol_ratio', 'threshold_min' => '1.200', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6491, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'above_vwap_entry_pct', 'threshold_min' => null, 'threshold_max' => '3.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6490, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'body_pct', 'threshold_min' => '0.050', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6496, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'extreme_drop', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6494, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'min_bars', 'threshold_min' => '15.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6488, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'notional_1m', 'threshold_min' => '50000.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6493, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'room_atr_mult', 'threshold_min' => '1.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6492, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'room_to_hod_pct', 'threshold_min' => '0.500', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6495, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'time_blocked', 'threshold_min' => null, 'threshold_max' => '0.000', 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+            ['id' => 6489, 'alert_version_id' => 392, 'timeframe' => '1m', 'gate_name' => 'vol_ratio_1m', 'threshold_min' => '1.000', 'threshold_max' => null, 'enabled' => 1, 'created_at' => '2026-08-18 23:54:21', 'updated_at' => '2026-08-18 23:54:21'],
+        ] as $row) {
+            DB::table('alert_version_gates')->insert($row);
         }
     }
 }

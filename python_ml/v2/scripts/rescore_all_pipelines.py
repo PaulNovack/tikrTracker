@@ -54,7 +54,7 @@ def clear_scores(engine, pipelines: list[str]):
     """Set ml_scored_at and win_prob to NULL for matching alerts in the last 6 months."""
     from sqlalchemy import text
     from datetime import date, timedelta
-    cutoff = (date.today() - timedelta(days=180)).isoformat()
+    cutoff = (date.today() - timedelta(days=45)).isoformat()
     placeholders = ",".join([f"'{p}'" for p in pipelines])
     with engine.connect() as conn:
         result = conn.execute(

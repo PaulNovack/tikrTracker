@@ -20,6 +20,7 @@ class BacktestDailyParallel extends Command
         {--pipeline= : Optional single pipeline letter filter}
         {--symbol= : Optional single symbol filter}
         {--step=5 : Step interval in minutes}
+        {--write-candidates : Write rows to trade_alerts_backtest_candidates}
         {--no-write : Do not write alerts to trade_alerts table}';
 
     /**
@@ -60,7 +61,7 @@ class BacktestDailyParallel extends Command
         }
 
         $this->info('Found '.count($days)." weekday(s) between {$from->format('Y-m-d')} and {$to->format('Y-m-d')}.");
-        $this->info("Workers: {$workers} | Step: {$step}min | Write: ".(! $this->option('no-write') ? 'YES' : 'no'));
+        $this->info("Workers: {$workers} | Step: {$step}min | Write: ".(! $this->option('no-write') ? 'YES' : 'no').' | Write candidates: '.((bool) $this->option('write-candidates') ? 'YES' : 'no'));
 
         $artisan = base_path('artisan');
         $php = PHP_BINARY;
@@ -112,6 +113,9 @@ class BacktestDailyParallel extends Command
 
         if (! $this->option('no-write')) {
             $args[] = '--write';
+        }
+        if ($this->option('write-candidates')) {
+            $args[] = '--write-candidates';
         }
         if ($p = $this->option('pipeline')) {
             $args[] = "--pipeline={$p}";

@@ -7,5 +7,5 @@
     --test-size 0.1 \
     --eval-on-actual-only --split-mode day \
     --model-out="python_ml/v2/models/winner_model_all_pipelines.joblib" \
-    --actual-fill-weight 20.0 \
+    --actual-fill-weight 1.0 \
     --top-k=25

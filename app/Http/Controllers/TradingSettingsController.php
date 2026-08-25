@@ -22,7 +22,7 @@ class TradingSettingsController extends Controller
      */
     private function getPipelineLetters(): array
     {
-        return TradingSettingService::getActivePipelineLetters();
+        return ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q'];
     }
 
     /**

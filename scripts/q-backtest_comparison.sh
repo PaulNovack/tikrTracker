@@ -58,7 +58,7 @@ process_date() {
     local date=$1
     echo "📊 Processing $date..."
 
-    php artisan trade:pipeline-q stock \
+    TRADING_PIPELINE_Q_USE_REDIS=false php artisan trade:pipeline-q stock \
         --backtest \
         --from="$date" \
         --to="$date" \

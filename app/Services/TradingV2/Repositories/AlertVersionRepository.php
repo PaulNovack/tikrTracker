@@ -4,6 +4,7 @@ namespace App\Services\TradingV2\Repositories;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Loads active alert versions + their gate thresholds from the DB.
@@ -16,6 +17,13 @@ class AlertVersionRepository
     private const CACHE_KEY = 'rt:config:tradingv2:versions';
 
     private const CACHE_TTL = 3600;
+
+    /**
+     * @var list<array{id: int, pipeline_letter: string, version_string: string,
+     *                 signal_type: string, scanner_score_formula: ?string,
+     *                 gates_5m: array, gates_1m: array}>
+     */
+    private array $lastKnownGoodActive = [];
 
     /**
      * Returns all enabled alert versions with their 5m and 1m gate configs.
@@ -47,9 +55,51 @@ class AlertVersionRepository
     private function getActiveRaw(): array
     {
         try {
-            return Cache::remember(self::CACHE_KEY, self::CACHE_TTL, fn () => $this->queryDb());
-        } catch (\Throwable) {
-            return $this->queryDb();
+            return Cache::remember(self::CACHE_KEY, self::CACHE_TTL, fn () => $this->queryDbWithRetry());
+        } catch (\Throwable $e) {
+            if ($this->lastKnownGoodActive !== []) {
+                Log::channel('bar-events')->warning('[AlertVersionRepository] Returning last known good active versions after cache failure', [
+                    'error' => $e->getMessage(),
+                    'cached_versions' => count($this->lastKnownGoodActive),
+                ]);
+
+                return $this->lastKnownGoodActive;
+            }
+
+            return $this->queryDbWithRetry();
+        }
+    }
+
+    /**
+     * Retry transient DB failures a few times before giving up.
+     */
+    private function queryDbWithRetry(): array
+    {
+        $attempt = 0;
+        $maxAttempts = 3;
+
+        while (true) {
+            try {
+                return $this->queryDb();
+            } catch (\Throwable $e) {
+                $attempt++;
+
+                if ($attempt < $maxAttempts && $this->isTransientDatabaseFailure($e)) {
+                    $waitMs = $attempt * 100;
+
+                    Log::channel('bar-events')->warning('[AlertVersionRepository] Transient DB failure, retrying', [
+                        'attempt' => $attempt,
+                        'wait_ms' => $waitMs,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    usleep($waitMs * 1000);
+
+                    continue;
+                }
+
+                throw $e;
+            }
         }
     }
 
@@ -72,7 +122,7 @@ class AlertVersionRepository
             ->get()
             ->groupBy('alert_version_id');
 
-        return $versions->map(function ($v) use ($allGates) {
+        return $this->lastKnownGoodActive = $versions->map(function ($v) use ($allGates) {
             $gates = $allGates->get($v->id, collect());
 
             $gates5m = [];
@@ -99,5 +149,18 @@ class AlertVersionRepository
                 'gates_1m' => $gates1m,
             ];
         })->all();
+    }
+
+    private function isTransientDatabaseFailure(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        $code = (string) $e->getCode();
+
+        return str_contains($message, 'deadlock')
+            || str_contains($message, 'connection refused')
+            || str_contains($message, 'server has gone away')
+            || str_contains($message, 'lost connection')
+            || str_contains($message, 'too many connections')
+            || in_array($code, ['1205', '1213', '40001', '2002', '2006', '2013'], true);
     }
 }

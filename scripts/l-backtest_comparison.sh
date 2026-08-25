@@ -70,7 +70,7 @@ process_date() {
     echo "📊 Processing $date..."
 
     # Use the actual production pipeline with --backtest mode
-    php artisan trade:pipeline-l stock \
+    TRADING_PIPELINE_L_USE_REDIS=false php artisan trade:pipeline-l stock \
         --backtest \
         --from="$date" \
         --to="$date" \

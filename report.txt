@@ -1,0 +1,565 @@
+======================================================================
+Analyzing ALL 17 active alert versions (v3 discovery)
+======================================================================
+
+======================================================================
+A / v90.1 (id=231) — v3 discovery
+======================================================================
+
+======================================================================
+Version: A/v90.1  (id=231)
+Signal type: MOMENTUM_BREAKOUT
+Enabled: yes
+Scanner score formula: move30m*0.4+rvolRatio*0.4+atrPct*0.2
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  0.4992
+  override:  n/a
+  global:    n/a
+  effective: 0.4992
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 1
+  win rate:      0.00%   (win = pnl >= 1.5%)
+  avg pnl:       -1.410%
+  median pnl:     -1.410%
+  ml_win_prob:    mean 0.3578 | median 0.3578
+======================================================================
+BLOCKING GATES — A/v90.1 (total trades: 1)
+Sample too small for outcome-based blocking, so 'market_reject%'
+shows how often each gate rejects a recent market-wide alert sample.
+High reject% = the gate is throttling alert volume.
+----------------------------------------------------------------------
+version                      gate       current  market_reject%  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate warning
+A/v90.1       5m net_progress_pct      min 3.75            69.8               1        100.0               0.0              0.0        
+A/v90.1               5m notional min 3.532e+06            59.7               1        100.0               0.0              0.0        
+A/v90.1         5m ema_spread_pct       0.351→2            59.1               1        100.0               0.0              0.0        
+A/v90.1     5m three_bar_gain_pct     min 1.968            59.1               1        100.0               0.0              0.0        
+A/v90.1         5m above_vwap_pct     min 0.566            58.3               1        100.0               0.0              0.0        
+A/v90.1           5m move_30m_pct       2.965→8            57.9               1        100.0               0.0              0.0        
+A/v90.1      5m vwap_distance_min     min 0.566            57.8               1        100.0               0.0              0.0        
+A/v90.1    5m move_rvol_composite     min 5.343            56.7               1        100.0               0.0              0.0        
+A/v90.1 5m distance_from_high_atr     max 0.703            46.6               1        100.0               0.0              0.0        
+A/v90.1         1m ema_spread_pct     min 0.122            44.5               1        100.0               0.0              0.0        
+A/v90.1  1m entry_spread_strength     min 0.285            41.4               1        100.0               0.0              0.0        
+A/v90.1                    1m rsi     min 49.71            32.3               1        100.0               0.0              0.0        
+A/v90.1 5m closes_near_high_count         min 6            15.4               1        100.0               0.0              0.0        
+A/v90.1               1m min_bars        min 68             4.6               1        100.0               0.0              0.0        
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML threshold recommendation met the minimum trade count.
+----------------------------------------------------------------------
+Gate tuning suggestions:
+  No gate recommendation met the constraints (min-trades=20, min-retention=0.5, min-win-lift=1.0pp). This is intentional — it means no reasonable tightening was found.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m bb_position (no matching column or meta field)
+  - 5m benchmark_below_vwap (disabled in config)
+  - 5m breakout_detected (boolean gate has no safe tightening sweep)
+  - 5m choppiness_directional_max (no matching column or meta field)
+  - 5m confirm_body_pct (no matching column or meta field)
+  - 5m confirm_close_position (no matching column or meta field)
+  - 5m confirm_volume_ratio (no matching column or meta field)
+  - 5m directional_changes_max (disabled in config)
+  - 5m distance_from_ema9_atr (disabled in config)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m ema9_above_ema21_1m (boolean gate has no safe tightening sweep)
+  - 5m ema9_above_ema21_5m (no matching column or meta field)
+  - 5m ema9_slope_positive (boolean gate has no safe tightening sweep)
+  - 5m green_close (boolean gate has no safe tightening sweep)
+  - 5m higher_low_count (disabled in config)
+  - 5m higher_low_pct_min (no matching column or meta field)
+  - 5m impulse_atr (no matching column or meta field)
+  - 5m impulse_green (no matching column or meta field)
+  - 5m impulse_move_pct (no matching column or meta field)
+  - 5m impulse_volume_ratio (no matching column or meta field)
+  - 5m market_weakness (disabled in config)
+  - 5m max_above_ema9_bps (no matching column or meta field)
+  - 5m max_entry_age_minutes (no matching column or meta field)
+  - 5m max_hour (no matching column or meta field)
+  - 5m move_from_open_pct (disabled in config)
+  - 5m opening_range_width_pct (disabled in config)
+  - 5m price (disabled in config)
+  - 5m pullback_bear_body_atr_max (no matching column or meta field)
+  - 5m pullback_depth_impulse_pct (no matching column or meta field)
+  - 5m pullback_max_under_ema21_bps (no matching column or meta field)
+  - 5m pullback_volume_ratio_max (no matching column or meta field)
+  - 5m reject_inverted_v (disabled in config)
+  - 5m reward_risk_min (no matching column or meta field)
+  - 5m room_atr_mult (missing companion room thresholds)
+  - 5m rs_ratio (disabled in config)
+  - 5m rsi (disabled in config)
+  - 5m stop_atr_mult (no matching column or meta field)
+  - 5m stop_buffer_bps (no matching column or meta field)
+  - 5m stop_pct (no matching column or meta field)
+  - 5m upper_wick_fraction (disabled in config)
+  - 5m vwap_violation_count (disabled in config)
+  - 1m extreme_drop (no matching column or meta field)
+  - 1m time_blocked (disabled in config)
+  - 1m upper_wick_fraction (no matching column or meta field)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — A/v90.1
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+B / v120.0 (id=232) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for B/v120.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — B/v120.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+C / v101.0 (id=233) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for C/v101.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — C/v101.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+D / v60.3 (id=234) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for D/v60.3 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — D/v60.3
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+E / v400.0 (id=235) — v3 discovery
+======================================================================
+
+Boost profile enabled for this pipeline: discovery is more permissive
+(lower min-win-lift, lower retention floor, and more candidate steps).
+Expanded field discovery is enabled for E/F only; other pipelines stay on the
+existing conservative gate list so their working boosts are preserved.
+
+No scored trade_alerts found for E/v400.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — E/v400.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+F / v900.1 (id=236) — v3 discovery
+======================================================================
+
+Boost profile enabled for this pipeline: discovery is more permissive
+(lower min-win-lift, lower retention floor, and more candidate steps).
+Expanded field discovery is enabled for E/F only; other pipelines stay on the
+existing conservative gate list so their working boosts are preserved.
+
+No scored trade_alerts found for F/v900.1 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — F/v900.1
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+G / v35.0 (id=237) — v3 discovery
+======================================================================
+
+======================================================================
+Version: G/v35.0  (id=237)
+Signal type: MOMO_5M_V35
+Enabled: yes
+Scanner score formula: move30m*1.2+min(6,rvolRatio)*1.0+atrPct*0.8
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  0.2000
+  override:  n/a
+  global:    n/a
+  effective: 0.2000
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 13
+  win rate:      7.69%   (win = pnl >= 1.5%)
+  avg pnl:       -0.172%
+  median pnl:     -0.500%
+  ml_win_prob:    mean 0.0030 | median 0.0017
+======================================================================
+BLOCKING GATES — G/v35.0 (total trades: 13)
+Sample too small for outcome-based blocking, so 'market_reject%'
+shows how often each gate rejects a recent market-wide alert sample.
+High reject% = the gate is throttling alert volume.
+----------------------------------------------------------------------
+version                       gate       current  market_reject%  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate          warning
+G/v35.0     5m directional_changes         max 3            84.0               7         53.8              28.6             33.3                 
+G/v35.0                 5m atr_pct   0.176→0.388            53.8              10         76.9              30.0             33.3                 
+G/v35.0                   5m price       2→20.09            52.0               7         53.8              28.6             33.3                 
+G/v35.0                5m notional min 6.974e+05            47.0               9         69.2              22.2             50.0                 
+G/v35.0              5m rvol_ratio      1.567→20            44.4               6         46.2              50.0             14.3 ⚠ BLOCKS WINNERS
+G/v35.0         1m room_to_hod_pct   0.419→2.831            40.6               7         53.8              28.6             33.3                 
+G/v35.0      5m benchmark_move_15m     min 0.022            36.8              13        100.0              30.8              0.0 ⚠ BLOCKS WINNERS
+G/v35.0            1m vol_ratio_1m   0.333→1.812            35.0               7         53.8              28.6             33.3                 
+G/v35.0 5m directional_changes_max     max 7.971            33.0               1          7.7             100.0             25.0 ⚠ BLOCKS WINNERS
+G/v35.0         1m entry_vol_score     max 0.704            29.7              13        100.0              30.8              0.0 ⚠ BLOCKS WINNERS
+G/v35.0          1m close_position     max 0.918            25.7               8         61.5              25.0             40.0                 
+G/v35.0        5m net_progress_pct    min -0.306            18.3               2         15.4               0.0             36.4                 
+G/v35.0             1m notional_1m   0→4.604e+05            14.2               6         46.2              50.0             14.3 ⚠ BLOCKS WINNERS
+G/v35.0      5m range_position_60m     max 0.979             6.4               3         23.1               0.0             40.0                 
+G/v35.0                     5m atr     min 0.006             1.3               4         30.8              25.0             33.3                 
+G/v35.0      5m consolidation_bars     max 5.857             1.3               3         23.1               0.0             40.0                 
+G/v35.0   1m entry_vwap_dist_score     max 0.879             1.1               3         23.1               0.0             40.0                 
+G/v35.0        1m ema9_reclaim_pct     min 0.051             0.3               3         23.1              33.3             30.0 ⚠ BLOCKS WINNERS
+G/v35.0       5m breakout_detected     max 23.79             0.2               3         23.1               0.0             40.0                 
+G/v35.0      5m pullback_depth_pct   -0.029→1000             0.1               3         23.1               0.0             40.0                 
+G/v35.0      5m signal_age_seconds     max 145.7             0.1               3         23.1              33.3             30.0 ⚠ BLOCKS WINNERS
+G/v35.0 1m ema9_pullback_depth_pct    min -0.029             0.1               3         23.1               0.0             40.0                 
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  No ML threshold recommendation met the minimum trade count.
+----------------------------------------------------------------------
+Gate tuning suggestions:
+  No gate recommendation met the constraints (min-trades=20, min-retention=0.5, min-win-lift=1.0pp). This is intentional — it means no reasonable tightening was found.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+  No safe loosening found for the flagged gates (loosening would tank quality).
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m above_vwap (no matching column or meta field)
+  - 5m distance_from_high_atr (no matching column or meta field)
+  - 5m ema_spread_pct (no matching column or meta field)
+  - 5m ema9_above_ema21 (no matching column or meta field)
+  - 5m ema9_slope_positive (no matching column or meta field)
+  - 5m green_close (no matching column or meta field)
+  - 5m max_above_vwap_pct (no matching column or meta field)
+  - 5m move_30m_pct (disabled in config)
+  - 5m move_from_open_pct (no matching column or meta field)
+  - 5m move_rvol_composite (no matching column or meta field)
+  - 5m multi_day_green_count (no matching column or meta field)
+  - 5m opening_range_width_pct (no matching column or meta field)
+  - 5m rs_ratio (no matching column or meta field)
+  - 5m three_bar_gain_pct (no matching column or meta field)
+  - 5m vwap_violation_count (no matching column or meta field)
+  - 5m yesterday_move_pct (no matching column or meta field)
+  - 5m yesterday_vol_mult (no matching column or meta field)
+  - 1m above_vwap_entry_pct (disabled in config)
+  - 1m ema_spread_pct (no matching column or meta field)
+  - 1m extreme_drop (no matching column or meta field)
+  - 1m min_bars (no matching column or meta field)
+  - 1m time_blocked (no matching column or meta field)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — G/v35.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+H / v25.2 (id=238) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for H/v25.2 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — H/v25.2
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+I / v17.0 (id=239) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for I/v17.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — I/v17.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+J / v2000.0 (id=240) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for J/v2000.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — J/v2000.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+K / v1100.0 (id=241) — v3 discovery
+======================================================================
+
+======================================================================
+Version: K/v1100.0  (id=241)
+Signal type: SCARCITY_LEADER
+Enabled: yes
+Scanner score formula: move30m*0.4+rvolRatio*0.3+rs_ratio*0.2+atrPct*0.1
+----------------------------------------------------------------------
+Current ML threshold settings:
+  baseline:  0.4352
+  override:  n/a
+  global:    n/a
+  effective: 0.4352
+----------------------------------------------------------------------
+Overall current alert sample:
+  rows analyzed: 249
+  win rate:      7.63%   (win = pnl >= 1.5%)
+  avg pnl:       -0.809%
+  median pnl:     -0.920%
+  ml_win_prob:    mean 0.2061 | median 0.1600
+======================================================================
+BLOCKING GATES — K/v1100.0 (total trades: 249)
+Gates that exclude alerts, with a 'suggested' value to stop
+blocking winners (⚠ = excluded alerts have a HIGHER win rate than
+survivors — the gate is too strict and should be LOOSENED).
+----------------------------------------------------------------------
+  version                  gate       current    suggested  blocked_trades  blocked_pct  blocked_win_rate  passed_win_rate  blocked_avg_pnl proxy_blocked_pct          warning
+K/v1100.0    1m entry_atr_score     min 0.711        min→0             247         99.2              22.7              0.0           -0.801              None ⚠ BLOCKS WINNERS
+K/v1100.0       1m vol_ratio_1m   6.474→1e+05            —             242         97.2              22.3             28.6           -0.830              None                 
+K/v1100.0        1m notional_1m min 1.865e+05            —             240         96.4              22.1             33.3           -0.812              None                 
+K/v1100.0           1m body_pct     min 0.714            —             232         93.2              22.4             23.5           -0.802              None                 
+K/v1100.0     5m ema_spread_pct     min 0.296 min→0.006995             232         93.2              23.3             11.8           -0.824              None ⚠ BLOCKS WINNERS
+K/v1100.0 5m range_position_60m         min 1            —             219         88.0              21.5             30.0           -0.843              None                 
+K/v1100.0 5m consolidation_bars         min 5            —             217         87.1              20.7             34.4           -0.852              None                 
+K/v1100.0    1m room_to_hod_atr      min 8.42        min→0             214         85.9              23.8             14.3           -0.771              None ⚠ BLOCKS WINNERS
+K/v1100.0  5m breakout_detected     max 0.391            —             204         81.9              22.1             24.4           -0.827              None                 
+K/v1100.0    5m entry_score_max        max 75       max→90             201         80.7              24.4             14.6           -0.751              None ⚠ BLOCKS WINNERS
+K/v1100.0                5m atr     min 0.082            —             175         70.3              20.6             27.0           -0.943              None                 
+K/v1100.0    5m dist_to_hod_pct         max 0            —             160         64.3              21.2             24.7           -0.952              None                 
+K/v1100.0     1m ema_spread_pct      min 0.04            —             146         58.6              19.9             26.2           -1.087              None                 
+K/v1100.0 5m daily_trend_5d_pct    max -11.01    max→23.66             120         48.2              22.5             22.5           -0.727              None ⚠ BLOCKS WINNERS
+K/v1100.0 1m entry_candle_score     min 0.848            —             105         42.2              21.0             23.6           -0.922              None                 
+K/v1100.0            5m atr_pct     min 0.278            —              97         39.0              17.5             25.7           -0.759              None                 
+K/v1100.0    1m room_to_hod_pct     min 0.038            —              58         23.3              24.1             22.0           -0.752              None ⚠ BLOCKS WINNERS
+K/v1100.0   5m net_progress_pct     min 0.255            —              42         16.9              16.7             23.7           -0.763              None                 
+K/v1100.0      5m green_bar_pct        min 35            —               4          1.6               0.0             22.9           -2.312              None                 
+
+----------------------------------------------------------------------
+Recommendation constraints: min-trades=20 | min-retention=0.5 (never cut below 50% of current trades) | min-win-lift=1.0pp
+----------------------------------------------------------------------
+ML threshold tuning:
+  current:  0.4352 | win rate 12.50% on 24 trades
+  suggest:  0.2805 | win rate 19.67% on 61 trades
+  lift:     +7.17 percentage points
+  note:     higher threshold usually increases win rate (keeps 254% of current trades)
+----------------------------------------------------------------------
+Gate tuning suggestions:
+                            gate     current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate    lift                                                    note
+      5m breakout_detected [max]      0.3910    0.3070              45                29            8.89%             13.79% +4.90pp tighten maximum threshold (keeps 64% of current trades)
+        1m room_to_hod_atr [min]      8.4200   12.5163              35                20            5.71%             10.00% +4.29pp tighten minimum threshold (keeps 57% of current trades)
+                    5m atr [min]      0.0820    0.1023              74                61           12.16%             14.75% +2.59pp tighten minimum threshold (keeps 82% of current trades)
+         1m ema_spread_pct [min]      0.0400    0.1081             103                61           12.62%             14.75% +2.13pp tighten minimum threshold (keeps 59% of current trades)
+5m directional_changes_max [max]    500.0000    5.0000             249               159            7.63%              9.43% +1.80pp tighten maximum threshold (keeps 64% of current trades)
+ 5m five_min_green_bar_pct [min] -10000.0000   61.5000             249               142            7.63%              9.15% +1.52pp tighten minimum threshold (keeps 57% of current trades)
+          5m green_bar_pct [min]     35.0000   61.5000             245               142            7.76%              9.15% +1.40pp tighten minimum threshold (keeps 58% of current trades)
+
+  These are SUGGESTIONS only — review them before applying.
+  Each keeps at least the configured fraction of current trades,
+  improves win rate, and does not lower average P&L.
+----------------------------------------------------------------------
+LOOSEN suggestions (gates flagged ⚠ above are blocking WINNERS — consider relaxing them):
+                              gate  current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate                                                                            note
+   1m room_to_hod_atr [min] LOOSEN   8.4200    0.0000              35               249            5.71%              7.63% LOOSEN minimum threshold to stop blocking winners (captures 100% of all alerts)
+   1m entry_atr_score [min] LOOSEN   0.7110    0.0000               2               249            0.00%              7.63% LOOSEN minimum threshold to stop blocking winners (captures 100% of all alerts)
+5m daily_trend_5d_pct [max] LOOSEN -11.0100   23.6635             129               242            7.75%              7.85%  LOOSEN maximum threshold to stop blocking winners (captures 97% of all alerts)
+   5m entry_score_max [max] LOOSEN  75.0000   90.0000              48               239            4.17%              7.95%  LOOSEN maximum threshold to stop blocking winners (captures 96% of all alerts)
+    5m ema_spread_pct [min] LOOSEN   0.2960    0.0070              17               188            5.88%              9.57%  LOOSEN minimum threshold to stop blocking winners (captures 76% of all alerts)
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made.
+To apply these suggestions, re-run with --apply.
+----------------------------------------------------------------------
+Skipped gates:
+  - 5m above_vwap (boolean gate has no safe tightening sweep)
+  - 5m above_vwap_pct (no matching column or meta field)
+  - 5m benchmark_below_vwap (disabled in config)
+  - 5m distance_from_high_atr (no matching column or meta field)
+  - 5m ema9_above_ema21 (boolean gate has no safe tightening sweep)
+  - 5m green_close (no matching column or meta field)
+  - 5m market_weakness (disabled in config)
+  - 5m max_above_vwap_pct (disabled in config)
+  - 5m move_from_open_pct (no matching column or meta field)
+  - 5m move_rvol_composite (no matching column or meta field)
+  - 5m notional (disabled in config)
+  - 5m opening_range_width_pct (no matching column or meta field)
+  - 5m price (disabled in config)
+  - 5m range_contraction (disabled in config)
+  - 5m rs_ratio (no matching column or meta field)
+  - 5m three_bar_gain_pct (no matching column or meta field)
+  - 5m vwap_distance_min (no matching column or meta field)
+  - 1m above_vwap_entry_pct (disabled in config)
+  - 1m extreme_drop (no matching column or meta field)
+  - 1m min_bars (no matching column or meta field)
+  - 1m room_atr_mult (no tighter multiplier met min trades)
+  - 1m time_blocked (no matching column or meta field)
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — K/v1100.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+                              gate current suggested  current_trades  suggested_trades current_win_rate suggested_win_rate current_avg_pnl suggested_avg_pnl delta_total_pnl                   source                                                                                note
+1m entry_spread_strength [new-min]    none    0.7642             249               126            7.63%              9.52%         -0.809%           -0.674%       +116.490% 1m:entry_spread_strength adds profitable subset with 116.49 total pnl points and keeps 51% of current trades
+5m breakout_volume_ratio [new-max]    none    0.8640             249               125            7.63%              8.80%         -0.809%           -0.680%       +116.340% 5m:breakout_volume_ratio adds profitable subset with 116.34 total pnl points and keeps 50% of current trades
+  5m directional_changes [new-max]    none    5.0000             249               159            7.63%              9.43%         -0.809%           -0.669%        +94.930%   5m:directional_changes  adds profitable subset with 94.93 total pnl points and keeps 64% of current trades
+
+  These are SUGGESTIONS only — review them before applying.
+  New gates are only proposed when they improve total P&L on the
+  current analyzed sample and keep enough trades to matter.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+L / v1600.0 (id=242) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for L/v1600.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — L/v1600.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+M / v103.0 (id=243) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for M/v103.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — M/v103.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+N / v1200.0 (id=244) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for N/v1200.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — N/v1200.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+O / v1500.0 (id=245) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for O/v1500.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — O/v1500.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+P / v140.0 (id=246) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for P/v140.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — P/v140.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+======================================================================
+Q / v27.0 (id=247) — v3 discovery
+======================================================================
+
+No scored trade_alerts found for Q/v27.0 and filters.
+----------------------------------------------------------------------
+NEW GATE DISCOVERY — Q/v27.0
+Looks for computed alert fields that are not already gates and sweeps
+quantile thresholds to find profitable additions.
+----------------------------------------------------------------------
+  No new-gate candidate met the constraints.
+----------------------------------------------------------------------
+Suggest-only mode — NO database changes were made for new gates.
+To apply these suggestions, re-run with --apply.
+
+======================================================================
+SUMMARY — analyzed versions
+======================================================================
+pipeline version
+       A   v90.1
+       B  v120.0
+       C  v101.0
+       D   v60.3
+       E  v400.0
+       F  v900.1
+       G   v35.0
+       H   v25.2
+       I   v17.0
+       J v2000.0
+       K v1100.0
+       L v1600.0
+       M  v103.0
+       N v1200.0
+       O v1500.0
+       P  v140.0
+       Q   v27.0
+
+Recommendations above are SUGGESTIONS only — nothing was written unless --apply was used.

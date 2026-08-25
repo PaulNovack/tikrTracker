@@ -444,10 +444,6 @@ export default function AlpacaCapitalInvested({
                                 <strong>Max Positions:</strong> Highest number of concurrent open positions
                                 during the day
                             </li>
-                            <li>
-                                <strong>ML Threshold:</strong> Only includes trades with ML win probability
-                                at or above this threshold (default: 60%)
-                            </li>
                         </ul>
                     </div>
                 </div>

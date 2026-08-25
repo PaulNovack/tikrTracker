@@ -46,6 +46,7 @@ Route::get('/guest-login', \App\Http\Controllers\Auth\GuestLoginController::clas
 // Process Monitor routes - accessible to guests with disclaimer
 Route::middleware(['disclaimer'])->group(function () {
     Route::get('processes-running', [\App\Http\Controllers\ProcessMonitorController::class, 'index'])->name('processes-running.index');
+    Route::get('worker-heartbeat', [\App\Http\Controllers\WorkerHeartbeatController::class, 'index'])->name('worker-heartbeat.index');
     // Note: Kill process functionality still requires full auth
 });
 
@@ -83,6 +84,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('generic-ta-gate-versions/{id}/clone', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'clone'])->name('generic-ta-gate-versions.clone');
     Route::post('generic-ta-gate-versions/{versionId}/gates', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'upsertGate'])->name('generic-ta-gate-versions.gates.upsert');
     Route::delete('generic-ta-gate-versions/gates/{gateId}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'destroyGate'])->name('generic-ta-gate-versions.gates.destroy');
+
+    // ── Gate version snapshots ──
+    Route::get('generic-ta-gate-versions/snapshots', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshots'])->name('generic-ta-gate-versions.snapshots');
+    Route::post('generic-ta-gate-versions/{id}/snapshot', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshot'])->name('generic-ta-gate-versions.snapshot');
+    Route::post('generic-ta-gate-versions/snapshot-all', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'snapshotAll'])->name('generic-ta-gate-versions.snapshot-all');
+    Route::post('generic-ta-gate-versions/snapshots/{snapshotId}/restore', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'restore'])->name('generic-ta-gate-versions.snapshot.restore');
+    Route::delete('generic-ta-gate-versions/snapshots/{snapshotId}', [\App\Http\Controllers\GenericTaGateVersionsController::class, 'deleteSnapshot'])->name('generic-ta-gate-versions.snapshot.delete');
 });
 
 // Trading Settings (admin only)
@@ -120,6 +128,7 @@ Route::middleware(['auth', 'verified'])->prefix('trading-settings-2')->name('tra
     Route::patch('/realtime', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateRealtime'])->name('realtime');
     Route::patch('/other', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateOther'])->name('other');
     Route::patch('/news-sentiment', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateNewsSentiment'])->name('news-sentiment');
+    Route::patch('/win-thresholds', [\App\Http\Controllers\TradingSettings2Controller::class, 'updateWinThresholds'])->name('win-thresholds');
 });
 
 // Pipeline Observability routes - accessible to guests with disclaimer
@@ -254,8 +263,12 @@ Route::middleware($middleware)->group(function () {
             // Best Gains 7 Days route - Top performers over the last 7 days using 5-minute data
             Route::get('best-gains-7d', [\App\Http\Controllers\Analysis\BestGains7DaysController::class, 'index'])->name('best-gains-7d.index');
             Route::get('pipeline-counts', [\App\Http\Controllers\Analysis\PipelineCountsController::class, 'index'])->name('pipeline-counts.index');
+            Route::get('ml-buckets', [\App\Http\Controllers\Analysis\MlBucketsController::class, 'index'])->name('ml-buckets.index');
+            Route::get('trades-per-day', [\App\Http\Controllers\Analysis\TradesPerDayController::class, 'index'])->name('trades-per-day.index');
+            Route::get('sql-query', [\App\Http\Controllers\Analysis\SqlQueryController::class, 'index'])->name('sql-query.index');
             Route::get('rising-since-close', [\App\Http\Controllers\Analysis\RisingSinceCloseController::class, 'index'])->name('rising-since-close.index');
             Route::get('upward-pressure', [\App\Http\Controllers\Analysis\UpwardPressureController::class, 'index'])->name('upward-pressure.index');
+            Route::get('momentum-movers', [\App\Http\Controllers\Analysis\MomentumMoversController::class, 'index'])->name('momentum-movers.index');
             Route::get('good-long-buy', [\App\Http\Controllers\Analysis\GoodLongBuyController::class, 'index'])->name('good-long-buy.index');
             Route::get('ml-threshold-profit-loss', [\App\Http\Controllers\Analysis\MlThresholdProfitLossController::class, 'index'])->name('ml-threshold-profit-loss.index');
             Route::get('ml-calibration', [\App\Http\Controllers\Analysis\MlCalibrationController::class, 'index'])->name('ml-calibration.index');

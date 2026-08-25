@@ -20,7 +20,8 @@ echo ""
 # Train Pipeline D specific model
 python python_ml/v2/v2/train_stock_winner_model_v2.py train \
   --pipeline D \
-  --win-threshold 2.0 \
+  --win-threshold 1.5 \
+  --actual-fill-weight 1.0 \
   --start 2025-01-01 \
   --end "$TODAY" \
   --test-size 0.2 \

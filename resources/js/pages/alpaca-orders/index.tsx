@@ -32,6 +32,12 @@ interface AlpacaOrder {
     filled_at: string | null;
     parent_alpaca_order_id: string | null;
     notes: string | null;
+    decision_ml_snapshot?: {
+        decision_ml_win_prob: number | null;
+        decision_ml_threshold: number | null;
+        decision_effective_score: number | null;
+        stale_rescore: boolean | null;
+    } | null;
     created_at: string;
     asset_id: number | null;
 }
@@ -291,7 +297,7 @@ export default function AlpacaOrdersIndex({
         
         const position = positions[order.symbol];
         if (position && position.qty_available === 0 && position.qty > 0) {
-            return 'Sell (stop active)';
+            return 'Sell';
         }
         return 'Sell';
     };
@@ -830,10 +836,45 @@ export default function AlpacaOrdersIndex({
                                         </td>
                                         <td className="px-4 py-1.5 text-sm">
                                             {(() => {
+                                                const decisionSnapshot = order.decision_ml_snapshot;
                                                 // @ts-expect-error tradeAlert may not be typed
                                                 const ta = (order as any).trade_alert;
-                                                if (!ta?.ml_win_prob) return <span className="text-muted-foreground">-</span>;
-                                                return <span>{(ta.ml_win_prob * 100).toFixed(0)}%</span>;
+                                                if (!decisionSnapshot?.decision_ml_win_prob && !ta?.ml_win_prob) {
+                                                    return <span className="text-muted-foreground">-</span>;
+                                                }
+
+                                                const decisionMlPct = decisionSnapshot?.decision_ml_win_prob != null
+                                                    ? (decisionSnapshot.decision_ml_win_prob * 100).toFixed(0)
+                                                    : null;
+                                                const alertMlPct = ta?.ml_win_prob != null
+                                                    ? (ta.ml_win_prob * 100).toFixed(0)
+                                                    : null;
+
+                                                return (
+                                                    <div className="leading-tight">
+                                                        {decisionMlPct && (
+                                                            <div className="font-semibold text-foreground">
+                                                                Decision {decisionMlPct}%
+                                                                {decisionSnapshot?.decision_ml_threshold != null && (
+                                                                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                                                        / Thr {(decisionSnapshot.decision_ml_threshold * 100).toFixed(0)}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {alertMlPct && (
+                                                            <div className={`text-xs ${decisionMlPct && decisionMlPct !== alertMlPct ? 'text-muted-foreground' : 'font-semibold text-foreground'}`}>
+                                                                Current {alertMlPct}%
+                                                            </div>
+                                                        )}
+                                                        {decisionSnapshot?.decision_effective_score != null && (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Eff {(decisionSnapshot.decision_effective_score * 100).toFixed(0)}%
+                                                                {decisionSnapshot.stale_rescore === true && ' · stale'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
                                             })()}
                                         </td>
                                         <td className="px-4 py-1.5">

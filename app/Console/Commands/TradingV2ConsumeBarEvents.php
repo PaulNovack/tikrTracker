@@ -24,21 +24,38 @@ class TradingV2ConsumeBarEvents extends Command
 
     public function handle(GateEvaluator $evaluator, AlertVersionRepository $versionRepo): int
     {
-        $consumer = new BarEventConsumer($evaluator, $versionRepo);
+        $backoffSeconds = 5;
 
-        $this->info('TradingV2 consumer starting...');
-        $this->info('Stream: rt:events:bars');
-        $this->info('Group: '.$this->option('group'));
-        $this->info('Batch: '.$this->option('batch'));
-        $this->info('Queue: gate-check');
-        $this->info('Active versions: '.count($versionRepo->getActive()));
+        while (true) {
+            try {
+                $consumer = new BarEventConsumer($evaluator, $versionRepo);
+                $activeVersions = $versionRepo->getActive();
 
-        $consumer->run(
-            $this->option('group'),
-            $this->option('consumer'),
-            (int) $this->option('batch'),
-        );
+                $this->info('TradingV2 consumer starting...');
+                $this->info('Stream: rt:events:bars');
+                $this->info('Group: '.$this->option('group'));
+                $this->info('Batch: '.$this->option('batch'));
+                $this->info('Queue: gate-check');
+                $this->info('Active versions: '.count($activeVersions));
 
-        return self::SUCCESS;
+                $consumer->run(
+                    $this->option('group'),
+                    $this->option('consumer'),
+                    (int) $this->option('batch'),
+                );
+
+                return self::SUCCESS;
+            } catch (\Throwable $e) {
+                $this->error('[TradingV2 consumer] restart after error: '.$e->getMessage());
+
+                \Log::channel('bar-events')->warning('[TradingV2 consumer] restart after error', [
+                    'error' => $e->getMessage(),
+                    'backoff_seconds' => $backoffSeconds,
+                ]);
+
+                sleep($backoffSeconds);
+                $backoffSeconds = min($backoffSeconds * 2, 60);
+            }
+        }
     }
 }

@@ -42,6 +42,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Support\Facades\Log;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -71,5 +72,26 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $isRedisError = static function (\Throwable $throwable): bool {
+            $message = mb_strtolower($throwable->getMessage());
+
+            return str_contains($message, 'redis')
+                || str_contains($message, 'predis')
+                || str_contains($message, 'connection refused')
+                || str_contains($message, 'loading redis')
+                || str_contains($message, 'error while reading line from the server');
+        };
+
+        $exceptions->reportable(function (\Throwable $throwable) use ($isRedisError): void {
+            if (! $isRedisError($throwable)) {
+                return;
+            }
+
+            Log::channel('redis-errors')->error($throwable->getMessage(), [
+                'exception' => $throwable::class,
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+                'logged_at' => now('UTC')->toIso8601String(),
+            ]);
+        });
     })->create();

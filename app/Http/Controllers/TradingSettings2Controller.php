@@ -42,7 +42,10 @@ class TradingSettings2Controller extends Controller
                 ),
             ])->all(),
             'modelPaths' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
-                $p => config("trading.ml_scoring.pipeline_{$p}_model_path", ''),
+                $p => TradingSettingService::get(
+                    'trading2.model_path.'.strtolower($p),
+                    config("trading.ml_scoring.pipeline_{$p}_model_path", '')
+                ),
             ])->all(),
             'pipelineDisplayNames' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
                 $p => config("trading.pipeline_display_names.{$p}", strtoupper($p)),
@@ -57,6 +60,10 @@ class TradingSettings2Controller extends Controller
                 'moderate_negative' => (float) TradingSettingService::get('trading.news_sentiment.moderate_negative', '-0.010'),
                 'strong_negative' => (float) TradingSettingService::get('trading.news_sentiment.strong_negative', '-0.020'),
             ],
+            'mlWinThresholds' => collect(self::PIPELINES)->mapWithKeys(fn ($p) => [
+                $p => TradingSettingService::getPipelineMlWinThreshold($p),
+            ])->all(),
+            'globalMlWinThreshold' => TradingSettingService::getMlWinThreshold(),
         ]);
     }
 
@@ -116,19 +123,60 @@ class TradingSettings2Controller extends Controller
     }
 
     /**
+     * Update per-pipeline ML training win thresholds (the % PnL that defines a
+     * "winner" label for the XGBoost trainer). Used by the retrain scripts.
+     */
+    public function updateWinThresholds(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'global_win_threshold' => ['nullable', 'numeric', 'min:0.1', 'max:10'],
+            'win_thresholds' => ['required', 'array'],
+            'win_thresholds.*' => ['required', 'numeric', 'min:0.1', 'max:10'],
+        ]);
+
+        $changes = [];
+
+        if (isset($validated['global_win_threshold'])) {
+            $old = TradingSettingService::getMlWinThreshold();
+            $new = round((float) $validated['global_win_threshold'], 3);
+            TradingSettingService::set('trading.ml_win_threshold', (string) $new);
+            if ((string) $old !== (string) $new) {
+                $changes['global'] = ['from' => $old, 'to' => $new];
+            }
+        }
+
+        foreach ($validated['win_thresholds'] as $pipeline => $threshold) {
+            $pipeline = strtolower((string) $pipeline);
+            if (! in_array($pipeline, self::PIPELINES, strict: true)) {
+                continue;
+            }
+
+            $old = TradingSettingService::getPipelineMlWinThreshold($pipeline);
+            $new = round((float) $threshold, 3);
+            TradingSettingService::set("trading.pipeline_{$pipeline}.win_threshold", (string) $new);
+
+            if ((string) $old !== (string) $new) {
+                $changes[strtoupper($pipeline)] = ['from' => $old, 'to' => $new];
+            }
+        }
+
+        if ($changes !== []) {
+            Log::info('[TradingSettings2] ML win thresholds updated by '.auth()->user()?->email, [
+                'changes' => $changes,
+            ]);
+        }
+
+        return back()->with('status', 'win-thresholds-updated');
+    }
+
+    /**
      * Update credentials.
      */
     public function update(Request $request): RedirectResponse
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
-
-        // TEMPORARY DEBUG: dump what's arriving
-        $debug = [
-            'all' => $request->all(),
-            'has_model_paths' => $request->has('model_paths'),
-            'has_scorer_scripts' => $request->has('scorer_scripts'),
-        ];
-        \Illuminate\Support\Facades\Log::error('[TradingSettings2 DEBUG] '.json_encode($debug));
 
         // Determine which section we're updating
         if ($request->has('scorer_scripts')) {
@@ -199,20 +247,7 @@ class TradingSettings2Controller extends Controller
             $envUpdates[$envKey] = $script;
         }
 
-        // Update .env file
-        $envPath = base_path('.env');
-        if (file_exists($envPath) && is_writable($envPath)) {
-            $content = file_get_contents($envPath);
-            foreach ($envUpdates as $key => $value) {
-                $pattern = "/^{$key}=.*$/m";
-                if (preg_match($pattern, $content)) {
-                    $content = preg_replace($pattern, "{$key}={$value}", $content);
-                } else {
-                    $content .= PHP_EOL."{$key}={$value}";
-                }
-            }
-            file_put_contents($envPath, $content);
-        }
+        $this->syncEnvironmentFiles($envUpdates);
 
         Log::info('[TradingSettings2] Scorer scripts updated by '.auth()->user()?->email, [
             'scripts' => $envUpdates,
@@ -232,42 +267,59 @@ class TradingSettings2Controller extends Controller
 
         $envUpdates = [];
         foreach ($validated['model_paths'] as $pipeline => $path) {
-            // Skip empty paths — don't overwrite .env with blanks
-            $path = trim($path ?? '');
-            if ($path === '') {
-                continue;
-            }
+            $path = trim((string) ($path ?? ''));
             $p = strtolower($pipeline);
             TradingSettingService::set("trading2.model_path.{$p}", $path);
             $envUpdates['TRADING_ML_PIPELINE_'.strtoupper($p).'_MODEL_PATH'] = $path;
         }
 
-        \Illuminate\Support\Facades\Log::info('[TradingSettings2] envUpdates', $envUpdates);
-
-        $envPath = base_path('.env');
-        \Illuminate\Support\Facades\Log::error('[TradingSettings2] envPath='.$envPath.' exists='.(file_exists($envPath) ? 'Y' : 'N').' writable='.(is_writable($envPath) ? 'Y' : 'N'));
-
-        if (file_exists($envPath) && is_writable($envPath)) {
-            $content = file_get_contents($envPath);
-            \Illuminate\Support\Facades\Log::error('[TradingSettings2] BEFORE: '.substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
-            foreach ($envUpdates as $key => $value) {
-                $pattern = "/^{$key}=.*$/m";
-                if (preg_match($pattern, $content)) {
-                    $content = preg_replace($pattern, "{$key}={$value}", $content);
-                } else {
-                    $content .= PHP_EOL."{$key}={$value}";
-                }
-            }
-            \Illuminate\Support\Facades\Log::error('[TradingSettings2] AFTER: '.substr($content, strpos($content, 'TRADING_ML_PIPELINE_C_MODEL_PATH'), 80));
-            file_put_contents($envPath, $content);
-            \Illuminate\Support\Facades\Artisan::call('config:clear');
-        } else {
-            \Illuminate\Support\Facades\Log::error('[TradingSettings2] Cannot write .env!');
-        }
+        $this->syncEnvironmentFiles($envUpdates);
 
         Log::info('[TradingSettings2] Model paths updated');
 
         return back()->with('status', 'model-paths-updated');
+    }
+
+    /**
+     * @param  array<string, string>  $envUpdates
+     */
+    private function syncEnvironmentFiles(array $envUpdates): void
+    {
+        $envPaths = [base_path('.env')];
+
+        foreach ($envPaths as $envPath) {
+            if (! file_exists($envPath) || ! is_writable($envPath)) {
+                Log::warning('[TradingSettings2] Cannot write env file', ['path' => $envPath]);
+
+                continue;
+            }
+
+            $content = file_get_contents($envPath);
+            if ($content === false) {
+                Log::warning('[TradingSettings2] Could not read env file', ['path' => $envPath]);
+
+                continue;
+            }
+
+            foreach ($envUpdates as $key => $value) {
+                $pattern = '/^'.preg_quote($key, '/').'=.*/m';
+                $replacement = $key.'='.$value;
+
+                if (preg_match($pattern, $content)) {
+                    $content = preg_replace($pattern, $replacement, $content) ?? $content;
+                } else {
+                    $content = rtrim($content, "\r\n").PHP_EOL.$replacement.PHP_EOL;
+                }
+            }
+
+            file_put_contents($envPath, $content, LOCK_EX);
+            Log::info('[TradingSettings2] env file updated', [
+                'path' => $envPath,
+                'keys' => array_keys($envUpdates),
+            ]);
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
     }
 
     private function writeSecretFile(string $apiKey, string $apiSecret, bool $isPaper): void

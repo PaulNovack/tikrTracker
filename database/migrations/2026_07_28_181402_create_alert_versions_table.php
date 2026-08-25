@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('pipeline_letter', 2);
             $table->string('version_string', 20);
             $table->string('signal_type', 50);
+            $table->string('entry_finder_class', 255)->nullable();
             $table->string('scanner_score_formula', 255)->nullable();
             $table->boolean('enabled')->default(true);
             $table->timestamps();

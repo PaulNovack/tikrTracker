@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { CheckCircle2, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 
@@ -218,10 +218,35 @@ function ScorerScriptsForm({ initial, displayNames }: { initial: Record<string, 
 
 function ModelPathsForm({ initial, displayNames }: { initial: Record<string, string>; displayNames: Record<string, string> }) {
     const form = useForm({ model_paths: initial });
+    const [baselineModelPaths, setBaselineModelPaths] = useState(initial);
 
     function save(e: React.FormEvent) {
         e.preventDefault();
-        form.patch(update().url, { preserveScroll: true });
+
+        const formElement = e.currentTarget as HTMLFormElement;
+        const submittedModelPaths = Object.fromEntries(
+            SCORER_PIPELINES.map((pipeline) => [
+                pipeline,
+                String(new FormData(formElement).get(`model_paths[${pipeline}]`) ?? ''),
+            ]),
+        ) as Record<string, string>;
+
+        const dirtyModelPaths = Object.fromEntries(
+            Object.entries(submittedModelPaths).filter(([pipeline, value]) => value !== (baselineModelPaths[pipeline] ?? '')),
+        );
+
+        if (Object.keys(dirtyModelPaths).length === 0) {
+            return;
+        }
+
+        router.patch(update().url, {
+            model_paths: dirtyModelPaths,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setBaselineModelPaths(submittedModelPaths);
+            },
+        });
     }
 
     function setVal(pipeline: string, val: string) {
@@ -251,6 +276,7 @@ function ModelPathsForm({ initial, displayNames }: { initial: Record<string, str
                                     <td className="py-2 pr-4 text-muted-foreground">{displayNames[p] ?? p.toUpperCase()}</td>
                                     <td className="py-2">
                                         <Input
+                                            name={`model_paths[${p}]`}
                                             type="text"
                                             className="min-w-[500px] w-full font-mono text-xs"
                                             value={form.data.model_paths[p] ?? ''}

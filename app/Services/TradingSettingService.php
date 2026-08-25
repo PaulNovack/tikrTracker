@@ -211,6 +211,49 @@ class TradingSettingService
             ->all();
     }
 
+    /**
+     * The default ML training win threshold (% PnL that defines a "winner").
+     * DB value (trading.ml_win_threshold) overrides config.
+     */
+    public static function getMlWinThreshold(): float
+    {
+        return (float) self::get(
+            'trading.ml_win_threshold',
+            config('trading.ml_scoring.win_threshold', 1.5)
+        );
+    }
+
+    /**
+     * Per-pipeline ML training win threshold. Falls back to the pipeline-specific
+     * DB key, then the global default.
+     */
+    public static function getPipelineMlWinThreshold(string $pipeline): float
+    {
+        $pipeline = strtolower($pipeline);
+
+        $perPipeline = self::getRaw("trading.pipeline_{$pipeline}.win_threshold");
+        if ($perPipeline !== null) {
+            return (float) $perPipeline;
+        }
+
+        $configDefault = config("trading.ml_scoring.win_threshold_pipeline_{$pipeline}");
+        if ($configDefault !== null) {
+            return (float) $configDefault;
+        }
+
+        return self::getMlWinThreshold();
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    public static function getAllPipelineMlWinThresholds(): array
+    {
+        return collect(self::getActivePipelineLetters())
+            ->mapWithKeys(fn (string $pipeline) => [$pipeline => self::getPipelineMlWinThreshold($pipeline)])
+            ->all();
+    }
+
     public static function getPipelineAuc(string $pipeline): ?float
     {
         $val = self::getRaw('trading.pipeline_auc.'.strtolower($pipeline));
@@ -771,8 +814,15 @@ class TradingSettingService
     public static function getPipelineDisplayName(string $pipeline): string
     {
         $pipeline = strtolower($pipeline);
-        $cacheKey = "trading:pipeline_name:{$pipeline}";
         $upper = strtoupper($pipeline);
+        $version = (string) config("app.trade_alert_{$pipeline}_version", '');
+        $configuredName = config("trading.pipeline_display_names.{$pipeline}");
+
+        if (is_string($configuredName) && $configuredName !== '' && $version !== '') {
+            return "{$upper} — {$version} — {$configuredName}";
+        }
+
+        $cacheKey = "trading:pipeline_name:{$pipeline}";
 
         return (string) Cache::remember($cacheKey, 3600, function () use ($pipeline, $upper): string {
             $version = config("app.trade_alert_{$pipeline}_version");
@@ -792,9 +842,9 @@ class TradingSettingService
                 $defaults = $ref->getDefaultProperties();
                 $name = $defaults['name'] ?? null;
 
-                return $name ? "{$upper} — {$version} — {$name}" : $upper;
+                return $name ? "{$upper} — {$version} — {$name}" : ($version ? "{$upper} — {$version}" : $upper);
             } catch (\ReflectionException) {
-                return "Pipeline — {$upper}";
+                return $version ? "{$upper} — {$version}" : "Pipeline — {$upper}";
             }
         });
     }

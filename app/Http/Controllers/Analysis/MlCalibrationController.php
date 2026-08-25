@@ -70,12 +70,11 @@ class MlCalibrationController extends Controller
             ];
         }
 
-        // Find buckets with avg_pnl >= threshold, win_rate >= 15%, and enough samples
+        // Find buckets with avg_pnl >= threshold and win_rate >= 15%
         $threshold = TradingSettingService::getMinAvgPnl();
         $strong = $buckets->filter(function ($b) use ($threshold) {
             return (float) $b->avg_pnl >= $threshold
-                && (float) $b->win_rate >= 0.15
-                && $b->rows >= 3;
+                && (float) $b->win_rate >= 0.15;
         });
 
         if ($strong->isNotEmpty()) {

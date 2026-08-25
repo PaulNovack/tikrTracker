@@ -145,6 +145,25 @@ return [
         'pipeline_biased1' => (int) env('PIPELINE_BIASED1_ADD_MOVERS', 0),
     ],
 
+    'pipeline_display_names' => [
+        'a' => 'Momentum Breakout',
+        'b' => 'Bull Flag Breakout',
+        'c' => 'VWAP Pullback & Hold',
+        'd' => 'VWAP Reclaim',
+        'e' => 'Opening Range Breakout (ORB)',
+        'f' => 'ORB Retest',
+        'g' => 'EMA9 Pullback',
+        'h' => 'High-of-Day Breakout',
+        'i' => 'Relative Strength Momentum',
+        'j' => 'Gap-and-Go',
+        'k' => 'Volume Surge Breakout',
+        'l' => 'VWAP Mean Reversion',
+        'm' => 'EMA9/EMA21 Trend Continuation',
+        'n' => 'Failed Breakdown Reversal',
+        'o' => 'Catalyst / News Momentum',
+        'p' => 'ML Ensemble / Meta Strategy',
+    ],
+
     // Global liquidity filter: minimum average dollar volume per minute
     // Set to 0 to disable. Can be lowered when using dynamic sizing (e.g., 5000)
     'min_dollar_volume_per_minute' => (int) env('AUTO_ALPACA_MIN_DOLLAR_VOLUME_PER_MIN', 0),
@@ -332,6 +351,8 @@ return [
         'pipeline_m_model_path' => env('TRADING_ML_PIPELINE_M_MODEL_PATH', null),
         'pipeline_n_model_path' => env('TRADING_ML_PIPELINE_N_MODEL_PATH', null),
         'pipeline_o_model_path' => env('TRADING_ML_PIPELINE_O_MODEL_PATH', null),
+        'pipeline_p_model_path' => env('TRADING_ML_PIPELINE_P_MODEL_PATH', null),
+        'pipeline_q_model_path' => env('TRADING_ML_PIPELINE_Q_MODEL_PATH', null),
         'pipeline_r_model_path' => env('TRADING_ML_PIPELINE_R_MODEL_PATH', null),
 
         // Per-pipeline scorer scripts — override the default score_single_alert_v2.py
@@ -377,6 +398,32 @@ return [
         'max_retries' => (int) env('TRADING_ML_MAX_RETRIES', 3),
         'buy_threshold' => (float) env('TRADING_ML_BUY_THRESHOLD', 0.45),  // Calibrated: 61.3% win rate at this threshold
         'bell_threshold' => (float) env('SCORE_BELL', 0.60),  // Lowered from 0.70 to match new calibration
+
+        // Default ML training win threshold (% PnL that defines a "winner").
+        // DB overrides (trading.pipeline_{letter}.win_threshold) take precedence — see TradingSettingService.
+        'win_threshold' => (float) env('TRADING_ML_WIN_THRESHOLD', 1.5),
+
+        // Per-pipeline ML training win-threshold overrides (DB-backed via TradingSettingService).
+        // These are fallback defaults only — the active values come from the settings DB table.
+        'win_threshold_pipeline_a' => null,
+        'win_threshold_pipeline_b' => null,
+        'win_threshold_pipeline_c' => null,
+        'win_threshold_pipeline_d' => null,
+        'win_threshold_pipeline_e' => null,
+        'win_threshold_pipeline_f' => null,
+        'win_threshold_pipeline_g' => null,
+        'win_threshold_pipeline_h' => null,
+        'win_threshold_pipeline_i' => null,
+        'win_threshold_pipeline_j' => null,
+        'win_threshold_pipeline_k' => null,
+        'win_threshold_pipeline_l' => null,
+        'win_threshold_pipeline_m' => null,
+        'win_threshold_pipeline_n' => null,
+        'win_threshold_pipeline_o' => null,
+        'win_threshold_pipeline_p' => null,
+        'win_threshold_pipeline_q' => null,
+        'win_threshold_pipeline_r' => null,
+        'win_threshold_pipeline_s' => null,
     ],
 
     /*

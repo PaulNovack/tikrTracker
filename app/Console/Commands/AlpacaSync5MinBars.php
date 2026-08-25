@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class AlpacaSync5MinBars extends Command
 {
+    private const UPSERT_BATCH_SIZE = 20;
+
     protected $signature = 'alpaca:sync-5m
         {--hours=1 : How many hours back to fetch}
         {--chunk=200 : Symbols per request chunk}
@@ -72,9 +74,18 @@ class AlpacaSync5MinBars extends Command
                     }
 
                     // Upsert in smaller chunks to reduce deadlock probability
-                    $rowChunks = array_chunk($rows, 50);
-                    foreach ($rowChunks as $rowChunk) {
-                        $this->upsertWithRetry($rowChunk, $idx + 1);
+                    $rowChunks = array_chunk($rows, self::UPSERT_BATCH_SIZE);
+                    foreach ($rowChunks as $rowChunkIndex => $rowChunk) {
+                        $retries = $this->upsertWithRetry($rowChunk, $idx + 1, $rowChunkIndex + 1);
+                        if ($retries > 0) {
+                            $this->line(sprintf(
+                                'Chunk %d row batch %d recovered after %d retry%s.',
+                                $idx + 1,
+                                $rowChunkIndex + 1,
+                                $retries,
+                                $retries === 1 ? '' : 'ies'
+                            ));
+                        }
                     }
 
                     $chunkUpserts += count($rows);
@@ -123,9 +134,9 @@ class AlpacaSync5MinBars extends Command
     }
 
     /**
-     * Upsert with retry logic for deadlocks
+     * Upsert with retry logic for deadlocks and lock timeouts.
      */
-    private function upsertWithRetry(array $rows, int $chunkNum, int $maxRetries = 3): void
+    private function upsertWithRetry(array $rows, int $chunkNum, int $rowBatchNum, int $maxRetries = 8): int
     {
         $attempt = 0;
 
@@ -144,18 +155,29 @@ class AlpacaSync5MinBars extends Command
                     ]
                 );
 
-                return; // Success
+                return $attempt; // Success
             } catch (\Illuminate\Database\QueryException $e) {
                 $attempt++;
 
-                // Check if it's a deadlock error (code 40001 or 1213)
-                if (str_contains($e->getMessage(), 'Deadlock') || str_contains($e->getMessage(), '40001') || str_contains($e->getMessage(), '1213')) {
+                if ($this->isRetryableDatabaseException($e)) {
                     if ($attempt < $maxRetries) {
-                        $waitMs = $attempt * 100; // 100ms, 200ms, 300ms
+                        $waitMs = min(5000, (int) (100 * (2 ** ($attempt - 1))));
                         usleep($waitMs * 1000);
-                        Log::channel('scheduled')->warning('[Alpaca 5m Sync] Deadlock detected, retrying', [
+                        $this->warn(sprintf(
+                            'Chunk %d row batch %d retry %d/%d after %d ms: %s',
+                            $chunkNum,
+                            $rowBatchNum,
+                            $attempt,
+                            $maxRetries,
+                            $waitMs,
+                            $this->shortDatabaseError($e)
+                        ));
+
+                        Log::channel('scheduled')->warning('[Alpaca 5m Sync] Deadlock/lock timeout detected, retrying', [
                             'chunk' => $chunkNum,
+                            'row_batch' => $rowBatchNum,
                             'attempt' => $attempt,
+                            'max_retries' => $maxRetries,
                             'wait_ms' => $waitMs,
                         ]);
 
@@ -166,12 +188,47 @@ class AlpacaSync5MinBars extends Command
                 // Not a deadlock or max retries reached
                 Log::channel('scheduled')->error('[Alpaca 5m Sync] Database upsert failed', [
                     'chunk' => $chunkNum,
+                    'row_batch' => $rowBatchNum,
+                    'attempt' => $attempt,
+                    'max_retries' => $maxRetries,
                     'rows_attempted' => count($rows),
                     'error' => $e->getMessage(),
                 ]);
                 throw $e;
             }
         }
+
+        return $attempt;
+    }
+
+    private function isRetryableDatabaseException(\Illuminate\Database\QueryException $e): bool
+    {
+        $message = $e->getMessage();
+
+        return str_contains($message, 'Deadlock')
+            || str_contains($message, 'Lock wait timeout exceeded')
+            || str_contains($message, '40001')
+            || str_contains($message, '1213')
+            || str_contains($message, '1205');
+    }
+
+    private function shortDatabaseError(\Illuminate\Database\QueryException $e): string
+    {
+        $message = $e->getMessage();
+
+        if (str_contains($message, '1213')) {
+            return 'deadlock';
+        }
+
+        if (str_contains($message, '1205')) {
+            return 'lock timeout';
+        }
+
+        if (str_contains($message, '40001')) {
+            return 'serialization failure';
+        }
+
+        return 'retryable database error';
     }
 
     /**

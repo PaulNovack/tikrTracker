@@ -1,5 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import HeadingSmall from '@/components/heading-small';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { type BreadcrumbItem } from '@/types';
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2, Copy, RefreshCw, Camera, History } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'System', href: '/generic-ta-gate-versions' },
@@ -65,9 +65,11 @@ const GATE_HELP: Record<string, string> = {
     atr_pct: 'Average True Range as % of price (14-period). Higher = more room to run.',
     rvol_ratio: 'Relative volume: last bar volume ÷ 20-bar average. High = unusual activity.',
     move_30m_pct: '% price change over last 6 bars (~30 min). Positive = upward momentum.',
+    move_rvol_composite: 'Composite momentum score combining price move and relative volume.',
     rs_ratio: 'Relative strength vs benchmark (SPY/QQQM). > 1 = outperforming the market.',
     signal_age_seconds: 'Max age of the signal bar. Older signals discarded as stale.',
     above_vwap: 'Price above VWAP. True = institutional support confirmed.',
+    above_vwap_pct: 'Maximum allowed percentage extension above VWAP.',
     ema9_above_ema21: 'EMA(9) > EMA(21). Short-term trend above medium-term.',
     ema_spread_pct: '% spread between EMA9 and EMA21. Wider = stronger trend.',
     ema9_slope_positive: 'EMA9 is rising. Confirms uptrend direction.',
@@ -89,11 +91,17 @@ const GATE_HELP: Record<string, string> = {
     entry_score_min: 'Minimum EntryScore composite metric from one_minute_prices.',
     entry_score_max: 'Maximum EntryScore. Caps overly-hot names.',
     opening_range_width_pct: 'Opening range (first 15 min) width %. Too narrow = no opportunity.',
+    opening_range_bar_count: 'Minimum number of opening-range bars required before breakout logic can trigger.',
+    breakout_detected: 'Requires a breakout above the opening range or recent local high.',
     consolidation_range_pct: 'Max range tightness of recent bars. Tight = potential breakout.',
     dist_to_hod_pct: 'Distance to session high as %. Closer = stronger relative position.',
     distance_from_ema9_atr: 'Distance from EMA9 in ATR multiples. Near = pullback entry zone.',
     vwap_distance_min: 'Min distance above VWAP. Stock has cleared VWAP decisively.',
     sum_vol_5m: 'Total 5m volume over lookback window. Ensures meaningful liquidity.',
+    bb_position: 'Bollinger Bands position within the band. Higher = closer to the upper band.',
+    reversal_pattern: 'Reversal setup such as a base, dump-and-reclaim, or similar structure.',
+    pump_exhaustion_threshold: 'Rejects overextended pump moves that look exhausted.',
+    reject_inverted_v: 'Rejects inverted-V tops that often fade after a sharp spike.',
     net_progress_pct: 'Net % progress from first to last bar. Positive = upward drift.',
     move_from_open_pct: 'Today move from open %. Filters names that have not moved yet.',
     notional_1m: 'Dollar volume of entry 1m bar: price × volume. Ensures tradable size.',
@@ -107,7 +115,48 @@ const GATE_HELP: Record<string, string> = {
     upper_wick_fraction: 'Upper wick as fraction of range. Small = no selling at high.',
     extreme_drop: 'Reject if bar-to-bar drop > 50% (data error or reverse split).',
     time_blocked: 'Block entries during lunch chop window (11:30-13:30 ET).',
+    max_above_ema9_bps: 'Maximum allowed distance above EMA9, measured in basis points.',
+    pullback_max_under_ema21_bps: 'Maximum allowed pullback below EMA21, measured in basis points.',
+    pullback_depth_impulse_pct: 'How deep the pullback can be relative to the prior impulse leg.',
+    higher_low_pct_min: 'Minimum higher-low improvement needed to keep structure intact.',
+    pullback_volume_ratio_max: 'Maximum pullback volume relative to the recent average.',
+    pullback_bear_body_atr_max: 'Maximum bearish pullback candle body size in ATR units.',
+    stop_buffer_bps: 'Extra stop buffer in basis points below the structural stop level.',
+    stop_atr_mult: 'Stop distance expressed as ATR multiples.',
+    stop_pct: 'Stop loss percentage from the entry price.',
+    reward_risk_min: 'Minimum reward-to-risk ratio required for the setup.',
+    choppiness_directional_max: 'Maximum allowed choppiness or directional flip count.',
+    max_hour: 'Latest hour of day allowed for the setup.',
+    impulse_move_pct: 'Minimum move required for the initial impulse leg.',
+    impulse_atr: 'Minimum impulse size expressed in ATR multiples.',
+    impulse_green: 'Requires the impulse candle to close green.',
+    impulse_volume_ratio: 'Relative volume requirement for the impulse candle.',
+    confirm_volume_ratio: 'Relative volume requirement for the confirmation candle.',
+    confirm_body_pct: 'Minimum body size for the confirmation candle.',
+    confirm_close_position: 'Minimum close position within the confirmation candle range.',
+    confirm_high_break: 'Requires confirmation to break the prior high.',
+    confirm_above_vwap_pct_max: 'Maximum allowed extension above VWAP during confirmation.',
+    body_range_fraction_min: 'Minimum candle body as a fraction of total range.',
+    close_position_min: 'Minimum close position within the candle range.',
+    upper_wick_fraction_max: 'Maximum allowed upper wick as a fraction of the candle range.',
+    above_vwap_required: 'Requires price to remain above VWAP.',
+    room_to_run_pct_min: 'Minimum room available from entry to the session high.',
+    ema9_above_ema21_1m: 'Requires the 1-minute EMA9 to stay above EMA21.',
+    ema9_above_ema21_5m: 'Requires the 5-minute EMA9 to stay above EMA21.',
+    pullback_vwap_dist_max: 'Maximum pullback distance below VWAP allowed.',
+    pullback_depth_5m_ema9_pct_max: 'Maximum pullback depth relative to the 5-minute EMA9.',
+    reclaim_strength_pct_min: 'Minimum green reclaim strength required after a dip.',
+    trigger_high_break_volume_ratio: 'Volume ratio required for the high-break trigger.',
+    trigger_high_break_move_3m_pct: 'Minimum 3-minute move required for the high-break trigger.',
+    trigger_break_distance_atr_max: 'Maximum ATR distance allowed from the trigger breakout level.',
+    trigger_local_high_lookback: 'Number of bars used to define the local high trigger.',
+    trigger_accel_move_3m_pct: 'Minimum 3-minute acceleration move required.',
+    trigger_accel_volume_ratio: 'Volume ratio required for the acceleration trigger.',
 };
+
+function getGateHelp(name: string): string {
+    return GATE_HELP[name] ?? `Gate: ${name.replaceAll('_', ' ')}.`;
+}
 
 interface Version {
     id: number;
@@ -122,9 +171,78 @@ interface Version {
 
 interface Props { versions: Version[]; allGateNames: string[]; }
 
+// Build the full editable gate list per timeframe by unioning the hardcoded
+// known gates with every gate name actually present in the DB (across all
+// versions). This guarantees gates like five_min_green_bar_pct and
+// three_bar_gain_pct always appear in the UI even if they weren't in the
+// static list.
+function buildGateLists(versions: Version[]): { fiveMin: string[]; oneMin: string[] } {
+    const db5m = new Set<string>();
+    const db1m = new Set<string>();
+    for (const v of versions) {
+        for (const g of v.gates_5m) db5m.add(g.gate_name);
+        for (const g of v.gates_1m) db1m.add(g.gate_name);
+    }
+    return {
+        fiveMin: Array.from(new Set([...ALL_5M_GATES, ...db5m])).sort(),
+        oneMin: Array.from(new Set([...ALL_1M_GATES, ...db1m])).sort(),
+    };
+}
+
 export default function GenericTaGateVersions({ versions }: Props) {
     const [expanded, setExpanded] = useState<number | null>(null);
     const [showNewDialog, setShowNewDialog] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [snapshotting, setSnapshotting] = useState(false);
+    const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null);
+    const gateLists = buildGateLists(versions);
+
+    const refreshFromServer = () => {
+        setRefreshing(true);
+        router.reload({
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => setRefreshing(false),
+        });
+    };
+
+    const csrfToken = (): string =>
+        document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+
+    const snapshotAll = async () => {
+        setSnapshotting(true);
+        setSnapshotStatus(null);
+        try {
+            const res = await fetch('/generic-ta-gate-versions/snapshot-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setSnapshotStatus(`✅ Snapshot created for ${data.created} version(s) (${data.stamp})`);
+                refreshFromServer();
+            } else {
+                setSnapshotStatus(`❌ ${data.error ?? 'Failed to snapshot all'}`);
+            }
+        } catch {
+            setSnapshotStatus('❌ Network error while snapshotting all');
+        } finally {
+            setSnapshotting(false);
+        }
+    };
+
+    // Refresh from the server whenever the tab regains focus. This keeps the
+    // displayed values in sync with the database even if gates were changed
+    // externally (tuning script, direct DB edits, another tab).
+    useEffect(() => {
+        const onFocus = () => {
+            // Skip the initial mount focus to avoid an immediate redundant reload.
+            refreshFromServer();
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -132,17 +250,44 @@ export default function GenericTaGateVersions({ versions }: Props) {
             <div className="space-y-6 p-6">
                 <div className="flex items-center justify-between">
                     <HeadingSmall title="TA Gate Versions" description="Manage alert versions and gate thresholds. DB-driven — no code deploys needed." />
-                    <Button onClick={() => setShowNewDialog(true)}><Plus className="mr-1 h-4 w-4" /> New Version</Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={snapshotAll} disabled={snapshotting}>
+                            <Camera className={`mr-1 h-4 w-4 ${snapshotting ? 'animate-pulse' : ''}`} />
+                            {snapshotting ? 'Snapshotting...' : 'Snapshot All'}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={refreshFromServer} disabled={refreshing}>
+                            <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                            {refreshing ? 'Refreshing...' : 'Refresh'}
+                        </Button>
+                        <Button onClick={() => setShowNewDialog(true)}><Plus className="mr-1 h-4 w-4" /> New Version</Button>
+                    </div>
                 </div>
                 <Separator />
+
+                {snapshotStatus && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                        {snapshotStatus}
+                    </div>
+                )}
 
                 {showNewDialog && (
                     <CreateDialog onClose={() => setShowNewDialog(false)} onSuccess={() => { setShowNewDialog(false); router.reload(); }} />
                 )}
 
+                <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 dark:bg-gray-900 dark:border-gray-700">
+                    <div className="flex items-center gap-2 text-sm">
+                        <History className="h-4 w-4 text-blue-500" />
+                        <span className="font-medium">Gate Version Snapshots</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">View, restore, or delete point-in-time version configurations</span>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/generic-ta-gate-versions/snapshots"><History className="mr-1 h-4 w-4" /> Manage Snapshots</Link>
+                    </Button>
+                </div>
+
                 <div className="space-y-4">
                     {versions.map((v) => (
-                        <VersionCard key={v.id} version={v} expanded={expanded} setExpanded={setExpanded} />
+                        <VersionCard key={v.id} version={v} expanded={expanded} setExpanded={setExpanded} gateLists={gateLists} />
                     ))}
                 </div>
             </div>
@@ -151,8 +296,7 @@ export default function GenericTaGateVersions({ versions }: Props) {
 }
 
 function GateHelp({ name, enabled }: { name: string; enabled: boolean }) {
-    const desc = GATE_HELP[name];
-    if (!desc) return <span className={`w-56 font-mono text-xs ${enabled ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'}`}>{name}</span>;
+    const desc = getGateHelp(name);
 
     return (
         <Tooltip>
@@ -165,11 +309,39 @@ function GateHelp({ name, enabled }: { name: string; enabled: boolean }) {
 }
 
 /** One expandable version card */
-function VersionCard({ version: v, expanded, setExpanded }: { version: Version; expanded: number | null; setExpanded: (n: number | null) => void }) {
+function VersionCard({ version: v, expanded, setExpanded, gateLists }: { version: Version; expanded: number | null; setExpanded: (n: number | null) => void; gateLists: { fiveMin: string[]; oneMin: string[] } }) {
     const isOpen = expanded === v.id;
     const [editingFormula, setEditingFormula] = useState(false);
     const [formulaValue, setFormulaValue] = useState(v.scanner_score_formula ?? '');
     const [confirmAction, setConfirmAction] = useState<'delete' | 'clone' | null>(null);
+    const [snapshotting, setSnapshotting] = useState(false);
+    const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+
+    const csrfToken = (): string =>
+        document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+
+    const snapshotVersion = async (id: number, pipelineLetter: string) => {
+        setSnapshotting(true);
+        setSnapshotMsg(null);
+        try {
+            const res = await fetch(`/generic-ta-gate-versions/${id}/snapshot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setSnapshotMsg(`✅ Snapshot "${data.snapshot_name}" created`);
+            } else {
+                setSnapshotMsg(`❌ ${data.error ?? 'Failed to snapshot'}`);
+            }
+        } catch {
+            setSnapshotMsg('❌ Network error');
+        } finally {
+            setSnapshotting(false);
+            router.reload({ preserveScroll: true });
+        }
+    };
 
     const saveFormula = () => {
         router.patch(`/generic-ta-gate-versions/${v.id}`, {
@@ -213,6 +385,11 @@ function VersionCard({ version: v, expanded, setExpanded }: { version: Version; 
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); snapshotVersion(v.id, v.pipeline_letter); }}
+                        className="rounded border px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                        title={`Snapshot ${v.pipeline_letter}/${v.version_string}`}>
+                        <Camera className="mr-1 inline h-3.5 w-3.5" /> Snapshot
+                    </button>
                     <button onClick={(e) => { e.stopPropagation(); router.post(`/generic-ta-gate-versions/${v.id}/toggle`); }}
                         className={`rounded px-3 py-1 text-xs font-medium ${v.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'}`}>
                         {v.enabled ? 'Enabled' : 'Disabled'}
@@ -221,16 +398,22 @@ function VersionCard({ version: v, expanded, setExpanded }: { version: Version; 
                 </div>
             </div>
 
+            {snapshotMsg && (
+                <div className="border-t px-4 py-2 text-xs text-blue-700 dark:border-gray-700 dark:text-blue-300">
+                    {snapshotMsg}
+                </div>
+            )}
+
             {isOpen && (
                 <div className="border-t px-4 py-4 dark:border-gray-700">
                     <div className="flex gap-8">
                         <div className="flex-1">
                             <h3 className="mb-2 text-sm font-semibold text-yellow-600 dark:text-yellow-400">5-Minute Scanner Gates</h3>
-                            <GateEditor versionId={v.id} timeframe="5m" gates={v.gates_5m} allGates={ALL_5M_GATES} />
+                            <GateEditor versionId={v.id} timeframe="5m" gates={v.gates_5m} allGates={gateLists.fiveMin} />
                         </div>
                         <div className="flex-1">
                             <h3 className="mb-2 text-sm font-semibold text-cyan-600 dark:text-cyan-400">1-Minute Entry Gates</h3>
-                            <GateEditor versionId={v.id} timeframe="1m" gates={v.gates_1m} allGates={ALL_1M_GATES} />
+                            <GateEditor versionId={v.id} timeframe="1m" gates={v.gates_1m} allGates={gateLists.oneMin} />
                         </div>
                     </div>
                     <Separator className="my-4" />
@@ -301,6 +484,29 @@ function GateEditor({ versionId, timeframe, gates, allGates }: { versionId: numb
     // Local editing state so number inputs can accept typing and spinner arrows.
     // Keyed by gate name, synced back to server on blur.
     const [localValues, setLocalValues] = useState<Record<string, { min: string; max: string }>>({});
+
+    // Keep the displayed values in sync with the SERVER props. Whenever the page
+    // reloads (router.reload / navigating back to this page), the `gates` prop is
+    // refreshed with the latest DB state. This effect rebuilds savedValues from
+    // those fresh props so the UI always matches the database — including changes
+    // made outside the page (e.g. the tuning script, or direct DB edits).
+    // We use a JSON signature of `gates` so the effect only fires when the props
+    // actually change, not on every render.
+    const gatesSignature = JSON.stringify(gates);
+    useEffect(() => {
+        const rebuilt: Record<string, { min: string; max: string; enabled: boolean }> = {};
+        for (const g of gates) {
+            rebuilt[g.gate_name] = {
+                min: g.threshold_min !== undefined && g.threshold_min !== null ? String(g.threshold_min) : '',
+                max: g.threshold_max !== undefined && g.threshold_max !== null ? String(g.threshold_max) : '',
+                enabled: g.enabled,
+            };
+        }
+        setSavedValues(rebuilt);
+        // Clear any in-progress edits when server state refreshes.
+        setLocalValues({});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gatesSignature]);
 
     const csrfToken = (): string =>
         document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';

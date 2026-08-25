@@ -16,6 +16,8 @@ class AnalyzeTradeAlertsPerformance extends Command
         {--show-details : Show detailed trade-by-trade results}
         {--compare-baseline : Compare with baseline 40% win rate}
         {--algo-version= : Filter by algorithm version (v1, v2, etc.)}
+        {--failed-only : Only analyze backtest candidates that failed gates}
+        {--table=trade_alerts : Source table to analyze}
     ';
 
     protected $description = 'Analyze actual P&L performance of generated trade alerts';
@@ -30,6 +32,8 @@ class AnalyzeTradeAlertsPerformance extends Command
 
     private float $totalRiskAdjustedPnL = 0.0;
 
+    private string $tableName = 'trade_alerts';
+
     public function handle(): int
     {
         $signalType = (string) $this->option('signal-type');
@@ -40,6 +44,14 @@ class AnalyzeTradeAlertsPerformance extends Command
         $showDetails = (bool) $this->option('show-details');
         $compareBaseline = (bool) $this->option('compare-baseline');
         $algoVersion = $this->option('algo-version');
+        $failedOnly = (bool) $this->option('failed-only');
+        $this->tableName = (string) $this->option('table');
+
+        if ($failedOnly && $this->tableName !== 'trade_alerts_backtest_candidates') {
+            $this->error('--failed-only is only supported when using --table=trade_alerts_backtest_candidates');
+
+            return 1;
+        }
 
         $this->info('📊 Analyzing Trade Alerts Performance');
         $this->info("🎯 Signal Type: {$signalType}");
@@ -61,7 +73,7 @@ class AnalyzeTradeAlertsPerformance extends Command
         }
         $this->newLine();
 
-        $query = '
+        $query = "
             SELECT
                 symbol,
                 entry_type,
@@ -74,9 +86,9 @@ class AnalyzeTradeAlertsPerformance extends Command
                 targets,
                 version,
                 created_at
-            FROM trade_alerts
+            FROM {$this->tableName}
             WHERE signal_type = ?
-        ';
+        ";
 
         $params = [$signalType];
 
@@ -99,6 +111,12 @@ class AnalyzeTradeAlertsPerformance extends Command
             $query .= ' AND version = ?';
             $params[] = (string) $algoVersion;
         }
+
+        if ($failedOnly) {
+            $query .= ' AND passed_gates = 0';
+        }
+
+        $query .= ' AND entry IS NOT NULL AND stop IS NOT NULL';
 
         $query .= ' ORDER BY entry_ts_est ASC';
 
@@ -396,10 +414,10 @@ class AnalyzeTradeAlertsPerformance extends Command
 
     private function updateAlertWithResults(object $alert, array $result): void
     {
-        DB::table('trade_alerts')
+        DB::table($this->tableName)
             ->where('symbol', $alert->symbol)
             ->where('entry_ts_est', $alert->entry_ts_est)
-            ->where('signal_type', 'MOMO_5M')
+            ->where('signal_type', $alert->signal_type)
             ->where('version', $alert->version)
             ->update([
                 'exit_price' => $result['exit_price'],

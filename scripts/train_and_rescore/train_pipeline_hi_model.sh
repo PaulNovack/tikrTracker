@@ -22,8 +22,8 @@ echo ""
 # Train combined H+I+D model
 python python_ml/v2/v2/train_stock_winner_model_v2.py train \
   --pipeline H,I,D \
-  --win-threshold 2.0 \
-  --actual-fill-weight 20.0 \
+  --win-threshold 1.5 \
+  --actual-fill-weight 1.0 \
   --eval-on-actual-only \
   --start 2024-01-01 \
   --end "$TODAY" \

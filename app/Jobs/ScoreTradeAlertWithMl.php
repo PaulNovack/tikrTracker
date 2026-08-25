@@ -43,6 +43,9 @@ class ScoreTradeAlertWithMl implements ShouldQueue
             return;
         }
 
+        $previousMlWinProb = $alert->ml_win_prob !== null ? (float) $alert->ml_win_prob : null;
+        $previousMlScoredAt = $alert->ml_scored_at;
+
         // Pipeline K risk filter: skip ML scoring for risk_pct >= 2.0%
         if ($this->pipelineRun === 'K' && (float) ($alert->risk_pct ?? 0) >= 2.0) {
             Log::info("ML Scoring: Skipping Pipeline K alert {$this->alertId} ({$alert->symbol}) — risk_pct {$alert->risk_pct}% >= 2.0% execution filter");
@@ -89,20 +92,42 @@ class ScoreTradeAlertWithMl implements ShouldQueue
             if ($updatedAlert && $updatedAlert->ml_win_prob !== null) {
                 // Reset passed_ml based on the actual threshold — Python always sets it to 1
                 $mlThreshold = TradingSettingService::getPipelineMlThreshold($this->pipelineRun);
-                $passedMl = (float) $updatedAlert->ml_win_prob >= $mlThreshold ? 1 : 0;
+                $newMlWinProb = (float) $updatedAlert->ml_win_prob;
+                $passedMl = $newMlWinProb >= $mlThreshold ? 1 : 0;
                 DB::table($this->tableName)
                     ->where('id', $this->alertId)
                     ->update(['passed_ml' => $passedMl]);
+
+                Log::info("ML scoring finalized for alert {$this->alertId} ({$updatedAlert->symbol})", [
+                    'alert_id' => $this->alertId,
+                    'symbol' => $updatedAlert->symbol,
+                    'pipeline' => $this->pipelineRun,
+                    'table' => $this->tableName,
+                    'previous_ml_win_prob' => $previousMlWinProb,
+                    'previous_ml_scored_at' => $previousMlScoredAt,
+                    'new_ml_win_prob' => $newMlWinProb,
+                    'threshold' => $mlThreshold,
+                    'passed_ml' => $passedMl,
+                    'model_version' => $updatedAlert->ml_model_version ?? 'unknown',
+                ]);
 
                 try {
                     broadcast(new TradeAlertMLScored(
                         alertId: $this->alertId,
                         symbol: $updatedAlert->symbol,
-                        mlWinProb: (float) $updatedAlert->ml_win_prob,
+                        mlWinProb: $newMlWinProb,
                         mlModelVersion: $updatedAlert->ml_model_version ?? 'unknown',
                         tableName: $this->tableName,
                     ));
-                    Log::info("Broadcasted ML score for alert {$this->alertId} ({$updatedAlert->symbol})");
+                    Log::info("Broadcasted ML score for alert {$this->alertId} ({$updatedAlert->symbol})", [
+                        'alert_id' => $this->alertId,
+                        'symbol' => $updatedAlert->symbol,
+                        'pipeline' => $this->pipelineRun,
+                        'table' => $this->tableName,
+                        'new_ml_win_prob' => $newMlWinProb,
+                        'threshold' => $mlThreshold,
+                        'passed_ml' => $passedMl,
+                    ]);
                 } catch (\Throwable $broadcastError) {
                     Log::warning("Failed to broadcast ML score for alert {$this->alertId}: ".$broadcastError->getMessage());
                 }

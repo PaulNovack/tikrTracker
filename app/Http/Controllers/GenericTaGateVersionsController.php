@@ -62,6 +62,184 @@ class GenericTaGateVersionsController extends Controller
     }
 
     /**
+     * Dedicated page listing all snapshots with view / restore / delete.
+     */
+    public function snapshots(): Response
+    {
+        $snapshots = DB::table('gate_version_snapshots')
+            ->orderByDesc('snapshot_at')
+            ->get();
+
+        return Inertia::render('system/GateVersionSnapshots', [
+            'snapshots' => $snapshots,
+        ]);
+    }
+
+    /**
+     * Create a snapshot of a single version's config + gates.
+     * Returns the snapshot name so the frontend can confirm.
+     */
+    public function snapshot(Request $request, int $id): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $version = DB::table('alert_versions')->where('id', $id)->first();
+        if (! $version) {
+            return response()->json(['error' => 'Version not found.'], 404);
+        }
+
+        $name = $this->buildSnapshotName($version, $request->input('name'));
+
+        $gates = DB::table('alert_version_gates')
+            ->where('alert_version_id', $id)
+            ->orderBy('timeframe')
+            ->orderBy('gate_name')
+            ->get();
+
+        DB::table('gate_version_snapshots')->insert([
+            'snapshot_name' => $name,
+            'pipeline_letter' => $version->pipeline_letter,
+            'version_string' => $version->version_string,
+            'signal_type' => $version->signal_type,
+            'scanner_score_formula' => $version->scanner_score_formula,
+            'enabled' => (bool) $version->enabled,
+            'gates_data' => json_encode($gates->toArray()),
+            'snapshot_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['success' => true, 'snapshot_name' => $name, 'pipeline_letter' => $version->pipeline_letter]);
+    }
+
+    /**
+     * Create snapshots of ALL versions at once.
+     */
+    public function snapshotAll(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $versions = DB::table('alert_versions')->get();
+
+        if ($versions->isEmpty()) {
+            return response()->json(['error' => 'No alert versions to snapshot.'], 404);
+        }
+
+        $created = 0;
+        $stamp = now()->format('Y-m-d_His');
+        foreach ($versions as $version) {
+            $gates = DB::table('alert_version_gates')
+                ->where('alert_version_id', $version->id)
+                ->orderBy('timeframe')
+                ->orderBy('gate_name')
+                ->get();
+
+            $name = "{$version->pipeline_letter}_{$version->version_string}_ALL_{$stamp}";
+
+            DB::table('gate_version_snapshots')->insert([
+                'snapshot_name' => $name,
+                'pipeline_letter' => $version->pipeline_letter,
+                'version_string' => $version->version_string,
+                'signal_type' => $version->signal_type,
+                'scanner_score_formula' => $version->scanner_score_formula,
+                'enabled' => (bool) $version->enabled,
+                'gates_data' => json_encode($gates->toArray()),
+                'snapshot_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $created++;
+        }
+
+        return response()->json(['success' => true, 'created' => $created, 'stamp' => $stamp]);
+    }
+
+    /**
+     * Restore a version's config + gates from a snapshot.
+     */
+    public function restore(Request $request, int $snapshotId): \Illuminate\Http\JsonResponse
+    {
+        $snapshot = DB::table('gate_version_snapshots')->where('id', $snapshotId)->first();
+        if (! $snapshot) {
+            return response()->json(['error' => 'Snapshot not found.'], 404);
+        }
+
+        $gates = json_decode((string) $snapshot->gates_data, true) ?: [];
+
+        // Locate the version by pipeline_letter + version_string (restores onto the
+        // matching current version; if it no longer exists we cannot restore).
+        $version = DB::table('alert_versions')
+            ->where('pipeline_letter', $snapshot->pipeline_letter)
+            ->where('version_string', $snapshot->version_string)
+            ->first();
+
+        if (! $version) {
+            return response()->json([
+                'error' => "Version {$snapshot->pipeline_letter}/{$snapshot->version_string} no longer exists. Cannot restore.",
+            ], 404);
+        }
+
+        DB::transaction(function () use ($version, $snapshot, $gates) {
+            // Restore version-level fields.
+            DB::table('alert_versions')->where('id', $version->id)->update([
+                'signal_type' => $snapshot->signal_type,
+                'scanner_score_formula' => $snapshot->scanner_score_formula,
+                'enabled' => (bool) $snapshot->enabled,
+                'updated_at' => now(),
+            ]);
+
+            // Restore gates: wipe current gates for this version, then re-insert snapshot values.
+            DB::table('alert_version_gates')->where('alert_version_id', $version->id)->delete();
+
+            foreach ($gates as $g) {
+                DB::table('alert_version_gates')->insert([
+                    'alert_version_id' => $version->id,
+                    'timeframe' => $g['timeframe'] ?? '5m',
+                    'gate_name' => $g['gate_name'] ?? 'unknown',
+                    'threshold_min' => isset($g['threshold_min']) && $g['threshold_min'] !== null ? $g['threshold_min'] : null,
+                    'threshold_max' => isset($g['threshold_max']) && $g['threshold_max'] !== null ? $g['threshold_max'] : null,
+                    'enabled' => isset($g['enabled']) ? (bool) $g['enabled'] : true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            \Illuminate\Support\Facades\Cache::forget('rt:config:tradingv2:versions');
+        });
+
+        return response()->json([
+            'success' => true,
+            'snapshot_name' => $snapshot->snapshot_name,
+            'pipeline_letter' => $snapshot->pipeline_letter,
+            'version_string' => $snapshot->version_string,
+        ]);
+    }
+
+    /**
+     * Delete a snapshot.
+     */
+    public function deleteSnapshot(Request $request, int $snapshotId): \Illuminate\Http\JsonResponse
+    {
+        DB::table('gate_version_snapshots')->where('id', $snapshotId)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Build a snapshot name: if a custom name given, use it; otherwise
+     * pipeline_version_YYYY-MM-DD_HHMMSS.
+     */
+    private function buildSnapshotName(object $version, ?string $customName): string
+    {
+        $stamp = now()->format('Y-m-d_His');
+        if ($customName && trim($customName) !== '') {
+            return trim($customName).'_'.$stamp;
+        }
+
+        return "{$version->pipeline_letter}_{$version->version_string}_{$stamp}";
+    }
+
+    /**
      * Create a new alert version.
      */
     public function store(Request $request): \Illuminate\Http\RedirectResponse

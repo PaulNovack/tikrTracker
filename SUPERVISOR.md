@@ -209,7 +209,6 @@ Each active pipeline has a continuous backtest script that runs a rolling `-15mi
 | `laravel-invest-backtest-d` | `scripts/continuous-back/d-backtest_comparison.sh` | `/dev/null` |
 | `laravel-invest-backtest-e` | `scripts/continuous-back/e-backtest_comparison.sh` | `/dev/null` |
 | `laravel-invest-backtest-f` | `scripts/continuous-back/f-backtest_comparison.sh` | `/dev/null` |
-| `laravel-invest-backtest-g` | `scripts/continuous-back/g-backtest_comparison.sh` | `/dev/null` |
 | `laravel-invest-backtest-h` | `scripts/continuous-back/h-backtest_comparison.sh` | `/dev/null` |
 | `laravel-invest-backtest-i` | `scripts/continuous-back/i-backtest_comparison.sh` | `/dev/null` |
 | `laravel-invest-backtest-j` | `scripts/continuous-back/j-backtest_comparison.sh` | `/dev/null` |

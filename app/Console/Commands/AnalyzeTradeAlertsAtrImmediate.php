@@ -11,6 +11,10 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     protected $signature = 'analyze:trade-alerts-atr-immediate
         {--algo-version=v12.4 : Algorithm version to analyze}
         {--pipeline= : Pipeline run to filter (A or B)}
+        {--from= : Start date (YYYY-MM-DD, EST) for entry_ts_est}
+        {--to= : End date (YYYY-MM-DD, EST) for entry_ts_est}
+        {--table=trade_alerts : Source table to analyze}
+        {--failed-only : Only analyze rejected backtest candidates}
         {--atr-multiplier= : ATR multiplier for stop distance (uses config default 4.0x if not specified)}
         {--fixed-stop-pct= : Use fixed percentage stop instead of ATR (e.g., 1.0 for 1%)}
         {--show-details : Show detailed trade-by-trade results}
@@ -19,6 +23,7 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         {--write-results : Write analysis results back to trade_alerts table}
         {--only-unanalyzed : Skip alerts that already have exit_price set}
         {--use-full-tables : Use one_minute_prices_full for price lookup}
+        {--win-threshold=1.5 : Minimum pnl_percent to count as a WIN. Anything below this (including any negative) is a LOSS. Default 1.5%.}
     ';
 
     protected $description = 'Analyze trade alerts performance using ATR stops IMMEDIATELY from entry (no profit requirement)';
@@ -28,6 +33,8 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
     private int $winners = 0;
 
     private int $losers = 0;
+
+    private float $winThreshold = 1.5;
 
     private float $totalPnL = 0.0;
 
@@ -41,6 +48,10 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
 
         $algoVersion = $this->option('algo-version');
         $pipeline = $this->option('pipeline');
+        $fromDate = $this->option('from');
+        $toDate = $this->option('to');
+        $tableName = (string) $this->option('table');
+        $failedOnly = (bool) $this->option('failed-only');
         // Read from DB-backed settings if not specified (falls back to config defaults)
         $atrMultiplier = $this->option('atr-multiplier')
             ? (float) $this->option('atr-multiplier')
@@ -52,15 +63,26 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         $useFullTables = (bool) $this->option('use-full-tables');
         $writeResults = (bool) $this->option('write-results');
         $onlyUnanalyzed = (bool) $this->option('only-unanalyzed');
+        $this->winThreshold = (float) $this->option('win-threshold');
         $oneMinuteTable = $useFullTables ? 'one_minute_prices_full' : 'one_minute_prices';
 
         // Determine which table to query based on pipeline config
-        $tableName = 'trade_alerts';
         if ($pipeline) {
             $pipelineLower = strtolower($pipeline);
             $noFilterConfig = config("trading.alert_{$pipelineLower}_no_filter_finder", false);
-            $tableName = $noFilterConfig ? 'trade_alerts_unfiltered' : 'trade_alerts';
+            $defaultTable = $noFilterConfig ? 'trade_alerts_unfiltered' : 'trade_alerts';
+
+            if ($tableName === 'trade_alerts') {
+                $tableName = $defaultTable;
+            }
+
             $this->line("📊 Using table: {$tableName} (NO_FILTER_FINDER=".($noFilterConfig ? 'true' : 'false').')');
+        }
+
+        if ($failedOnly && $tableName !== 'trade_alerts_backtest_candidates') {
+            $this->error('--failed-only is only supported when using --table=trade_alerts_backtest_candidates');
+
+            return 1;
         }
 
         $this->info('📊 Analyzing Trade Alerts with IMMEDIATE ATR-Based Stops');
@@ -68,6 +90,10 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         if ($pipeline) {
             $this->info("🔀 Pipeline: {$pipeline}");
         }
+        if ($fromDate || $toDate) {
+            $this->info('📅 Date Range: '.($fromDate ?: 'start').' -> '.($toDate ?: 'end'));
+        }
+        $this->line("📚 Source Table: {$tableName}");
         $this->line("📈 Price Table: {$oneMinuteTable}");
 
         if ($fixedStopPct) {
@@ -115,6 +141,16 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
         if ($pipeline) {
             $query .= ' AND pipeline_run = ?';
             $params[] = $pipeline;
+        }
+
+        if ($fromDate) {
+            $query .= ' AND entry_ts_est >= ?';
+            $params[] = $fromDate.' 00:00:00';
+        }
+
+        if ($toDate) {
+            $query .= ' AND entry_ts_est <= ?';
+            $params[] = $toDate.' 23:59:59';
         }
 
         if ($minAtrPct !== null) {
@@ -297,7 +333,11 @@ class AnalyzeTradeAlertsAtrImmediate extends Command
             return null;  // Skip this trade - likely bad data
         }
 
-        $isWinner = $pnlPercent > 0;
+        // A trade only counts as a WIN if pnl_percent reaches the win threshold
+        // (default 1.5%). Anything below — including any small positive like +0.3% —
+        // is counted as a LOSS. This matches the training script's definition so
+        // backtest analysis and model labels agree.
+        $isWinner = $pnlPercent >= $this->winThreshold;
 
         $riskAdjustedReturn = $riskPct > 0 ? ($pnlPercent / $riskPct) : 0.0;
 
