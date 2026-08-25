@@ -73,14 +73,18 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
         }
 
         usort($results, static function (array $left, array $right): int {
-            $avgCompare = $right['metrics']['avg_pnl'] <=> $left['metrics']['avg_pnl'];
-            if ($avgCompare !== 0) {
-                return $avgCompare;
+            $leftScore = $this->candidateScore($left['metrics'], $left['baselineMetrics']);
+            $rightScore = $this->candidateScore($right['metrics'], $right['baselineMetrics']);
+
+            if ($leftScore !== $rightScore) {
+                return $rightScore <=> $leftScore;
             }
 
-            $winRateCompare = $right['metrics']['win_rate'] <=> $left['metrics']['win_rate'];
-            if ($winRateCompare !== 0) {
-                return $winRateCompare;
+            $leftRetention = $this->sampleRetentionRatio($left['metrics'], $left['baselineMetrics']);
+            $rightRetention = $this->sampleRetentionRatio($right['metrics'], $right['baselineMetrics']);
+
+            if ($leftRetention !== $rightRetention) {
+                return $rightRetention <=> $leftRetention;
             }
 
             return $right['metrics']['sample_count'] <=> $left['metrics']['sample_count'];
@@ -117,11 +121,25 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
         $this->info('Best candidate');
         $this->line('Pipeline: '.$best['currentVersion']->pipeline_letter);
         $this->line('Version string: '.$versionString);
+        $this->line('Original samples: '.$best['baselineMetrics']['sample_count']);
+        $this->line('Original win rate: '.number_format($best['baselineMetrics']['win_rate'], 1).'%');
+        $this->line('Original average pnl: '.number_format($best['baselineMetrics']['avg_pnl'], 2).'%');
         $this->line('Samples: '.$best['metrics']['sample_count']);
         $this->line('Win rate: '.number_format($best['metrics']['win_rate'], 1).'%');
         $this->line('Average pnl: '.number_format($best['metrics']['avg_pnl'], 2).'%');
         $this->line('Winner average pnl: '.number_format($best['metrics']['winner_avg_pnl'], 2).'%');
         $this->line('Selected gates: '.$best['selectedGateCount']);
+        $this->line('Delta samples: '.$this->formatSignedNumber((float) $best['metrics']['sample_count'] - (float) $best['baselineMetrics']['sample_count'], 0));
+        $this->line('Delta win rate: '.$this->formatSignedNumber((float) $best['metrics']['win_rate'] - (float) $best['baselineMetrics']['win_rate'], 2).'%');
+        $this->line('Delta average pnl: '.$this->formatSignedNumber((float) $best['metrics']['avg_pnl'] - (float) $best['baselineMetrics']['avg_pnl'], 2).'%');
+
+        if ($best['metrics']['avg_pnl'] > $best['baselineMetrics']['avg_pnl']) {
+            $this->info('Result: improved over the original gate set.');
+        } elseif ($best['metrics']['avg_pnl'] < $best['baselineMetrics']['avg_pnl']) {
+            $this->warn('Result: worse than the original gate set on average pnl.');
+        } else {
+            $this->line('Result: no change versus the original gate set.');
+        }
         $this->line('Evaluations: '.$best['evaluations']);
 
         $this->line($sql);
@@ -197,12 +215,14 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
         $currentRules = $this->buildCurrentRules($gates);
         $bestMetrics = $this->evaluateGateSet($rows, $currentRules, $targetPnl);
         $bestRules = $currentRules;
+        $baselineMetrics = $bestMetrics;
         $evaluations = 1;
 
         $groups = $this->buildGateVariantGroups($gates, $rows, $lowQuantile, $highQuantile, $maxVariantsPerGate);
         if (empty($groups)) {
             return [
                 'currentVersion' => $currentVersion,
+                'baselineMetrics' => $baselineMetrics,
                 'metrics' => $bestMetrics,
                 'gateData' => $this->buildGateSqlRows($gates, $bestRules, $rows),
                 'selectedGateCount' => count($bestRules),
@@ -225,6 +245,7 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
                 $state = [
                     'bestMetrics' => $bestMetrics,
                     'bestRules' => $bestRules,
+                    'baselineMetrics' => $baselineMetrics,
                     'evaluations' => 0,
                     'maxEvaluations' => $maxEvaluations - $evaluations,
                     'targetPnl' => $targetPnl,
@@ -338,7 +359,11 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
                 return;
             }
 
-            if ($this->isBetterMetrics($metrics, $state['bestMetrics'])) {
+            if (! $this->candidateKeepsEnoughSamples($metrics, $state['baselineMetrics'])) {
+                return;
+            }
+
+            if ($this->isBetterMetrics($metrics, $state['bestMetrics'], $state['baselineMetrics'])) {
                 $state['bestMetrics'] = $metrics;
                 $state['bestRules'] = $selectedRules;
             }
@@ -595,17 +620,78 @@ class BuildWinningPipelineSqlExhaustiveCommand extends Command
         return null;
     }
 
-    private function isBetterMetrics(array $candidate, array $baseline): bool
+    private function isBetterMetrics(array $candidate, array $baseline, array $origin): bool
     {
+        $candidateScore = $this->candidateScore($candidate, $origin);
+        $baselineScore = $this->candidateScore($baseline, $origin);
+
+        if (abs($candidateScore - $baselineScore) > 0.02) {
+            return $candidateScore > $baselineScore;
+        }
+
+        $candidateRetention = $this->sampleRetentionRatio($candidate, $origin);
+        $baselineRetention = $this->sampleRetentionRatio($baseline, $origin);
+
+        if ($candidateRetention !== $baselineRetention) {
+            return $candidateRetention > $baselineRetention;
+        }
+
+        if ($candidate['sample_count'] !== $baseline['sample_count']) {
+            return $candidate['sample_count'] > $baseline['sample_count'];
+        }
+
         if ($candidate['avg_pnl'] !== $baseline['avg_pnl']) {
             return $candidate['avg_pnl'] > $baseline['avg_pnl'];
         }
 
-        if ($candidate['win_rate'] !== $baseline['win_rate']) {
-            return $candidate['win_rate'] > $baseline['win_rate'];
+        return $candidate['win_rate'] > $baseline['win_rate'];
+    }
+
+    private function candidateScore(array $candidate, array $baseline): float
+    {
+        $sampleRetention = $this->sampleRetentionRatio($candidate, $baseline);
+        $pnlGain = (float) $candidate['avg_pnl'] - (float) $baseline['avg_pnl'];
+        $winRateGain = (float) $candidate['win_rate'] - (float) $baseline['win_rate'];
+
+        return ($pnlGain * 2.0) + ($winRateGain * 0.02) + ($sampleRetention * 0.75);
+    }
+
+    private function candidateKeepsEnoughSamples(array $candidate, array $baseline): bool
+    {
+        $sampleRetention = $this->sampleRetentionRatio($candidate, $baseline);
+        $pnlGain = (float) $candidate['avg_pnl'] - (float) $baseline['avg_pnl'];
+
+        if ($sampleRetention >= 0.85) {
+            return true;
         }
 
-        return $candidate['sample_count'] > $baseline['sample_count'];
+        if ($sampleRetention >= 0.70) {
+            return $pnlGain >= 0.10;
+        }
+
+        if ($sampleRetention >= 0.55) {
+            return $pnlGain >= 0.20;
+        }
+
+        if ($sampleRetention >= 0.40) {
+            return $pnlGain >= 0.40;
+        }
+
+        if ($sampleRetention >= 0.25) {
+            return $pnlGain >= 0.75;
+        }
+
+        return false;
+    }
+
+    private function sampleRetentionRatio(array $candidate, array $baseline): float
+    {
+        $baselineCount = (int) ($baseline['sample_count'] ?? 0);
+        if ($baselineCount <= 0) {
+            return 0.0;
+        }
+
+        return (float) ($candidate['sample_count'] ?? 0) / $baselineCount;
     }
 
     private function combinationsOfIndices(int $count, int $size): array
