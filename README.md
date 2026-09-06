@@ -1,5 +1,7 @@
 # TikrTracker
 
+# Development work is being done on new repo which will be released soon.  I am deprecating old code and making everything event based.  Should release in the next couple months a new public repo.
+
 **TikrTracker** is a full-stack algorithmic trading, market analysis, and strategy research platform built with **Laravel 12**, **React 19**, **Inertia.js v2**, and **Tailwind CSS v4**. It integrates with the **Alpaca Markets API** to support market-data ingestion, automated paper or live trading, machine-learning signal scoring, historical backtesting, risk management, and real-time operational dashboards.
 
 > [!IMPORTANT]
